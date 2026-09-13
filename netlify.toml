@@ -1,0 +1,10 @@
+# Netlify: publish the website/ folder as-is. products.js is committed
+# (generated locally by scripts/build_catalogue.py), so there is no build step.
+[build]
+  publish = "website"
+  command = ""
+
+[[headers]]
+  for = "/images/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
