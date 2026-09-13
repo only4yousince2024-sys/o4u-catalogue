@@ -799,7 +799,7 @@
 
     /* ══ ORDER MODAL ══ */
     .modal-overlay {
-      position: fixed; inset: 0; z-index: 500;
+      position: fixed; inset: 0; z-index: 1000;
       background: rgba(0,0,0,0.55);
       display: flex; align-items: center; justify-content: center;
       padding: 20px;
@@ -820,25 +820,68 @@
     .modal-overlay.open .modal { transform: translateY(0) scale(1); }
 
     .modal-top {
-      display: flex; gap: 16px; padding: 22px 22px 18px;
+      display: flex; flex-direction: column; gap: 0;
       border-bottom: 1px solid var(--light);
+      position: relative;
     }
-    .modal-img {
-      width: 80px; height: 80px; border-radius: 12px;
-      overflow: hidden; flex-shrink: 0; background: var(--bg);
+    .modal-info { padding: 18px 22px 16px; }
+
+    /* ── Product gallery (vanilla, no library) ── */
+    .modal-gallery { background: var(--bg); }
+    .modal-gallery[hidden] { display: none; }
+    .gal-main {
+      position: relative; width: 100%; height: 300px;
+      overflow: hidden; background: var(--light);
+      touch-action: pan-y; user-select: none;
     }
-    .modal-img img { width: 100%; height: 100%; object-fit: cover; }
-    .modal-img-ph {
-      width: 100%; height: 100%;
+    .gal-main img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .gal-ph {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 8px;
+      background: linear-gradient(160deg, #C9C4CF 0%, #A9A4B5 100%);
+      color: rgba(255,255,255,0.7); font-size: 0.68rem; font-weight: 500;
+      letter-spacing: 1.5px; text-transform: uppercase;
+    }
+    .gal-ph svg { width: 34px; height: 34px; opacity: 0.6; }
+    .gal-nav {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      width: 36px; height: 36px; border-radius: 50%; border: none;
+      background: rgba(250,250,248,0.92); color: var(--black);
+      font-size: 1.4rem; line-height: 1; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      background: var(--bg); font-size: 1.6rem;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.18); transition: background 0.15s;
     }
+    .gal-nav:hover { background: #fff; }
+    .gal-prev { left: 12px; }
+    .gal-next { right: 12px; }
+    .gal-count {
+      position: absolute; bottom: 10px; right: 12px;
+      font-size: 0.66rem; font-weight: 600; letter-spacing: 1px;
+      background: rgba(17,17,16,0.62); color: #fff;
+      padding: 4px 10px; border-radius: 50px;
+    }
+    .gal-thumbs {
+      display: flex; gap: 8px; padding: 10px 14px;
+      overflow-x: auto; scrollbar-width: none;
+    }
+    .gal-thumbs::-webkit-scrollbar { display: none; }
+    .gal-thumb {
+      width: 52px; height: 52px; border-radius: 10px; overflow: hidden;
+      flex-shrink: 0; border: 2px solid transparent; padding: 0;
+      background: var(--light); cursor: pointer; transition: border-color 0.15s;
+    }
+    .gal-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .gal-thumb.active { border-color: var(--orange); }
+    /* single image → no chrome at all */
+    .modal-gallery.single .gal-nav,
+    .modal-gallery.single .gal-count,
+    .modal-gallery.single .gal-thumbs { display: none; }
     .modal-product-cat { font-size: 0.62rem; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--orange); margin-bottom: 4px; }
     .modal-product-name { font-family: 'Playfair Display', serif; font-style: italic; font-size: 1.15rem; font-weight: 600; color: var(--black); margin-bottom: 6px; }
     .modal-price { font-size: 1rem; font-weight: 600; color: var(--black); }
     .modal-price s { font-size: 0.8rem; color: var(--gray); font-weight: 300; margin-left: 6px; }
     .modal-close {
-      margin-left: auto; align-self: flex-start;
+      position: absolute; top: 12px; right: 12px; z-index: 10;
       width: 30px; height: 30px; border-radius: 50%;
       background: var(--bg); border: none; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
@@ -891,7 +934,97 @@
     }
     .modal-wa-btn:hover { opacity: 0.9; transform: translateY(-1px); }
     .modal-wa-btn svg { width: 18px; height: 18px; }
+    .modal-wa-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .modal-add-btn { background: var(--black); box-shadow: 0 4px 16px rgba(0,0,0,0.18); }
     .modal-note { text-align: center; font-size: 0.7rem; color: var(--gray); margin-top: 10px; }
+    .size-hint { font-size: 0.72rem; color: var(--orange); font-weight: 600; margin: -12px 0 16px; display: none; }
+    .size-hint.show { display: block; }
+
+    /* ══ CART ══ */
+    .nav-cart {
+      position: relative; display: flex; align-items: center; gap: 7px;
+      background: var(--white); color: var(--black);
+      border: 1.5px solid var(--light); border-radius: 50px;
+      padding: 8px 14px; margin-right: 12px; cursor: pointer;
+      font-family: 'Nunito', sans-serif; font-size: 0.74rem; font-weight: 600;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .nav-cart:hover { border-color: var(--black); transform: translateY(-1px); }
+    .nav-cart svg { width: 15px; height: 15px; }
+    .cart-count {
+      min-width: 18px; height: 18px; padding: 0 5px; border-radius: 50px;
+      background: var(--orange); color: #fff; font-size: 0.62rem; font-weight: 700;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .cart-count[data-n="0"] { display: none; }
+    .nav-right { display: flex; align-items: center; }
+
+    .float-cart {
+      position: fixed; bottom: 96px; right: 28px; z-index: 999;
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--black); color: #fff; border: none; cursor: pointer;
+      display: none; align-items: center; justify-content: center;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.28);
+      transition: transform 0.2s;
+    }
+    .float-cart:hover { transform: scale(1.08); }
+    .float-cart svg { width: 24px; height: 24px; }
+    .float-cart .cart-count { position: absolute; top: -4px; right: -4px; }
+    .float-cart.has-items { display: flex; }
+
+    .cart-overlay {
+      position: fixed; inset: 0; z-index: 1001;
+      background: rgba(17,17,16,0.5); backdrop-filter: blur(3px);
+      opacity: 0; pointer-events: none; transition: opacity 0.25s;
+    }
+    .cart-overlay.open { opacity: 1; pointer-events: all; }
+    .cart-drawer {
+      position: absolute; top: 0; right: 0; bottom: 0;
+      width: 100%; max-width: 420px;
+      background: var(--white); display: flex; flex-direction: column;
+      transform: translateX(100%); transition: transform 0.28s ease;
+      box-shadow: -12px 0 40px rgba(0,0,0,0.18);
+    }
+    .cart-overlay.open .cart-drawer { transform: translateX(0); }
+    .cart-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 22px 22px 16px; border-bottom: 1px solid var(--light); position: relative;
+    }
+    .cart-head h3 { font-family: 'Playfair Display', serif; font-style: italic; font-size: 1.35rem; font-weight: 600; }
+    .cart-head .modal-close { position: static; }
+    .cart-lines { flex: 1; overflow-y: auto; padding: 8px 22px; }
+    .cart-line {
+      display: grid; grid-template-columns: 1fr auto; gap: 6px 12px;
+      padding: 14px 0; border-bottom: 1px solid var(--light);
+    }
+    .cart-line-name { font-family: 'Playfair Display', serif; font-style: italic; font-size: 1rem; font-weight: 600; }
+    .cart-line-meta { font-size: 0.72rem; color: var(--gray); letter-spacing: 0.3px; }
+    .cart-line-price { font-size: 0.95rem; font-weight: 600; text-align: right; }
+    .cart-line-ctl { display: flex; align-items: center; gap: 10px; grid-column: 1 / -1; }
+    .cart-line-ctl .qty-btn { width: 28px; height: 28px; font-size: 0.95rem; }
+    .cart-line-ctl .qty-num { font-size: 0.9rem; }
+    .cart-remove {
+      margin-left: auto; background: none; border: none; cursor: pointer;
+      font-family: 'Nunito', sans-serif; font-size: 0.7rem; font-weight: 600;
+      letter-spacing: 0.5px; color: var(--gray); text-decoration: underline;
+    }
+    .cart-remove:hover { color: var(--orange); }
+    .cart-empty { text-align: center; color: var(--gray); padding: 60px 20px; font-size: 0.9rem; line-height: 1.6; }
+    .cart-empty strong { display: block; font-family: 'Playfair Display', serif; font-style: italic; font-size: 1.2rem; color: var(--black); margin-bottom: 6px; }
+    .cart-foot { padding: 16px 22px 22px; border-top: 1px solid var(--light); background: var(--card); }
+    .cart-total-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+    .cart-total-row span { font-size: 0.72rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gray); }
+    .cart-total-row strong { font-size: 1.35rem; font-weight: 700; }
+    .cart-fine { font-size: 0.7rem; color: var(--gray); margin-bottom: 14px; }
+    .cart-clear {
+      width: 100%; margin-top: 8px; background: none; border: none; cursor: pointer;
+      font-family: 'Nunito', sans-serif; font-size: 0.72rem; font-weight: 600; color: var(--gray);
+      letter-spacing: 0.5px; text-decoration: underline; padding: 6px;
+    }
+    .cart-steps { margin: 14px 0 0; padding-left: 18px; font-size: 0.72rem; color: var(--gray); line-height: 1.7; }
+    .cart-steps li::marker { color: var(--orange); font-weight: 700; }
+    .cart-sent { font-size: 0.74rem; color: var(--brown); background: rgba(229,97,28,0.08); border-radius: 10px; padding: 10px 12px; margin-top: 10px; display: none; line-height: 1.5; }
+    .cart-sent.show { display: block; }
 
     /* ══ FLOAT WA ══ */
     .float-wa {
@@ -1008,10 +1141,12 @@
         flex-direction: column;
       }
       .modal-top { flex-direction: column; gap: 0; padding: 0; }
-      .modal-img { width: 100%; height: 56vw; max-height: 260px; border-radius: 0; flex-shrink: 0; }
-      .modal-info { padding: 16px 18px 14px; border-bottom: 1px solid var(--light); }
-      .modal-close { position: absolute; top: 14px; right: 14px; z-index: 10; }
+      .gal-main { height: 62vw; max-height: 300px; }
+      .modal-info { padding: 16px 18px 14px; }
+      .modal-close { top: 14px; right: 14px; }
       .modal { position: relative; }
+      .nav-cart { display: none; }
+      .float-cart { bottom: 94px; right: 20px; width: 50px; height: 50px; }
       .modal-product-name { font-size: 1.05rem; }
       .modal-body { padding: 16px 18px 28px; overflow-y: auto; }
     }
@@ -1037,10 +1172,17 @@
     <li><a href="#footer">Contact</a></li>
   </ul>
 
+  <div class="nav-right">
+  <button class="nav-cart" type="button" onclick="openCart()" aria-label="Open your order">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+    <span class="nav-cart-label">Your order</span>
+    <span class="cart-count" data-n="0">0</span>
+  </button>
   <a class="nav-wa" href="#" data-wa="Hi! I visited Only 4 You and want to place an order 👗" target="_blank" rel="noopener">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
     Order on WhatsApp
   </a>
+  </div>
 </nav>
 
 <!-- ══════ HERO ══════ -->
@@ -1125,8 +1267,8 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>
     </div>
     <div>
-      <strong>Easy 7-Day Exchange</strong>
-      <span>Wrong size? We'll fix it.</span>
+      <strong>3-Day Returns</strong>
+      <span>Wrong size? Tell us within 3 days.</span>
     </div>
   </div>
   <div class="trust-divider"></div>
@@ -1167,7 +1309,7 @@
     <div>
       <div class="section-eyebrow">✦ Our Collection</div>
       <h2 class="section-title">Women's Collection</h2>
-      <p class="section-sub">Tap "Order" on any item — we'll confirm sizes, colours & delivery right in chat.</p>
+      <p class="section-sub">Add what you like, then send us the order request on WhatsApp — we confirm stock, sizes &amp; delivery in chat before you pay.</p>
     </div>
     <a href="#" data-wa="Hi! I want to see your full collection 👗" target="_blank" style="font-size:0.75rem; font-weight:600; letter-spacing:1px; color:var(--black); text-decoration:none; border-bottom:1.5px solid var(--black); padding-bottom:2px; white-space:nowrap; transition:color 0.2s;" onmouseover="this.style.color='var(--orange)'; this.style.borderColor='var(--orange)';" onmouseout="this.style.color='var(--black)'; this.style.borderColor='var(--black)';">View All on WhatsApp →</a>
   </div>
@@ -1344,24 +1486,67 @@
   <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
 </a>
 
+<button class="float-cart" id="floatCart" type="button" onclick="openCart()" aria-label="Open your order">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+  <span class="cart-count" data-n="0">0</span>
+</button>
+
+<!-- ══ CART DRAWER ══ -->
+<div class="cart-overlay" id="cartOverlay" onclick="closeCart(event)">
+  <aside class="cart-drawer" id="cartDrawer" role="dialog" aria-label="Your order request" onclick="event.stopPropagation()">
+    <div class="cart-head">
+      <div>
+        <div class="section-eyebrow">✦ Your order</div>
+        <h3>Order request</h3>
+      </div>
+      <button class="modal-close" onclick="closeCart()" aria-label="Close">✕</button>
+    </div>
+    <div class="cart-lines" id="cartLines"></div>
+    <div class="cart-foot" id="cartFoot">
+      <div class="cart-total-row"><span>Total</span><strong id="cartTotal">₹0</strong></div>
+      <div class="cart-fine">Delivery charges extra — we'll tell you the exact amount on WhatsApp.</div>
+      <button class="modal-wa-btn" id="cartSendBtn" onclick="sendWhatsApp()">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+        Send order request on WhatsApp
+      </button>
+      <div class="cart-sent" id="cartSent">WhatsApp should now be open with your order request. If nothing happened, tap the button again. We'll reply to confirm stock &amp; delivery charges.</div>
+      <button class="cart-clear" onclick="clearCart()">Clear order</button>
+      <ol class="cart-steps">
+        <li>We check stock and confirm on WhatsApp</li>
+        <li>You share delivery details and pay the advance (incl. delivery)</li>
+        <li>We pack it and hand it to Porter</li>
+        <li>3-day return window</li>
+      </ol>
+    </div>
+  </aside>
+</div>
+
 <!-- ══ ORDER MODAL ══ -->
 <div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
   <div class="modal" id="modal">
     <div class="modal-top">
-      <div class="modal-img">
-        <img id="modalImg" src="" alt=""/>
+      <div class="modal-gallery" id="modalGallery">
+        <div class="gal-main" id="galMain">
+          <img id="modalImg" src="" alt="" decoding="async"/>
+          <div class="gal-ph" id="galPh" style="display:none;"></div>
+          <button class="gal-nav gal-prev" type="button" onclick="galStep(-1)" aria-label="Previous photo">‹</button>
+          <button class="gal-nav gal-next" type="button" onclick="galStep(1)" aria-label="Next photo">›</button>
+          <div class="gal-count" id="galCount"></div>
+        </div>
+        <div class="gal-thumbs" id="galThumbs"></div>
       </div>
-      <div class="modal-info" style="flex:1; min-width:0;">
+      <div class="modal-info" style="min-width:0;">
         <div class="modal-product-cat" id="modalCat"></div>
         <div class="modal-product-name" id="modalName"></div>
         <div class="modal-price" id="modalPrice"></div>
       </div>
-      <button class="modal-close" onclick="closeModal()">✕</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="Close">✕</button>
     </div>
     <div class="modal-body">
       <div id="sizeSection">
         <div class="modal-label">Choose Size</div>
         <div class="size-grid" id="sizeGrid"></div>
+        <div class="size-hint" id="sizeHint">Please choose a size first</div>
       </div>
       <div id="colorSection">
         <div class="modal-label">Choose Colour / Design</div>
@@ -1373,11 +1558,11 @@
         <span class="qty-num" id="qtyNum">1</span>
         <button class="qty-btn" onclick="changeQty(1)">+</button>
       </div>
-      <button class="modal-wa-btn" onclick="sendWhatsApp()">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
-        Send Order on WhatsApp
+      <button class="modal-wa-btn modal-add-btn" id="modalAddBtn" onclick="addCurrentToCart()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+        Add to order
       </button>
-      <div class="modal-note">We'll confirm availability & delivery details in the chat 🙏</div>
+      <div class="modal-note" id="modalNote">Stock is confirmed by us on WhatsApp before you pay 🙏</div>
     </div>
   </div>
 </div>
@@ -1545,12 +1730,8 @@
     qty = 1;
 
     // Fill modal
-    const img = document.getElementById('modalImg');
-    const first = (p.images && p.images[0]) || '';
-    img.style.display = first ? '' : 'none';
-    img.onerror = () => { img.style.display = 'none'; };
-    img.src = first;
-    img.alt = p.name;
+    galInit(p);
+    document.getElementById('sizeHint').classList.remove('show');
     document.getElementById('modalCat').textContent = catLabel(p.category);
     document.getElementById('modalName').textContent = p.name;
     updateModalPrice();
@@ -1578,11 +1759,60 @@
     document.body.style.overflow = 'hidden';
   }
 
+  // ── GALLERY (vanilla: main image + thumbs, swipe, arrow keys) ──
+  let galImages = [], galIndex = 0;
+  function galInit(p) {
+    galImages = (p.images || []).filter(Boolean);
+    galIndex = 0;
+    const g = document.getElementById('modalGallery');
+    g.classList.toggle('single', galImages.length <= 1);
+    const img = document.getElementById('modalImg');
+    const ph = document.getElementById('galPh');
+    const thumbs = document.getElementById('galThumbs');
+    if (!galImages.length) {
+      img.style.display = 'none'; img.removeAttribute('src');
+      ph.innerHTML = PH_SVG + 'Photo coming soon'; ph.style.display = 'flex';
+      thumbs.innerHTML = '';
+      document.getElementById('galCount').textContent = '';
+      return;
+    }
+    img.alt = p.name;
+    thumbs.innerHTML = galImages.map((src, i) =>
+      `<button class="gal-thumb${i === 0 ? ' active' : ''}" type="button" onclick="galShow(${i})" aria-label="Photo ${i + 1}">
+         <img src="${esc(src)}" alt="" loading="lazy" decoding="async" onerror="this.parentElement.style.display='none'"/>
+       </button>`).join('');
+    galShow(0);
+  }
+  function galShow(i) {
+    if (!galImages.length) return;
+    galIndex = (i + galImages.length) % galImages.length;
+    const img = document.getElementById('modalImg');
+    const ph = document.getElementById('galPh');
+    ph.style.display = 'none'; img.style.display = '';
+    img.onerror = () => { img.style.display = 'none'; ph.innerHTML = PH_SVG + 'Photo unavailable'; ph.style.display = 'flex'; };
+    img.src = galImages[galIndex];
+    document.getElementById('galCount').textContent = `${galIndex + 1} / ${galImages.length}`;
+    document.querySelectorAll('.gal-thumb').forEach((t, k) => t.classList.toggle('active', k === galIndex));
+    const active = document.querySelectorAll('.gal-thumb')[galIndex];
+    if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+  }
+  function galStep(d) { galShow(galIndex + d); }
+  (function galSwipe() {
+    const el = document.getElementById('galMain');
+    let x0 = null;
+    el.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
+    el.addEventListener('touchend', e => {
+      if (x0 === null) return;
+      const dx = e.changedTouches[0].clientX - x0; x0 = null;
+      if (Math.abs(dx) > 40 && galImages.length > 1) galStep(dx < 0 ? 1 : -1);
+    }, { passive: true });
+  })();
+
   function closeModal(e) {
     if (e && e.target !== document.getElementById('modalOverlay') && e.type !== 'click') return;
     if (e && e.currentTarget === document.getElementById('modalOverlay') && e.target !== e.currentTarget) return;
     document.getElementById('modalOverlay').classList.remove('open');
-    document.body.style.overflow = '';
+    if (!document.getElementById('cartOverlay').classList.contains('open')) document.body.style.overflow = '';
   }
 
   function selectSize(btn, size) {
@@ -1606,33 +1836,151 @@
     document.getElementById('qtyNum').textContent = qty;
   }
 
-  function sendWhatsApp() {
-    const p = modalProduct;
-    if (!p) return;
+  // ── CART (client-side only; kept in localStorage so it survives the
+  //    WhatsApp hand-off on phones). One line per product + colour + size. ──
+  const CART_KEY = 'o4u_cart_v1';
+  let cart = loadCart();
 
-    const size = selectedSize || (p.sizes && p.sizes.length ? '(please specify size)' : 'N/A');
-    const color = p.colors && p.colors.length > 1
-      ? document.getElementById('colorSelect').value
-      : (p.colors && p.colors[0]) || 'N/A';
+  const lineKey = (productId, colour, size) => [productId, colour || '', size || ''].join('|');
+  const validLine = l => l && typeof l === 'object' && l.productId && Number(l.quantity) > 0 && Number(l.price) >= 0;
+  function loadCart() {
+    try { const c = JSON.parse(localStorage.getItem(CART_KEY) || '[]'); return Array.isArray(c) ? c.filter(validLine) : []; }
+    catch (e) { return []; }
+  }
+  function saveCart() { try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch (e) {} }
 
-    const msg = [
-      `Hi! I'd like to place an order from *Only 4 You* 🛍️`,
-      ``,
-      `*Product:* ${p.name}`,
-      `*Size:* ${size}`,
-      p.colors && p.colors.length > 0 ? `*Colour:* ${color}` : null,
-      `*Quantity:* ${qty}`,
-      `*Price:* ₹${fmt(unitPrice(p, selectedSize) * qty)} (${qty} × ₹${fmt(unitPrice(p, selectedSize))})`,
-      ``,
-      `Please confirm availability and share delivery details. Thank you! 🙏`
-    ].filter(l => l !== null).join('\n');
+  function addToCart(p, colour, size, quantity) {
+    const key = lineKey(p.id, colour, size);
+    const existing = cart.find(l => l.key === key);
+    if (existing) existing.quantity = Math.min(99, existing.quantity + quantity);
+    else cart.push({ key, productId: p.id, article: p.article || '', name: p.name, colour: colour || '', size: size || '', quantity, price: unitPrice(p, size) });
+    saveCart(); renderCart();
+  }
+  function updateLineQty(key, delta) {
+    const l = cart.find(x => x.key === key);
+    if (!l) return;
+    l.quantity += delta;
+    if (l.quantity <= 0) cart = cart.filter(x => x.key !== key);
+    saveCart(); renderCart();
+  }
+  function removeLine(key) { cart = cart.filter(x => x.key !== key); saveCart(); renderCart(); }
+  function clearCart() { cart = []; saveCart(); renderCart(); }
+  const cartCount = () => cart.reduce((n, l) => n + l.quantity, 0);
+  const cartTotal = () => cart.reduce((n, l) => n + l.quantity * l.price, 0);
 
-    window.open(`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`, '_blank');
-    closeModal();
+  function renderCart() {
+    const n = cartCount();
+    document.querySelectorAll('.cart-count').forEach(el => { el.textContent = n; el.dataset.n = n; });
+    document.getElementById('floatCart').classList.toggle('has-items', n > 0);
+    const lines = document.getElementById('cartLines');
+    const foot = document.getElementById('cartFoot');
+    if (!cart.length) {
+      lines.innerHTML = `<div class="cart-empty"><strong>Nothing here yet</strong>Tap "Order" on any product to add it. You can add several items and send them together.</div>`;
+      foot.style.display = 'none';
+      return;
+    }
+    foot.style.display = '';
+    lines.innerHTML = cart.map(l => `
+      <div class="cart-line" data-key="${esc(l.key)}">
+        <div>
+          <div class="cart-line-name">${esc(l.name)}</div>
+          <div class="cart-line-meta">${esc(l.article)}${l.colour ? ' · ' + esc(l.colour) : ''}${l.size ? ' · Size ' + esc(l.size) : ''} · ₹${fmt(l.price)} each</div>
+        </div>
+        <div class="cart-line-price">₹${fmt(l.price * l.quantity)}</div>
+        <div class="cart-line-ctl">
+          <button class="qty-btn" onclick="updateLineQty('${esc(l.key)}', -1)" aria-label="Decrease quantity">−</button>
+          <span class="qty-num">${l.quantity}</span>
+          <button class="qty-btn" onclick="updateLineQty('${esc(l.key)}', 1)" aria-label="Increase quantity">+</button>
+          <button class="cart-remove" onclick="removeLine('${esc(l.key)}')">Remove</button>
+        </div>
+      </div>`).join('');
+    document.getElementById('cartTotal').textContent = '₹' + fmt(cartTotal());
   }
 
-  // Close on Escape
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+  function openCart() {
+    renderCart();
+    document.getElementById('cartSent').classList.remove('show');
+    document.getElementById('cartOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeCart(e) {
+    if (e && e.target !== document.getElementById('cartOverlay')) return;
+    document.getElementById('cartOverlay').classList.remove('open');
+    if (!document.getElementById('modalOverlay').classList.contains('open')) document.body.style.overflow = '';
+  }
+
+  // Modal → cart
+  function addCurrentToCart() {
+    const p = modalProduct;
+    if (!p) return;
+    if (p.sizes && p.sizes.length && !selectedSize) {
+      document.getElementById('sizeHint').classList.add('show');
+      document.getElementById('sizeGrid').scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    const colour = p.colors && p.colors.length > 1
+      ? document.getElementById('colorSelect').value
+      : (p.colors && p.colors[0]) || '';
+    addToCart(p, colour, selectedSize || '', qty);
+    closeModal();
+    openCart();
+  }
+
+  // ── WHATSAPP ORDER REQUEST ──
+  // Order ID: O4U-MMDD-XXX (client-side, for reference in the chat only).
+  function makeOrderId(d = new Date()) {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let tail = '';
+    const rnd = (typeof crypto !== 'undefined' && crypto.getRandomValues) ? crypto.getRandomValues(new Uint8Array(3)) : [Math.random() * 256, Math.random() * 256, Math.random() * 256];
+    for (let i = 0; i < 3; i++) tail += alphabet[Math.floor(rnd[i]) % alphabet.length];
+    const mm = String(d.getMonth() + 1).padStart(2, '0'), dd = String(d.getDate()).padStart(2, '0');
+    return `O4U-${mm}${dd}-${tail}`;
+  }
+  function formatStamp(d = new Date()) {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    let h = d.getHours(); const ampm = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}, ${h}:${String(d.getMinutes()).padStart(2, '0')} ${ampm}`;
+  }
+  // Compact on purpose: some WhatsApp clients truncate URLs around 2,000
+  // characters, and a 15-item order in a labelled multi-line layout is ~2,450.
+  // Two lines per item: name, then  article, colour, size, qty, line price.
+  function buildOrderMessage(lines, orderId, when) {
+    const out = ['O4U ORDER', `Order ID: ${orderId}`, `Time: ${formatStamp(when)}`, ''];
+    lines.forEach((l, i) => {
+      const bits = [l.article || '-'];
+      if (l.colour) bits.push(l.colour);
+      if (l.size) bits.push('Size ' + l.size);
+      bits.push('Qty ' + l.quantity, '₹' + fmt(l.price * l.quantity));
+      out.push(`${i + 1}. ${l.name}`);
+      out.push(bits.join(', '));
+    });
+    out.push('', `TOTAL: ₹${fmt(lines.reduce((n, l) => n + l.quantity * l.price, 0))}`);
+    out.push('Please confirm stock & delivery charges 🙏');
+    return out.join('\n');
+  }
+  function orderUrl(lines, orderId, when) {
+    return `https://wa.me/${WA}?text=${encodeURIComponent(buildOrderMessage(lines, orderId, when))}`;
+  }
+  function sendWhatsApp() {
+    if (!cart.length) return;
+    const url = orderUrl(cart, makeOrderId(), new Date());
+    const w = window.open(url, '_blank');
+    if (!w) window.location.href = url;   // popup blocked (common on mobile) → same tab
+    document.getElementById('cartSent').classList.add('show');
+  }
+
+  // Keyboard: Escape closes; arrows drive the gallery while the modal is open
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (document.getElementById('cartOverlay').classList.contains('open')) closeCart();
+      else closeModal();
+    }
+    if (document.getElementById('modalOverlay').classList.contains('open') && galImages.length > 1) {
+      if (e.key === 'ArrowLeft') galStep(-1);
+      if (e.key === 'ArrowRight') galStep(1);
+    }
+  });
+  renderCart();
 
   // ── SCROLL REVEAL ──
   function initReveal() {
