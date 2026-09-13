@@ -730,8 +730,8 @@
     }
     .footer-top {
       display: grid;
-      grid-template-columns: 1.6fr 1fr 1fr;
-      gap: 60px;
+      grid-template-columns: 1.4fr 0.8fr 1.3fr 1fr;
+      gap: 44px;
       padding-bottom: 48px;
       border-bottom: 1px solid rgba(255,255,255,0.08);
     }
@@ -1025,6 +1025,56 @@
     .cart-steps li::marker { color: var(--orange); font-weight: 700; }
     .cart-sent { font-size: 0.74rem; color: var(--brown); background: rgba(229,97,28,0.08); border-radius: 10px; padding: 10px 12px; margin-top: 10px; display: none; line-height: 1.5; }
     .cart-sent.show { display: block; }
+
+    /* ══ PRE-ORDER POLICY MODAL ══ */
+    .policy-overlay {
+      position: fixed; inset: 0; z-index: 1002;
+      background: rgba(17,17,16,0.55); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .policy-overlay.open { opacity: 1; pointer-events: all; }
+    .policy {
+      background: var(--white); border-radius: 20px;
+      width: 100%; max-width: 440px; padding: 26px 26px 22px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.22);
+      transform: translateY(14px); transition: transform 0.2s;
+      outline: none;
+    }
+    .policy-overlay.open .policy { transform: translateY(0); }
+    .policy h3 {
+      font-family: 'Playfair Display', serif; font-style: italic;
+      font-size: 1.35rem; font-weight: 600; margin-bottom: 4px;
+    }
+    .policy-sub { font-size: 0.74rem; color: var(--gray); margin-bottom: 16px; }
+    .policy-list { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+    .policy-list li {
+      display: flex; gap: 10px; align-items: flex-start;
+      font-size: 0.82rem; line-height: 1.5; color: var(--black);
+    }
+    .policy-list li::before {
+      content: ''; flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--orange); margin-top: 7px;
+    }
+    .policy-list strong { font-weight: 700; }
+    .policy-actions { display: flex; flex-direction: column; gap: 8px; }
+    .policy-cancel {
+      width: 100%; background: none; border: 1.5px solid var(--light); color: var(--gray);
+      border-radius: 50px; padding: 12px; cursor: pointer;
+      font-family: 'Nunito', sans-serif; font-size: 0.82rem; font-weight: 600;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .policy-cancel:hover { border-color: var(--black); color: var(--black); }
+    @media (max-width: 640px) {
+      .policy-overlay { align-items: flex-end; padding: 0; }
+      .policy { max-width: 100%; border-radius: 20px 20px 0 0; padding: 22px 20px calc(18px + env(safe-area-inset-bottom)); }
+      .policy-list li { font-size: 0.8rem; }
+    }
+
+    /* Footer: the same four points, always visible */
+    .footer-policy { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .footer-policy li { font-size: 0.78rem; line-height: 1.55; color: rgba(255,255,255,0.5); font-weight: 300; }
+    .footer-policy strong { color: rgba(255,255,255,0.8); font-weight: 600; }
 
     /* ══ FLOAT WA ══ */
     .float-wa {
@@ -1459,6 +1509,16 @@
     </div>
 
     <div class="footer-col">
+      <h5>How ordering works</h5>
+      <ul class="footer-policy">
+        <li><strong>Stock is confirmed manually.</strong> We check availability and reply on WhatsApp before anything is paid.</li>
+        <li><strong>Payment comes after confirmation.</strong> Once we confirm, we ask for delivery details and an advance that includes the delivery charge.</li>
+        <li><strong>Delivery charges apply</strong> and are quoted when we confirm your order.</li>
+        <li><strong>Returns within 3 days</strong> of delivery.</li>
+      </ul>
+    </div>
+
+    <div class="footer-col">
       <h5>Get in Touch</h5>
       <div class="footer-contact-row">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8a19.79 19.79 0 01-3.07-8.68A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>
@@ -1519,6 +1579,24 @@
       </ol>
     </div>
   </aside>
+</div>
+
+<!-- ══ PRE-ORDER POLICY (shown once, when sending the order) ══ -->
+<div class="policy-overlay" id="policyOverlay" onclick="policyCancel(event)">
+  <div class="policy" id="policyBox" role="dialog" aria-modal="true" aria-labelledby="policyTitle" tabindex="-1" onclick="event.stopPropagation()">
+    <h3 id="policyTitle">Before you send</h3>
+    <div class="policy-sub">How ordering works at Only 4 You — takes ten seconds to read.</div>
+    <ul class="policy-list">
+      <li><span><strong>Stock is confirmed manually.</strong> We check availability and reply on WhatsApp before anything is paid.</span></li>
+      <li><span><strong>Payment comes after confirmation.</strong> Once we confirm, we ask for delivery details and an advance that includes the delivery charge.</span></li>
+      <li><span><strong>Delivery charges apply</strong> and are quoted when we confirm your order.</span></li>
+      <li><span><strong>Returns within 3 days</strong> of delivery.</span></li>
+    </ul>
+    <div class="policy-actions">
+      <button class="modal-wa-btn" id="policyAccept" onclick="policyAccept()">Accept &amp; send order</button>
+      <button class="policy-cancel" id="policyCancelBtn" onclick="policyCancel()">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <!-- ══ ORDER MODAL ══ -->
@@ -1961,8 +2039,40 @@
   function orderUrl(lines, orderId, when) {
     return `https://wa.me/${WA}?text=${encodeURIComponent(buildOrderMessage(lines, orderId, when))}`;
   }
-  function sendWhatsApp() {
+  // ── PRE-ORDER POLICY ──
+  // Shown once per device, at the moment of sending (never on page load).
+  // Bump the key to _v2 if the four points ever change.
+  const POLICY_KEY = 'o4u_policy_accepted_v1';
+  let policyReturnFocus = null;
+  function policyAccepted() {
+    try { return !!localStorage.getItem(POLICY_KEY); } catch (e) { return false; }
+  }
+  function policyOpen(returnTo) {
+    policyReturnFocus = returnTo || document.activeElement;
+    document.getElementById('policyOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => document.getElementById('policyAccept').focus(), 30);
+  }
+  function policyClose() {
+    document.getElementById('policyOverlay').classList.remove('open');
+    if (!document.getElementById('cartOverlay').classList.contains('open') &&
+        !document.getElementById('modalOverlay').classList.contains('open')) document.body.style.overflow = '';
+    if (policyReturnFocus && policyReturnFocus.focus) policyReturnFocus.focus();
+    policyReturnFocus = null;
+  }
+  function policyCancel(e) {
+    if (e && e.target !== document.getElementById('policyOverlay')) return;
+    policyClose();                       // cart untouched, nothing sent
+  }
+  function policyAccept() {
+    try { localStorage.setItem(POLICY_KEY, new Date().toISOString()); } catch (e) { /* storage unavailable → ask again next time */ }
+    policyClose();
+    sendWhatsApp(true);
+  }
+
+  function sendWhatsApp(accepted) {
     if (!cart.length) return;
+    if (!accepted && !policyAccepted()) { policyOpen(document.getElementById('cartSendBtn')); return; }
     const url = orderUrl(cart, makeOrderId(), new Date());
     const w = window.open(url, '_blank');
     if (!w) window.location.href = url;   // popup blocked (common on mobile) → same tab
@@ -1972,8 +2082,15 @@
   // Keyboard: Escape closes; arrows drive the gallery while the modal is open
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
-      if (document.getElementById('cartOverlay').classList.contains('open')) closeCart();
+      if (document.getElementById('policyOverlay').classList.contains('open')) policyCancel();
+      else if (document.getElementById('cartOverlay').classList.contains('open')) closeCart();
       else closeModal();
+    }
+    // keep focus inside the policy dialog while it is open
+    if (e.key === 'Tab' && document.getElementById('policyOverlay').classList.contains('open')) {
+      const f = [document.getElementById('policyAccept'), document.getElementById('policyCancelBtn')];
+      if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[1].focus(); }
+      else if (!e.shiftKey && document.activeElement === f[1]) { e.preventDefault(); f[0].focus(); }
     }
     if (document.getElementById('modalOverlay').classList.contains('open') && galImages.length > 1) {
       if (e.key === 'ArrowLeft') galStep(-1);
