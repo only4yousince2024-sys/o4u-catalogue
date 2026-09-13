@@ -154,6 +154,9 @@ SHOP_COLUMNS = {           # column absent → default (§5.2)
 IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".webp"]
 MAX_GALLERY = 9
 
+# Branding files index.html references. Missing = warning (placeholder shows), never an error.
+BRANDING_ASSETS = ["logo.png", "hero-main.jpg", "kids-hero.jpg", "fevicon.png", "store.jpg"]
+
 
 # ── Diagnostics ──────────────────────────────────────────────────────────────
 class Diag:
@@ -612,6 +615,10 @@ def main(argv=None) -> int:
         return 1
     if not args.images_dir.is_dir():
         diag.warn(f"images folder not found: {args.images_dir} — every product will use the placeholder")
+    else:
+        for name in BRANDING_ASSETS:
+            if not (args.images_dir / name).is_file():
+                diag.warn(f"branding image missing: images/{name} — the site shows its placeholder until it is added")
 
     wb = openpyxl.load_workbook(args.workbook, data_only=True, read_only=True)
     ws = find_sheet(wb, diag)
