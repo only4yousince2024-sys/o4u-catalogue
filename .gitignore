@@ -32,3 +32,6 @@ venv/
 # ── Netlify local state ─────────────────────────────────────────────
 .netlify/
 .claude/
+
+# Unreferenced branding originals moved out of the deploy root (kept on disk)
+archive/

@@ -6,7 +6,9 @@ and saves clean, web-ready images.
 
 HOW TO USE:
 1. Get a free API key from https://www.remove.bg/api (50 free images/month)
-2. Paste your API key below where it says YOUR_API_KEY_HERE
+2. Put it in the environment - never in this file, never in git:
+     PowerShell:  $env:REMOVE_BG_API_KEY = "your-key"
+     bash:        export REMOVE_BG_API_KEY=your-key
 3. Put all your product photos in the "raw_photos" folder
 4. Run: python polish_photos.py
 5. Find polished images in the "polished" folder
@@ -17,8 +19,8 @@ import requests
 from PIL import Image, ImageOps
 import io
 
-# ── PASTE YOUR API KEY HERE ──────────────────────────────────────────
-API_KEY = "YOUR_API_KEY_HERE"
+# ── API key comes from the environment only (never commit a real key) ──
+API_KEY = os.environ.get("REMOVE_BG_API_KEY", "")
 # ────────────────────────────────────────────────────────────────────
 
 INPUT_FOLDER  = "raw_photos"   # put your phone photos here
@@ -65,8 +67,8 @@ def polish(img_rgba, output_size, bg_color):
 
 
 def main():
-    if API_KEY == "YOUR_API_KEY_HERE":
-        print("\n⚠️  Add your API key first!")
+    if not API_KEY:
+        print("\n⚠️  Set the REMOVE_BG_API_KEY environment variable first!")
         print("   Get one free at: https://www.remove.bg/api\n")
         return
 

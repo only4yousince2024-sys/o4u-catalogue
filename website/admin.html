@@ -284,15 +284,15 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
       Open products.js
     </button>
-    <button class="tb-btn btn-add" onclick="addNewProduct()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Add Product
-    </button>
-    <button class="tb-btn btn-save" id="saveBtn" onclick="saveFile()" disabled>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-      Save to File
-    </button>
+    <span class="tb-btn" style="background:#FFF4E5;color:#8A4B00;border:1px solid #F5C98A;cursor:default" title="Excel is the source of truth">
+      🔒 Read-only preview
+    </span>
   </div>
+</div>
+<div style="background:#FFF4E5;color:#8A4B00;border-bottom:1px solid #F5C98A;padding:10px 24px;font-size:0.8rem;line-height:1.5;">
+  <strong>Excel is the source of truth.</strong> Changes made here are not saved and will be overwritten on the next build.
+  Edit <code>O4U_Stock_Inventory_UPDATED_v2.xlsx</code>, then run <code>python scripts/build_catalogue.py</code>.
+  Product photos are found by Product ID: <code>images/&lt;id&gt;.jpg</code>, <code>images/&lt;id&gt;-2.jpg</code> …
 </div>
 
 <div class="app">
@@ -314,7 +314,7 @@
     <div id="noFileState" class="no-file-state">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
       <h2>Open your products.js file</h2>
-      <p>Click "Open products.js" in the top bar, then select the <strong>products.js</strong> file from your Only 4 You folder. Your products will load here and you can edit them.</p>
+      <p>Click "Open products.js" in the top bar, then select <strong>website/products.js</strong>. Products load here for browsing and preview only — the file is generated from Excel and is never written by this tool.</p>
       <button class="btn-primary" onclick="openFile()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
         Open products.js
@@ -348,7 +348,6 @@
       const file = await fileHandle.getFile();
       const text = await file.text();
       parseProducts(text);
-      document.getElementById('saveBtn').disabled = false;
       document.getElementById('noFileState').style.display = 'none';
       document.getElementById('editorContent').style.display = 'block';
       toast('products.js loaded — ' + products.length + ' products found', 'success');
@@ -361,9 +360,24 @@
   function parseProducts(text) {
     try {
       // Extract the array from the JS file
-      const match = text.match(/const PRODUCTS\s*=\s*(\[[\s\S]*?\]);/);
-      if (!match) throw new Error('PRODUCTS array not found');
-      products = JSON.parse(match[1].replace(/\/\/.*/g, ''));
+      const start = text.search(/const PRODUCTS\s*=\s*\[/);
+      if (start < 0) throw new Error('PRODUCTS array not found');
+      const open = text.indexOf('[', start);
+      let depth = 0, end = -1, inStr = false;
+      for (let i = open; i < text.length; i++) {
+        const ch = text[i];
+        if (inStr) { if (ch === '\\') i++; else if (ch === '"') inStr = false; continue; }
+        if (ch === '"') inStr = true;
+        else if (ch === '[') depth++;
+        else if (ch === ']' && --depth === 0) { end = i; break; }
+      }
+      if (end < 0) throw new Error('PRODUCTS array is not closed');
+      products = JSON.parse(text.slice(open, end + 1)).map(p => ({
+        ...p,
+        images: Array.isArray(p.images) ? p.images : (p.image ? [p.image] : []),
+        image: (Array.isArray(p.images) && p.images[0]) || p.image || '',
+        stockQty: p.stockQty === undefined ? (p.inStock === false ? 0 : 1) : Number(p.stockQty) || 0
+      }));
       renderSidebar();
       showEmpty();
     } catch (e) {
@@ -372,16 +386,11 @@
   }
 
   // ── SAVE FILE ──
+  // Writing products.js from here is disabled on purpose: the workbook is the
+  // single source of truth and the build regenerates products.js. A second
+  // writable store would be silently destroyed on the next build.
   async function saveFile() {
-    if (!fileHandle) { toast('No file open', 'error'); return; }
-    try {
-      const writable = await fileHandle.createWritable();
-      await writable.write(generateFileContent());
-      await writable.close();
-      toast('Saved to products.js! Refresh your website to see changes.', 'success');
-    } catch (e) {
-      toast('Save failed: ' + e.message, 'error');
-    }
+    toast('Read-only: edit the Excel workbook and run the build instead.', 'error');
   }
 
   // ── GENERATE FILE CONTENT ──
@@ -412,7 +421,7 @@ const PRODUCTS = ${JSON.stringify(products, null, 2)};
           <div class="product-item-name">${p.name}</div>
           <div class="product-item-meta">₹${p.price} · ${p.category}</div>
         </div>
-        <div class="product-item-stock ${p.inStock ? 'stock-on' : 'stock-off'}" title="${p.inStock ? 'In Stock' : 'Out of Stock'}"></div>
+        <div class="product-item-stock ${p.stockQty > 0 ? 'stock-on' : 'stock-off'}" title="${p.stockQty > 0 ? 'Available' : 'Currently unavailable'}"></div>
       </div>
     `).join('');
   }
@@ -449,7 +458,7 @@ const PRODUCTS = ${JSON.stringify(products, null, 2)};
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         <div>
           <strong>Editing: ${p.name}</strong>
-          <span>Changes are saved when you click "Save to File"</span>
+          <span>Preview only — nothing here is saved. Edit the workbook and rebuild.</span>
         </div>
       </div>
 
@@ -459,7 +468,7 @@ const PRODUCTS = ${JSON.stringify(products, null, 2)};
           <div class="editor-sub">Update the fields below, then save.</div>
         </div>
         <div class="editor-actions">
-          <button class="btn-delete" onclick="deleteProduct('${p.id}')">
+          <button class="btn-delete" style="display:none" onclick="deleteProduct('${p.id}')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
             Delete Product
           </button>
@@ -490,16 +499,14 @@ const PRODUCTS = ${JSON.stringify(products, null, 2)};
         <div class="form-group">
           <label>Category</label>
           <select class="form-select" id="f-cat" onchange="updateField('category',this.value)">
-            <option value="women comfort" ${p.category==='women comfort'?'selected':''}>Women — Comfort Set</option>
-            <option value="women nightwear" ${p.category==='women nightwear'?'selected':''}>Women — Night Wear</option>
-            <option value="kids formal" ${p.category==='kids formal'?'selected':''}>Kids — Formals</option>
-            <option value="kids" ${p.category==='kids'?'selected':''}>Kids — Casual</option>
+            ${[['front-button','Front Button Set'],['round-neck','Round Neck'],['collar-neck','Collar Neck'],['salwar-set','Salwar Set'],['tshirt-lower','T-Shirt / Lower'],['tshirt-shorts','T-Shirt / Shorts']].map(([k,l]) => `<option value="${k}" ${p.category===k?'selected':''}>${l}</option>`).join('')}
           </select>
         </div>
 
         <div class="form-group">
           <label>Image Path</label>
-          <input class="form-input" id="f-img" value="${p.image||''}" onchange="updateField('image',this.value); refreshImgPreview(this.value)" placeholder="images/w1.jpg"/>
+          <input class="form-input" id="f-img" value="${p.image||''}" readonly title="Derived from the Product ID by the build" placeholder="images/${p.id}.jpg"/>
+          <div style="font-size:0.72rem;color:var(--gray);margin-top:6px;">Expected files: <code>images/${p.id}.jpg</code>, <code>images/${p.id}-2.jpg</code> … <code>-9.jpg</code>${p.images && p.images.length ? ` · ${p.images.length} found` : ' · none found yet'}</div>
           <div class="img-preview" id="imgPreview">
             ${p.image ? `<img src="${p.image}" onerror="this.parentElement.innerHTML='<div class=\\'img-preview-empty\\'><svg viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'1.5\\'><rect x=\\'3\\' y=\\'3\\' width=\\'18\\' height=\\'18\\' rx=\\'2\\'/><circle cx=\\'8.5\\' cy=\\'8.5\\' r=\\'1.5\\'/><polyline points=\\'21 15 16 10 5 21\\'/></svg>Image not found</div>'"/>` : '<div class="img-preview-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>No image set</div>'}
           </div>
@@ -540,10 +547,10 @@ const PRODUCTS = ${JSON.stringify(products, null, 2)};
         <div class="form-group form-full">
           <label>Stock Status</label>
           <div class="stock-toggle">
-            <div class="toggle-switch ${p.inStock ? 'on' : ''}" id="stockToggle" onclick="toggleStock()">
+            <div class="toggle-switch ${p.stockQty > 0 ? 'on' : ''}" id="stockToggle" title="Stock comes from the workbook's Stock Qty column">
               <div class="toggle-knob"></div>
             </div>
-            <span class="toggle-label" id="stockLabel">${p.inStock ? '✅ In Stock — visible on website' : '❌ Out of Stock — hidden on website'}</span>
+            <span class="toggle-label" id="stockLabel">${p.stockQty > 0 ? '✅ Available (Stock Qty ' + p.stockQty + ')' : '❌ Currently unavailable (Stock Qty 0) — still listed'}</span>
           </div>
         </div>
       </div>
@@ -583,7 +590,7 @@ const PRODUCTS = ${JSON.stringify(products, null, 2)};
   }
 
   // ── STOCK TOGGLE ──
-  function toggleStock() {
+  function toggleStock() { toast('Stock is set in the workbook (Stock Qty column).', 'error'); return;
     const p = products.find(x => x.id === selectedId);
     if (!p) return;
     p.inStock = !p.inStock;
