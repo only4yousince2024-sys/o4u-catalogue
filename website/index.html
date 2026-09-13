@@ -1,0 +1,1580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Only 4 You — Comfort &amp; Style</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet"/>
+  <link rel="icon" type="image/png" href="images/fevicon.png"/>
+  <script src="products.js"></script>
+
+  <!--
+  ╔══════════════════════════════════════════════════════╗
+  ║              IMAGE SETUP — ADD YOUR PHOTOS           ║
+  ╠══════════════════════════════════════════════════════╣
+  ║  Create an "images" folder next to this file and    ║
+  ║  save your photos with these exact names:            ║
+  ║                                                      ║
+  ║  HERO:                                               ║
+  ║    images/hero-main.jpg  (lavender tee girl)         ║
+  ║                                                      ║
+  ║  WOMEN'S PRODUCTS:                                   ║
+  ║    images/w1.jpg  purple floral pyjama set           ║
+  ║    images/w2.jpg  pink floral comfort set            ║
+  ║    images/w3.jpg  beige/brown comfort set            ║
+  ║    images/w4.jpg  pink satin pyjama set              ║
+  ║                                                      ║
+  ║  KIDS PRODUCTS:                                      ║
+  ║    images/k1.jpg  mint green formal dress            ║
+  ║    images/k2.jpg  pink fabulous girl sweatshirt      ║
+  ║                                                      ║
+  ║  ABOUT SECTION:                                      ║
+  ║    images/store.jpg   your clothing rack photo       ║
+  ╚══════════════════════════════════════════════════════╝
+  -->
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #EDEAE3;
+      --card:     #F5F2EC;
+      --white:    #FAFAF8;
+      --black:    #111110;
+      --orange:   #E5611C;
+      --brown:    #5C3D2E;
+      --gray:     #7A746C;
+      --light:    #D8D4CC;
+      --green:    #25D366;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: var(--bg);
+      color: var(--black);
+      overflow-x: hidden;
+    }
+
+    /* ══ NAV ══ */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 60px;
+      height: 70px;
+      background: rgba(237, 234, 227, 0.94);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid rgba(0,0,0,0.07);
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+    .logo-mark { width: 38px; height: 38px; flex-shrink: 0; }
+    .logo-wordmark {
+      font-family: 'Nunito', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 600;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--black);
+    }
+    .logo-wordmark span { color: var(--orange); }
+
+    .nav-links {
+      display: flex; gap: 36px; list-style: none;
+    }
+    .nav-links a {
+      text-decoration: none;
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--black);
+      opacity: 0.6;
+      transition: opacity 0.2s;
+    }
+    .nav-links a:hover { opacity: 1; }
+
+    .nav-wa {
+      display: flex; align-items: center; gap: 7px;
+      background: linear-gradient(160deg, #2dd17a 0%, #1aad5e 60%, #158f4d 100%);
+      color: #fff;
+      text-decoration: none;
+      font-size: 0.74rem;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      padding: 9px 18px;
+      border-radius: 50px;
+      border: 1px solid rgba(255,255,255,0.18);
+      box-shadow:
+        0 1px 0 rgba(255,255,255,0.28) inset,
+        0 -1px 0 rgba(0,0,0,0.2) inset,
+        0 6px 20px rgba(25,180,90,0.32),
+        0 2px 6px rgba(0,0,0,0.1);
+      transition: transform 0.22s, box-shadow 0.22s;
+    }
+    .nav-wa:hover {
+      transform: translateY(-1px) scale(1.02);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.28) inset, 0 -1px 0 rgba(0,0,0,0.2) inset, 0 10px 28px rgba(25,180,90,0.4);
+    }
+    .nav-wa svg { width: 14px; height: 14px; }
+
+    /* ══ HERO ══ */
+    #hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 120px 60px 80px;
+      background: url('images/hero-main.jpg') left center / cover no-repeat;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Right-side fade — tight, only where text sits */
+    #hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to left, rgba(250,250,248,1) 0%, rgba(250,250,248,0.97) 18%, rgba(250,250,248,0.7) 32%, rgba(250,250,248,0.1) 48%, rgba(250,250,248,0) 60%);
+      pointer-events: none;
+    }
+    #hero::after { display: none; }
+
+    .hero-content {
+      max-width: 560px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero-tag {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--orange);
+      background: rgba(229, 97, 28, 0.22);
+      border: 1px solid rgba(229,97,28,0.4);
+      padding: 6px 16px;
+      border-radius: 50px;
+      margin-bottom: 24px;
+    }
+
+    .hero-title {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2.6rem, 5vw, 4.6rem);
+      font-weight: 400;
+      line-height: 1.1;
+      color: var(--black);
+      margin-bottom: 20px;
+    }
+    .hero-title em { font-style: italic; color: var(--orange); }
+
+    .hero-sub {
+      font-size: 0.92rem;
+      color: var(--gray);
+      line-height: 1.78;
+      font-weight: 300;
+      margin-bottom: 40px;
+      max-width: 420px;
+    }
+
+    .hero-btns {
+      display: flex; gap: 14px; flex-wrap: wrap;
+    }
+
+    .btn-dark {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: linear-gradient(160deg, #2a2825 0%, #111110 60%, #0d0c0b 100%);
+      color: #fff;
+      text-decoration: none;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      padding: 14px 30px;
+      border-radius: 50px;
+      border: 1px solid rgba(255,255,255,0.10);
+      box-shadow:
+        0 1px 0 rgba(255,255,255,0.16) inset,
+        0 -1px 0 rgba(0,0,0,0.4) inset,
+        0 8px 24px rgba(0,0,0,0.22),
+        0 2px 6px rgba(0,0,0,0.14);
+      transition: transform 0.22s, box-shadow 0.22s;
+    }
+    .btn-dark:hover {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow:
+        0 1px 0 rgba(255,255,255,0.2) inset,
+        0 -1px 0 rgba(0,0,0,0.4) inset,
+        0 16px 36px rgba(0,0,0,0.28),
+        0 4px 10px rgba(0,0,0,0.16);
+    }
+
+    .btn-ghost {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: linear-gradient(160deg, rgba(255,255,255,0.82) 0%, rgba(240,237,232,0.65) 100%);
+      color: var(--black);
+      text-decoration: none;
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      padding: 14px 30px;
+      border-radius: 50px;
+      border: 1px solid rgba(255,255,255,0.9);
+      box-shadow:
+        0 1px 0 rgba(255,255,255,1) inset,
+        0 -1px 0 rgba(0,0,0,0.07) inset,
+        0 6px 20px rgba(0,0,0,0.08),
+        0 2px 6px rgba(0,0,0,0.06);
+      transition: transform 0.22s, box-shadow 0.22s;
+    }
+    .btn-ghost:hover {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow:
+        0 1px 0 rgba(255,255,255,1) inset,
+        0 -1px 0 rgba(0,0,0,0.07) inset,
+        0 12px 32px rgba(0,0,0,0.12),
+        0 4px 10px rgba(0,0,0,0.08);
+    }
+
+    /* Hero images */
+    .hero-main-card {
+      width: 260px;
+      height: 380px;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 20px 56px rgba(0,0,0,0.14);
+      flex-shrink: 0;
+    }
+    .hero-main-card img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      object-position: center top;
+    }
+    .hero-kids-card {
+      width: 190px;
+      height: 260px;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.12);
+      flex-shrink: 0;
+      margin-top: 80px;
+    }
+    .hero-kids-card img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      object-position: center top;
+    }
+
+    .hero-visual { display: none; }
+    .hero-mob-img { display: none; }
+
+    .hero-card-row { display: flex; gap: 16px; }
+
+    .hero-img-card {
+      width: 170px;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.12);
+      flex-shrink: 0;
+    }
+    .hero-img-card.h220 { height: 220px; }
+    .hero-img-card.h270 { height: 270px; margin-top: -28px; }
+    .hero-img-card.h180 { height: 180px; }
+
+    .hero-img-card img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+    }
+
+    .hero-ph {
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 8px;
+      font-size: 0.65rem; font-weight: 500;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      color: rgba(255,255,255,0.65);
+    }
+    .hero-ph svg { width: 28px; height: 28px; opacity: 0.6; }
+    .hp-a { background: linear-gradient(145deg, #C4703A, #9A5020); }
+    .hp-b { background: linear-gradient(145deg, #6B4525, #4A2E12); }
+    .hp-c { background: linear-gradient(145deg, #B87A50, #8A5530); }
+
+    .hero-badge {
+      position: absolute;
+      bottom: 48px; right: 300px;
+      background: var(--white);
+      border-radius: 16px;
+      padding: 14px 18px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+      display: flex; align-items: center; gap: 10px;
+      font-size: 0.76rem;
+      z-index: 2;
+    }
+    .hero-badge .bi { font-size: 1.4rem; }
+    .hero-badge strong { display: block; font-size: 0.84rem; color: var(--black); }
+    .hero-badge small { color: var(--gray); }
+
+    /* Hero stats */
+    .hero-stats {
+      display: flex; gap: 36px;
+      margin-top: 52px;
+      padding-top: 36px;
+      border-top: 1px solid rgba(0,0,0,0.10);
+    }
+    .stat-num {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.9rem; font-weight: 600;
+      color: var(--black); line-height: 1;
+    }
+    .stat-num b { color: var(--orange); font-weight: 600; }
+    .stat-label { font-size: 0.7rem; color: var(--gray); margin-top: 4px; }
+
+    /* ══ TRUST STRIP ══ */
+    .trust-strip {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      background: var(--white);
+      border-top: 1px solid var(--light);
+      border-bottom: 1px solid var(--light);
+      padding: 28px 40px;
+      flex-wrap: wrap;
+    }
+    .trust-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 36px;
+      flex: 1;
+      min-width: 200px;
+    }
+    .trust-icon {
+      width: 42px; height: 42px;
+      background: var(--bg);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      color: var(--orange);
+    }
+    .trust-icon svg { width: 18px; height: 18px; }
+    .trust-item strong {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--black);
+      margin-bottom: 2px;
+    }
+    .trust-item span {
+      font-size: 0.72rem;
+      color: var(--gray);
+    }
+    .trust-divider {
+      width: 1px;
+      height: 44px;
+      background: var(--light);
+      flex-shrink: 0;
+    }
+
+    /* ══ TESTIMONIALS ══ */
+    #testimonials {
+      padding: 90px 60px;
+      background: var(--bg);
+    }
+    .testi-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .testi-card {
+      background: var(--white);
+      border-radius: 20px;
+      padding: 32px 28px;
+      border: 1px solid var(--light);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .testi-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.08);
+    }
+    .testi-stars { color: var(--orange); font-size: 0.9rem; letter-spacing: 2px; }
+    .testi-text {
+      font-size: 0.88rem;
+      color: var(--gray);
+      line-height: 1.75;
+      font-style: italic;
+      flex: 1;
+    }
+    .testi-author {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-top: 16px;
+      border-top: 1px solid var(--light);
+    }
+    .testi-avatar {
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--orange), #c44a10);
+      color: #fff;
+      font-size: 0.88rem;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .testi-author strong { display: block; font-size: 0.82rem; color: var(--black); }
+    .testi-author span { font-size: 0.72rem; color: var(--gray); }
+
+    /* ══ MARQUEE ══ */
+    .marquee-wrap {
+      background: var(--black);
+      overflow: hidden;
+      padding: 13px 0;
+      white-space: nowrap;
+    }
+    .marquee-track {
+      display: inline-flex;
+      animation: marquee 28s linear infinite;
+    }
+    .marquee-item {
+      display: inline-flex; align-items: center; gap: 14px;
+      padding: 0 28px;
+      font-size: 0.68rem; font-weight: 600;
+      letter-spacing: 2px; text-transform: uppercase;
+      color: rgba(255,255,255,0.45);
+    }
+    .marquee-item .dot {
+      width: 4px; height: 4px; border-radius: 50%;
+      background: var(--orange); flex-shrink: 0;
+    }
+    @keyframes marquee {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+
+    /* ══ CATALOGUE ══ */
+    #catalogue {
+      padding: 100px 60px;
+    }
+
+    .section-head-row {
+      display: flex; align-items: flex-end;
+      justify-content: space-between;
+      margin-bottom: 40px; gap: 20px; flex-wrap: wrap;
+    }
+
+    .section-eyebrow {
+      font-size: 0.68rem; font-weight: 600;
+      letter-spacing: 2.5px; text-transform: uppercase;
+      color: var(--orange); margin-bottom: 10px;
+    }
+
+    .section-title {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2rem, 3.5vw, 2.8rem);
+      font-weight: 400; color: var(--black); line-height: 1.15;
+    }
+
+    .section-sub {
+      font-size: 0.85rem; color: var(--gray);
+      font-weight: 300; max-width: 460px;
+      line-height: 1.7; margin-top: 6px;
+    }
+
+    /* Filter bar */
+    .filter-bar {
+      display: flex; justify-content: center;
+      gap: 10px; flex-wrap: wrap;
+      margin-bottom: 44px;
+    }
+    .filter-btn {
+      background: none;
+      border: 1.5px solid var(--light);
+      color: var(--gray);
+      padding: 9px 24px;
+      border-radius: 50px;
+      font-family: 'Nunito', sans-serif;
+      font-size: 0.78rem; font-weight: 500;
+      letter-spacing: 0.3px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .filter-btn.active,
+    .filter-btn:hover {
+      background: var(--black);
+      border-color: var(--black);
+      color: #fff;
+    }
+
+    /* Product grid */
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+      gap: 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* ══ PRODUCT CARD ══ */
+    .pcard {
+      background: var(--card);
+      border-radius: 22px;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+      transition: transform 0.3s, box-shadow 0.3s;
+      cursor: pointer;
+    }
+    .pcard:hover {
+      transform: translateY(-7px);
+      box-shadow: 0 16px 48px rgba(0,0,0,0.12);
+    }
+
+    .pcard-img {
+      width: 100%; height: 290px;
+      position: relative; overflow: hidden;
+    }
+    .pcard-img img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transition: transform 0.45s;
+    }
+    .pcard:hover .pcard-img img,
+    .pcard:hover .pcard-ph { transform: scale(1.05); }
+
+    .pcard-ph {
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 10px;
+      font-size: 0.68rem; font-weight: 500;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      color: rgba(255,255,255,0.6);
+      transition: transform 0.45s;
+    }
+    .pcard-ph svg { width: 36px; height: 36px; opacity: 0.55; }
+
+    .ph-1 { background: linear-gradient(160deg, #C9C4CF 0%, #A9A4B5 100%); }
+    .ph-2 { background: linear-gradient(160deg, #D4BFBD 0%, #B9A0A0 100%); }
+    .ph-3 { background: linear-gradient(160deg, #C9BFB0 0%, #A8A090 100%); }
+    .ph-4 { background: linear-gradient(160deg, #D4BFC0 0%, #B59FA0 100%); }
+    .ph-5 { background: linear-gradient(160deg, #B8C9C0 0%, #98A9A0 100%); }
+    .ph-6 { background: linear-gradient(160deg, #D4B5BA 0%, #B4959A 100%); }
+
+    .pcard-badge {
+      position: absolute; top: 14px; left: 14px;
+      font-size: 0.62rem; font-weight: 700;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      padding: 5px 13px; border-radius: 50px;
+    }
+    .b-orange { background: var(--orange); color: #fff; }
+    .b-dark   { background: var(--black); color: #fff; }
+    .b-white  { background: var(--white); color: var(--black); border: 1.5px solid var(--light); }
+
+    .pcard-body { padding: 18px 20px 20px; }
+
+    .pcard-cat {
+      font-size: 0.62rem; font-weight: 600;
+      letter-spacing: 2px; text-transform: uppercase;
+      color: var(--orange); margin-bottom: 5px;
+    }
+
+    .pcard-name {
+      font-family: 'Playfair Display', serif;
+      font-style: italic;
+      font-size: 1.12rem; font-weight: 600;
+      color: var(--black); margin-bottom: 4px;
+    }
+
+    .pcard-desc {
+      font-size: 0.76rem; color: var(--gray);
+      font-weight: 300; line-height: 1.55;
+      margin-bottom: 16px;
+    }
+
+    .pcard-foot {
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 10px;
+    }
+
+    .pcard-price {
+      font-size: 1.05rem; font-weight: 600; color: var(--black);
+    }
+    .pcard-old {
+      font-size: 0.75rem; color: var(--gray);
+      text-decoration: line-through; font-weight: 300;
+      margin-left: 5px;
+    }
+
+    .wa-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--green); color: #fff;
+      text-decoration: none;
+      font-size: 0.72rem; font-weight: 600;
+      padding: 9px 15px; border-radius: 50px;
+      white-space: nowrap;
+      transition: opacity 0.2s, transform 0.15s;
+      box-shadow: 0 3px 12px rgba(37,211,102,0.3);
+    }
+    .wa-btn:hover { opacity: 0.88; transform: scale(1.03); }
+    .wa-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+    /* ══ ABOUT ══ */
+    #about {
+      padding: 100px 60px;
+      background: var(--card);
+    }
+
+    .about-inner {
+      max-width: 1100px; margin: 0 auto;
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 80px; align-items: center;
+    }
+
+    .about-visual { position: relative; }
+
+    .about-main-img {
+      width: 100%; height: 480px;
+      border-radius: 24px; overflow: hidden;
+      box-shadow: 0 20px 64px rgba(0,0,0,0.12);
+    }
+    .about-main-img img {
+      width: 100%; height: 100%; object-fit: cover;
+    }
+    .about-main-ph {
+      width: 100%; height: 100%;
+      background: linear-gradient(145deg, #C0BBAF, #A8A398);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 10px; color: rgba(0,0,0,0.25);
+      font-size: 0.72rem; font-weight: 500;
+      letter-spacing: 1px; text-transform: uppercase;
+    }
+    .about-main-ph svg { width: 36px; height: 36px; }
+
+    .about-float-card {
+      position: absolute;
+      bottom: -24px; right: -20px;
+      background: var(--white);
+      border-radius: 20px;
+      padding: 20px 24px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+      min-width: 172px;
+    }
+    .afc-num {
+      font-family: 'Playfair Display', serif;
+      font-size: 2.2rem; font-weight: 600;
+      color: var(--orange); line-height: 1;
+    }
+    .afc-label { font-size: 0.74rem; color: var(--gray); margin-top: 4px; font-weight: 300; }
+
+    .about-content {}
+
+    .about-text {
+      font-size: 0.9rem; color: var(--gray);
+      font-weight: 300; line-height: 1.85;
+      margin-bottom: 16px;
+    }
+
+    .about-pillars {
+      display: flex; flex-direction: column; gap: 14px;
+      margin-top: 32px;
+    }
+    .pillar {
+      display: flex; align-items: flex-start; gap: 14px;
+    }
+    .pillar-icon {
+      width: 44px; height: 44px; border-radius: 14px;
+      background: rgba(229,97,28,0.09);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; flex-shrink: 0;
+    }
+    .pillar-text strong {
+      display: block; font-size: 0.86rem;
+      color: var(--black); font-weight: 600; margin-bottom: 2px;
+    }
+    .pillar-text span { font-size: 0.78rem; color: var(--gray); font-weight: 300; }
+
+    /* ══ FOOTER ══ */
+    footer {
+      background: var(--black);
+      color: rgba(255,255,255,0.5);
+      padding: 64px 60px 28px;
+    }
+    .footer-top {
+      display: grid;
+      grid-template-columns: 1.6fr 1fr 1fr;
+      gap: 60px;
+      padding-bottom: 48px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .footer-logo-text {
+      font-family: 'Nunito', sans-serif;
+      font-size: 0.85rem; font-weight: 600;
+      letter-spacing: 3px; text-transform: uppercase;
+      color: #fff; text-decoration: none;
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 14px;
+    }
+    .footer-logo-text span { color: var(--orange); }
+
+    .footer-tagline {
+      font-size: 0.83rem; line-height: 1.7;
+      font-weight: 300; margin-bottom: 24px;
+    }
+
+    .footer-socials { display: flex; gap: 10px; }
+    .fsoc {
+      width: 38px; height: 38px; border-radius: 10px;
+      background: rgba(255,255,255,0.07);
+      display: flex; align-items: center; justify-content: center;
+      text-decoration: none; color: rgba(255,255,255,0.5);
+      transition: background 0.2s, color 0.2s;
+    }
+    .fsoc:hover { background: var(--orange); color: #fff; }
+    .fsoc svg { width: 15px; height: 15px; }
+
+    .footer-col h5 {
+      font-size: 0.64rem; font-weight: 600;
+      letter-spacing: 2.5px; text-transform: uppercase;
+      color: rgba(255,255,255,0.28); margin-bottom: 20px;
+    }
+    .footer-links { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .footer-links a {
+      text-decoration: none; font-size: 0.84rem;
+      color: rgba(255,255,255,0.5); transition: color 0.2s;
+    }
+    .footer-links a:hover { color: #fff; }
+
+    .footer-contact-row {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 0.83rem; margin-bottom: 12px;
+    }
+    .footer-contact-row svg { width: 14px; height: 14px; color: var(--orange); flex-shrink: 0; }
+    .footer-contact-row a { color: inherit; text-decoration: none; }
+    .footer-contact-row a:hover { color: #fff; }
+
+    .footer-wa-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--green); color: #fff;
+      text-decoration: none; font-size: 0.75rem; font-weight: 600;
+      padding: 10px 18px; border-radius: 50px; margin-top: 8px;
+      transition: opacity 0.2s;
+    }
+    .footer-wa-btn:hover { opacity: 0.85; }
+    .footer-wa-btn svg { width: 14px; height: 14px; }
+
+    .footer-bottom {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-top: 28px; font-size: 0.73rem;
+    }
+
+    /* ══ ORDER MODAL ══ */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,0.55);
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.25s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+
+    .modal {
+      background: var(--white);
+      border-radius: 20px;
+      width: 100%; max-width: 480px;
+      overflow: hidden;
+      transform: translateY(20px) scale(0.97);
+      transition: transform 0.25s;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.18);
+    }
+    .modal-overlay.open .modal { transform: translateY(0) scale(1); }
+
+    .modal-top {
+      display: flex; gap: 16px; padding: 22px 22px 18px;
+      border-bottom: 1px solid var(--light);
+    }
+    .modal-img {
+      width: 80px; height: 80px; border-radius: 12px;
+      overflow: hidden; flex-shrink: 0; background: var(--bg);
+    }
+    .modal-img img { width: 100%; height: 100%; object-fit: cover; }
+    .modal-img-ph {
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--bg); font-size: 1.6rem;
+    }
+    .modal-product-cat { font-size: 0.62rem; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--orange); margin-bottom: 4px; }
+    .modal-product-name { font-family: 'Playfair Display', serif; font-style: italic; font-size: 1.15rem; font-weight: 600; color: var(--black); margin-bottom: 6px; }
+    .modal-price { font-size: 1rem; font-weight: 600; color: var(--black); }
+    .modal-price s { font-size: 0.8rem; color: var(--gray); font-weight: 300; margin-left: 6px; }
+    .modal-close {
+      margin-left: auto; align-self: flex-start;
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--bg); border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; color: var(--gray); flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    .modal-close:hover { background: var(--light); }
+
+    .modal-body { padding: 20px 22px 22px; }
+
+    .modal-label { font-size: 0.68rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gray); margin-bottom: 10px; }
+
+    .size-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+    .size-btn {
+      padding: 7px 16px; border-radius: 50px;
+      border: 1.5px solid var(--light); background: var(--white);
+      font-family: 'Nunito', sans-serif; font-size: 0.78rem; font-weight: 500;
+      cursor: pointer; transition: all 0.15s; color: var(--black);
+    }
+    .size-btn:hover { border-color: var(--black); }
+    .size-btn.selected { background: var(--black); border-color: var(--black); color: #fff; }
+
+    .color-select {
+      width: 100%; padding: 10px 14px; border-radius: 10px;
+      border: 1.5px solid var(--light); background: var(--white);
+      font-family: 'Nunito', sans-serif; font-size: 0.85rem; color: var(--black);
+      margin-bottom: 20px; transition: border-color 0.15s;
+    }
+    .color-select:focus { outline: none; border-color: var(--orange); }
+
+    .qty-row { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+    .qty-btn {
+      width: 34px; height: 34px; border-radius: 50%;
+      border: 1.5px solid var(--light); background: var(--white);
+      font-size: 1.1rem; cursor: pointer; display: flex;
+      align-items: center; justify-content: center;
+      transition: all 0.15s; color: var(--black);
+    }
+    .qty-btn:hover { background: var(--black); color: #fff; border-color: var(--black); }
+    .qty-num { font-size: 1rem; font-weight: 600; color: var(--black); min-width: 20px; text-align: center; }
+
+    .modal-wa-btn {
+      width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
+      background: var(--green); color: #fff;
+      border: none; border-radius: 50px; padding: 15px;
+      font-family: 'Nunito', sans-serif; font-size: 0.88rem; font-weight: 700;
+      cursor: pointer; letter-spacing: 0.3px;
+      box-shadow: 0 4px 16px rgba(37,211,102,0.35);
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .modal-wa-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .modal-wa-btn svg { width: 18px; height: 18px; }
+    .modal-note { text-align: center; font-size: 0.7rem; color: var(--gray); margin-top: 10px; }
+
+    /* ══ FLOAT WA ══ */
+    .float-wa {
+      position: fixed; bottom: 28px; right: 28px; z-index: 999;
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--green);
+      display: flex; align-items: center; justify-content: center;
+      text-decoration: none;
+      box-shadow: 0 6px 24px rgba(37,211,102,0.45);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .float-wa:hover { transform: scale(1.1); box-shadow: 0 10px 32px rgba(37,211,102,0.55); }
+    .float-wa svg { width: 28px; height: 28px; fill: #fff; }
+
+    /* ══ REVEAL ══ */
+    .reveal {
+      opacity: 0; transform: translateY(26px);
+      transition: opacity 0.65s ease, transform 0.65s ease;
+    }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+
+    /* ══ RESPONSIVE ══ */
+    @media (max-width: 1100px) {
+      nav { padding: 0 32px; }
+      #hero { padding: 110px 32px 72px; }
+      .hero-badge { display: none; }
+      #catalogue { padding: 80px 32px; }
+      #about { padding: 80px 32px; }
+      .about-inner { grid-template-columns: 1fr; gap: 48px; }
+      .about-main-img { height: 360px; }
+      footer { padding: 56px 32px 24px; }
+      .footer-top { grid-template-columns: 1fr 1fr; gap: 40px; }
+    }
+
+    @media (max-width: 640px) {
+      /* Nav */
+      nav { padding: 0 18px; height: 60px; }
+      .nav-links { display: none; }
+      .logo-mark { width: 32px; height: 32px; }
+
+      /* Hero — mobile: stacked with gradient blend */
+      #hero {
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        padding: 60px 0 48px;
+        min-height: 100svh;
+        background: none;
+      }
+      #hero::before { display: none; }
+
+      /* Image at top — controlled crop showing face */
+      .hero-mob-img {
+        display: block;
+        width: 100%;
+        height: 68vw;
+        object-fit: cover;
+        object-position: 30% top;
+        /* gradient fade at the bottom blending into page */
+        -webkit-mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
+        mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
+        margin-bottom: -24px; /* pull text up slightly under the fade */
+      }
+
+      .hero-content { max-width: 100%; padding: 0 20px; position: relative; z-index: 1; }
+      .hero-title { font-size: clamp(2rem, 8vw, 2.8rem); }
+      .hero-sub { font-size: 0.86rem; margin-bottom: 28px; max-width: 100%; }
+      .hero-btns { flex-direction: column; gap: 10px; }
+      .hero-btns a { text-align: center; justify-content: center; }
+      .hero-stats { gap: 20px; margin-top: 32px; padding-top: 24px; }
+      .stat-num { font-size: 1.5rem; }
+
+      /* Trust strip */
+      .trust-strip { padding: 20px 16px; gap: 0; }
+      .trust-item { padding: 10px 16px; min-width: 160px; }
+      .trust-divider { display: none; }
+
+      /* Testimonials */
+      #testimonials { padding: 60px 18px; }
+      .testi-grid { grid-template-columns: 1fr; gap: 16px; }
+
+      /* Catalogue */
+      #catalogue { padding: 52px 18px; }
+      .filter-bar {
+        justify-content: flex-start;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 6px;
+        scrollbar-width: none;
+        margin-bottom: 28px;
+      }
+      .filter-bar::-webkit-scrollbar { display: none; }
+      .filter-btn { flex-shrink: 0; }
+      .product-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+      .pcard-name { font-size: 0.95rem; }
+      .pcard-desc { font-size: 0.78rem; -webkit-line-clamp: 2; }
+
+      /* About */
+      #about { padding: 52px 18px; }
+
+      /* Footer */
+      footer { padding: 48px 18px 20px; }
+      .footer-top { grid-template-columns: 1fr; gap: 32px; }
+      .footer-bottom { flex-direction: column; gap: 8px; text-align: center; }
+
+      /* Modal — bottom sheet style */
+      .modal-overlay { align-items: flex-end; }
+      .modal-box {
+        width: 100%;
+        max-width: 100%;
+        border-radius: 20px 20px 0 0;
+        max-height: 90svh;
+        flex-direction: column;
+      }
+      .modal-top { flex-direction: column; gap: 0; padding: 0; }
+      .modal-img { width: 100%; height: 56vw; max-height: 260px; border-radius: 0; flex-shrink: 0; }
+      .modal-info { padding: 16px 18px 14px; border-bottom: 1px solid var(--light); }
+      .modal-close { position: absolute; top: 14px; right: 14px; z-index: 10; }
+      .modal { position: relative; }
+      .modal-product-name { font-size: 1.05rem; }
+      .modal-body { padding: 16px 18px 28px; overflow-y: auto; }
+    }
+
+    @media (max-width: 380px) {
+      .product-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════ NAV ══════ -->
+<nav>
+  <a href="#" class="nav-logo">
+    <img class="logo-mark" src="images/logo.png" alt="Only 4 You logo"/>
+    <span class="logo-wordmark">ONLY <span>4</span> YOU</span>
+  </a>
+
+  <ul class="nav-links">
+    <li><a href="#catalogue">Women</a></li>
+    <li><a href="#catalogue">Kids</a></li>
+    <li><a href="#about">About</a></li>
+    <li><a href="#footer">Contact</a></li>
+  </ul>
+
+  <a class="nav-wa" href="https://wa.me/918146597775?text=Hi!%20I%20visited%20Only%204%20You%20and%20want%20to%20place%20an%20order%20%F0%9F%91%97" target="_blank" rel="noopener">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+    Order on WhatsApp
+  </a>
+</nav>
+
+<!-- ══════ HERO ══════ -->
+<section id="hero">
+  <!-- Mobile-only image block — shows image at top, face visible, no zoom issues -->
+  <img class="hero-mob-img" src="images/hero-main.jpg" alt="Only 4 You Collection"/>
+
+  <div class="hero-content reveal">
+    <div class="hero-tag">✦ New Collection 2026</div>
+    <h1 class="hero-title">
+      Comfort you<br>can <em>live in.</em>
+    </h1>
+    <p class="hero-sub">
+      Premium comfort sets for women & adorable styles for kids.
+      Browse the catalogue and order in seconds — right on WhatsApp.
+    </p>
+    <div class="hero-btns">
+      <a href="#catalogue" class="btn-dark">Browse Collection</a>
+      <a href="https://wa.me/918146597775?text=Hi!%20I%20want%20to%20see%20your%20full%20collection%20%F0%9F%91%97" target="_blank" class="btn-ghost">Order on WhatsApp</a>
+    </div>
+    <div class="hero-stats">
+      <div>
+        <div class="stat-num">2<b>K+</b></div>
+        <div class="stat-label">Happy Customers</div>
+      </div>
+      <div>
+        <div class="stat-num">50<b>+</b></div>
+        <div class="stat-label">Styles Available</div>
+      </div>
+      <div>
+        <div class="stat-num">4<b>★</b></div>
+        <div class="stat-label">Avg. Rating</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hero images -->
+  <div class="hero-visual">
+    <div class="hero-main-card">
+      <img src="images/hero-main.jpg" alt="Women's Comfort Sets"/>
+    </div>
+    <div class="hero-kids-card">
+      <img src="images/kids-hero.jpg" alt="Kids Collection"/>
+    </div>
+  </div>
+
+  <div class="hero-badge reveal">
+    <span class="bi">💬</span>
+    <div>
+      <strong>Order in 60 seconds</strong>
+      <small>Just WhatsApp us</small>
+    </div>
+  </div>
+</section>
+
+<!-- ══════ MARQUEE ══════ -->
+<div class="marquee-wrap">
+  <div class="marquee-track">
+    <span class="marquee-item">Women's Comfort Sets <span class="dot"></span></span>
+    <span class="marquee-item">Kids Formals <span class="dot"></span></span>
+    <span class="marquee-item">Night Wear <span class="dot"></span></span>
+    <span class="marquee-item">Order on WhatsApp <span class="dot"></span></span>
+    <span class="marquee-item">Free Size Help <span class="dot"></span></span>
+    <span class="marquee-item">Fast Delivery <span class="dot"></span></span>
+    <span class="marquee-item">New Arrivals <span class="dot"></span></span>
+    <span class="marquee-item">Kids Casuals <span class="dot"></span></span>
+    <span class="marquee-item">Women's Comfort Sets <span class="dot"></span></span>
+    <span class="marquee-item">Kids Formals <span class="dot"></span></span>
+    <span class="marquee-item">Night Wear <span class="dot"></span></span>
+    <span class="marquee-item">Order on WhatsApp <span class="dot"></span></span>
+    <span class="marquee-item">Free Size Help <span class="dot"></span></span>
+    <span class="marquee-item">Fast Delivery <span class="dot"></span></span>
+    <span class="marquee-item">New Arrivals <span class="dot"></span></span>
+    <span class="marquee-item">Kids Casuals <span class="dot"></span></span>
+  </div>
+</div>
+
+<!-- ══════ TRUST STRIP ══════ -->
+<div class="trust-strip">
+  <div class="trust-item reveal">
+    <div class="trust-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>
+    </div>
+    <div>
+      <strong>Easy 7-Day Exchange</strong>
+      <span>Wrong size? We'll fix it.</span>
+    </div>
+  </div>
+  <div class="trust-divider"></div>
+  <div class="trust-item reveal">
+    <div class="trust-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    </div>
+    <div>
+      <strong>Genuine Fabrics</strong>
+      <span>Soft, breathable, long-lasting.</span>
+    </div>
+  </div>
+  <div class="trust-divider"></div>
+  <div class="trust-item reveal">
+    <div class="trust-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+    </div>
+    <div>
+      <strong>2,000+ Happy Customers</strong>
+      <span>Trusted by families since 2024.</span>
+    </div>
+  </div>
+  <div class="trust-divider"></div>
+  <div class="trust-item reveal">
+    <div class="trust-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8a19.79 19.79 0 01-3.07-8.68A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>
+    </div>
+    <div>
+      <strong>Order on WhatsApp</strong>
+      <span>Talk to us before you pay.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ CATALOGUE ══════ -->
+<section id="catalogue">
+  <div class="section-head-row reveal">
+    <div>
+      <div class="section-eyebrow">✦ Our Collection</div>
+      <h2 class="section-title">Women's Collection</h2>
+      <p class="section-sub">Tap "Order" on any item — we'll confirm sizes, colours & delivery right in chat.</p>
+    </div>
+    <a href="https://wa.me/918146597775?text=Hi!%20I%20want%20to%20see%20your%20full%20collection%20%F0%9F%91%97" target="_blank" style="font-size:0.75rem; font-weight:600; letter-spacing:1px; color:var(--black); text-decoration:none; border-bottom:1.5px solid var(--black); padding-bottom:2px; white-space:nowrap; transition:color 0.2s;" onmouseover="this.style.color='var(--orange)'; this.style.borderColor='var(--orange)';" onmouseout="this.style.color='var(--black)'; this.style.borderColor='var(--black)';">View All on WhatsApp →</a>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="filter-bar reveal">
+    <button class="filter-btn active" onclick="filter('all',this)">All</button>
+    <button class="filter-btn" onclick="filter('front-button',this)">Front Button Set</button>
+    <button class="filter-btn" onclick="filter('tshirt-lower',this)">T-Shirt / Lower</button>
+    <button class="filter-btn" onclick="filter('tshirt-shorts',this)">T-Shirt / Shorts</button>
+    <button class="filter-btn" onclick="filter('oversized',this)">Oversized Set</button>
+    <button class="filter-btn" onclick="filter('collar-neck',this)">Collar Neck</button>
+    <button class="filter-btn" onclick="filter('round-neck',this)">Round Neck</button>
+    <button class="filter-btn" onclick="filter('salwar-set',this)">Salwar Set</button>
+  </div>
+
+  <!-- Grid — rendered dynamically from products.js -->
+  <div class="product-grid" id="grid"></div>
+</section>
+
+<!-- ══════ TESTIMONIALS ══════ -->
+<section id="testimonials">
+  <div class="section-head-row reveal" style="justify-content:center; text-align:center; margin-bottom:48px;">
+    <div>
+      <div class="section-eyebrow">✦ Real Customers</div>
+      <h2 class="section-title">What They're Saying</h2>
+    </div>
+  </div>
+  <div class="testi-grid">
+
+    <div class="testi-card reveal">
+      <div class="testi-stars">★★★★★</div>
+      <p class="testi-text">"Ordered the satin floral set for my birthday — the fabric is so soft and the colour is exactly as shown. My daughter loved it too and wants one for herself!"</p>
+      <div class="testi-author">
+        <div class="testi-avatar">P</div>
+        <div>
+          <strong>Priya S.</strong>
+          <span>Mumbai</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="testi-card reveal">
+      <div class="testi-stars">★★★★★</div>
+      <p class="testi-text">"First time ordering from WhatsApp and I was nervous about paying in advance. They sent me a photo of the actual piece before I paid. Felt so reassured. Will order again!"</p>
+      <div class="testi-author">
+        <div class="testi-avatar">R</div>
+        <div>
+          <strong>Rekha M.</strong>
+          <span>Delhi</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="testi-card reveal">
+      <div class="testi-stars">★★★★★</div>
+      <p class="testi-text">"The kids formal dress for my daughter's school event was perfect. Great quality and delivered fast. Size was spot on — they helped me pick the right one on chat."</p>
+      <div class="testi-author">
+        <div class="testi-avatar">A</div>
+        <div>
+          <strong>Anjali K.</strong>
+          <span>Pune</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════ ABOUT ══════ -->
+<section id="about">
+  <div class="about-inner">
+    <div class="about-visual reveal">
+      <div class="about-main-img">
+        <img src="images/store.jpg" alt="Only 4 You store"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+        <div class="about-main-ph" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" width="36" height="36"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          store.jpg
+        </div>
+      </div>
+      <div class="about-float-card">
+        <div class="afc-num">100%</div>
+        <div class="afc-label">Personal service<br>every order</div>
+      </div>
+    </div>
+
+    <div class="about-content reveal">
+      <div style="margin-bottom:28px;">
+        <div class="section-eyebrow">✦ Our Story</div>
+        <h2 class="section-title">Built on comfort.<br>Made with care.</h2>
+      </div>
+      <p class="about-text">
+        Only 4 You started as a small family shop with a simple belief — everyone deserves to feel comfortable and stylish, at home or stepping out. From cozy women's comfort sets to adorable kids' formals, every piece is picked with care.
+      </p>
+      <p class="about-text">
+        No complicated checkouts. Just WhatsApp us, tell us what you love, and we'll handle the rest — personally, quickly, and with a smile.
+      </p>
+      <div class="about-pillars">
+        <div class="pillar">
+          <div class="pillar-icon">🧵</div>
+          <div class="pillar-text">
+            <strong>Quality Fabric</strong>
+            <span>Soft, breathable materials carefully selected for every piece</span>
+          </div>
+        </div>
+        <div class="pillar">
+          <div class="pillar-icon">💬</div>
+          <div class="pillar-text">
+            <strong>WhatsApp Orders</strong>
+            <span>Personal service — we help you pick the right size & colour</span>
+          </div>
+        </div>
+        <div class="pillar">
+          <div class="pillar-icon">👧</div>
+          <div class="pillar-text">
+            <strong>Women & Kids</strong>
+            <span>Something for everyone in the family, all under one roof</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════ FOOTER ══════ -->
+<footer id="footer">
+  <div class="footer-top">
+    <div>
+      <a class="footer-logo-text" href="#">
+        <img class="logo-mark" src="images/logo.png" alt="Only 4 You" style="border-radius:6px;"/>
+        ONLY <span>4</span> YOU
+      </a>
+      <p class="footer-tagline">Comfort wear & kids fashion you can order in minutes — right on WhatsApp.</p>
+      <div class="footer-socials">
+        <a href="https://instagram.com/only4yousince2024" target="_blank" class="fsoc" title="Instagram">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+        </a>
+        <a href="https://wa.me/918146597775" target="_blank" class="fsoc" title="WhatsApp">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+        </a>
+      </div>
+    </div>
+
+    <div class="footer-col">
+      <h5>Quick Links</h5>
+      <ul class="footer-links">
+        <li><a href="#hero">Home</a></li>
+        <li><a href="#catalogue">Shop Women</a></li>
+        <li><a href="#catalogue">Shop Kids</a></li>
+        <li><a href="#about">About Us</a></li>
+      </ul>
+    </div>
+
+    <div class="footer-col">
+      <h5>Get in Touch</h5>
+      <div class="footer-contact-row">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8a19.79 19.79 0 01-3.07-8.68A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>
+        <a href="https://wa.me/918146597775" target="_blank">+91 81465 97775</a>
+      </div>
+      <div class="footer-contact-row">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+        <a href="https://instagram.com/only4yousince2024" target="_blank">@only4yousince2024</a>
+      </div>
+      <a class="footer-wa-btn" href="https://wa.me/918146597775?text=Hi!%20I%20want%20to%20order%20from%20Only%204%20You%20%F0%9F%91%97" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+        Order Now
+      </a>
+    </div>
+  </div>
+
+  <div class="footer-bottom">
+    <span>© 2026 Only 4 You. All rights reserved.</span>
+    <span>Made with ♥ for you</span>
+  </div>
+</footer>
+
+<!-- ══════ FLOATING WA ══════ -->
+<a class="float-wa" href="https://wa.me/918146597775?text=Hi!%20I%20visited%20Only%204%20You%20website%20and%20want%20to%20place%20an%20order%20%F0%9F%91%97" target="_blank" rel="noopener" title="Order on WhatsApp">
+  <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+</a>
+
+<!-- ══ ORDER MODAL ══ -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <div class="modal-top">
+      <div class="modal-img">
+        <img id="modalImg" src="" alt=""/>
+      </div>
+      <div class="modal-info" style="flex:1; min-width:0;">
+        <div class="modal-product-cat" id="modalCat"></div>
+        <div class="modal-product-name" id="modalName"></div>
+        <div class="modal-price" id="modalPrice"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="sizeSection">
+        <div class="modal-label">Choose Size</div>
+        <div class="size-grid" id="sizeGrid"></div>
+      </div>
+      <div id="colorSection">
+        <div class="modal-label">Choose Colour / Design</div>
+        <select class="color-select" id="colorSelect"></select>
+      </div>
+      <div class="modal-label">Quantity</div>
+      <div class="qty-row">
+        <button class="qty-btn" onclick="changeQty(-1)">−</button>
+        <span class="qty-num" id="qtyNum">1</span>
+        <button class="qty-btn" onclick="changeQty(1)">+</button>
+      </div>
+      <button class="modal-wa-btn" onclick="sendWhatsApp()">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+        Send Order on WhatsApp
+      </button>
+      <div class="modal-note">We'll confirm availability & delivery details in the chat 🙏</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const WA = '918146597775';
+  let modalProduct = null;
+  let selectedSize = null;
+  let qty = 1;
+
+  // ── GOOGLE SHEETS CONFIG ──
+  // After setup, paste your Apps Script URL here:
+  const SHEET_API_URL = '';  // e.g. 'https://script.google.com/macros/s/XXXXX/exec'
+
+  let allProducts = [];  // populated on load from Sheets or local fallback
+
+  // ── RENDER PRODUCTS ──
+  function renderProducts(list) {
+    const phColors = ['ph-1','ph-2','ph-3','ph-4','ph-5','ph-6'];
+    const catLabels = {
+      'women comfort': 'Women — Comfort Set',
+      'women nightwear': 'Women — Night Wear',
+      'kids formal': 'Kids — Formals',
+      'kids': 'Kids — Casual'
+    };
+    const badgeClass = { orange: 'b-orange', dark: 'b-dark', white: 'b-white' };
+
+    return list.map((p, i) => `
+      <div class="pcard reveal" data-cat="${p.category}" data-id="${p.id}">
+        <div class="pcard-img">
+          <img src="${p.image}" alt="${p.name}"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+          <div class="pcard-ph ${phColors[i % phColors.length]}" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
+              <path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.84l.58-3.57a2 2 0 00-1.34-2.23z"/>
+            </svg>
+            ${p.image ? p.image.split('/').pop() : 'No image'}
+          </div>
+          ${p.badge ? `<span class="pcard-badge ${badgeClass[p.badgeStyle] || 'b-orange'}">${p.badge}</span>` : ''}
+        </div>
+        <div class="pcard-body">
+          <div class="pcard-cat">${catLabels[p.category] || p.category}</div>
+          <div class="pcard-name">${p.name}</div>
+          <div class="pcard-desc">${p.description}</div>
+          <div class="pcard-foot">
+            <div class="pcard-price">₹${p.price.toLocaleString('en-IN')}${p.mrp ? ` <span class="pcard-old">₹${p.mrp.toLocaleString('en-IN')}</span>` : ''}</div>
+            <button class="wa-btn" onclick="openModal('${p.id}')">
+              <svg viewBox="0 0 24 24" fill="currentColor" style="width:13px;height:13px;flex-shrink:0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+              Order
+            </button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // ── LOAD PRODUCTS (Google Sheets or local fallback) ──
+  async function loadProducts() {
+    if (SHEET_API_URL) {
+      try {
+        const res = await fetch(SHEET_API_URL);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        return data.map(p => ({
+          ...p,
+          price:  Number(p.price) || 0,
+          mrp:    p.mrp ? Number(p.mrp) : null,
+          sizes:  Array.isArray(p.sizes)  ? p.sizes  : (p.sizes  || '').toString().split(',').map(s => s.trim()).filter(Boolean),
+          colors: Array.isArray(p.colors) ? p.colors : (p.colors || '').toString().split(',').map(c => c.trim()).filter(Boolean),
+          inStock: p.inStock === true || String(p.inStock).toUpperCase() === 'TRUE'
+        })).filter(p => p.inStock);
+      } catch (e) {
+        console.warn('Google Sheets fetch failed — showing local products.js instead.', e);
+      }
+    }
+    // Fallback: products.js
+    return (typeof PRODUCTS !== 'undefined') ? PRODUCTS.filter(p => p.inStock) : [];
+  }
+
+  // ── INIT ──
+  (async function init() {
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--gray);padding:60px 40px;font-size:0.9rem;letter-spacing:.05em">Loading products…</p>';
+    allProducts = await loadProducts();
+    if (allProducts.length) {
+      grid.innerHTML = renderProducts(allProducts);
+    } else {
+      grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--gray);padding:40px">No products found. Add products via admin.html.</p>';
+    }
+    initReveal();
+  })();
+
+  // ── FILTER ──
+  function filter(cat, btn) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('#grid .pcard').forEach(card => {
+      const cats = card.dataset.cat || '';
+      const show = cat === 'all' || cats.includes(cat);
+      card.style.transition = 'opacity 0.22s';
+      if (show) { card.style.display = ''; requestAnimationFrame(() => card.style.opacity = '1'); }
+      else { card.style.opacity = '0'; setTimeout(() => card.style.display = 'none', 210); }
+    });
+  }
+
+  // ── MODAL ──
+  function openModal(id) {
+    const p = allProducts.find(x => x.id === id);
+    if (!p) return;
+    modalProduct = p;
+    selectedSize = null;
+    qty = 1;
+
+    // Fill modal
+    const img = document.getElementById('modalImg');
+    img.src = p.image || '';
+    img.onerror = () => { img.style.display = 'none'; };
+    document.getElementById('modalCat').textContent = p.category;
+    document.getElementById('modalName').textContent = p.name;
+    document.getElementById('modalPrice').innerHTML = `₹${p.price.toLocaleString('en-IN')}${p.mrp ? ` <s>₹${p.mrp.toLocaleString('en-IN')}</s>` : ''}`;
+    document.getElementById('qtyNum').textContent = '1';
+
+    // Sizes
+    const sg = document.getElementById('sizeGrid');
+    const ss = document.getElementById('sizeSection');
+    if (p.sizes && p.sizes.length) {
+      ss.style.display = '';
+      sg.innerHTML = p.sizes.map(s =>
+        `<button class="size-btn" onclick="selectSize(this,'${s}')">${s}</button>`
+      ).join('');
+    } else { ss.style.display = 'none'; }
+
+    // Colors
+    const cs = document.getElementById('colorSection');
+    const csel = document.getElementById('colorSelect');
+    if (p.colors && p.colors.length > 1) {
+      cs.style.display = '';
+      csel.innerHTML = p.colors.map(c => `<option value="${c}">${c}</option>`).join('');
+    } else { cs.style.display = 'none'; }
+
+    document.getElementById('modalOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeModal(e) {
+    if (e && e.target !== document.getElementById('modalOverlay') && e.type !== 'click') return;
+    if (e && e.currentTarget === document.getElementById('modalOverlay') && e.target !== e.currentTarget) return;
+    document.getElementById('modalOverlay').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  function selectSize(btn, size) {
+    document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedSize = size;
+  }
+
+  function changeQty(delta) {
+    qty = Math.max(1, Math.min(10, qty + delta));
+    document.getElementById('qtyNum').textContent = qty;
+  }
+
+  function sendWhatsApp() {
+    const p = modalProduct;
+    if (!p) return;
+
+    const size = selectedSize || (p.sizes && p.sizes.length ? '(please specify size)' : 'N/A');
+    const color = p.colors && p.colors.length > 1
+      ? document.getElementById('colorSelect').value
+      : (p.colors && p.colors[0]) || 'N/A';
+
+    const msg = [
+      `Hi! I'd like to place an order from *Only 4 You* 🛍️`,
+      ``,
+      `*Product:* ${p.name}`,
+      `*Size:* ${size}`,
+      p.colors && p.colors.length > 0 ? `*Colour:* ${color}` : null,
+      `*Quantity:* ${qty}`,
+      `*Price:* ₹${(p.price * qty).toLocaleString('en-IN')} (${qty} × ₹${p.price.toLocaleString('en-IN')})`,
+      ``,
+      `Please confirm availability and share delivery details. Thank you! 🙏`
+    ].filter(l => l !== null).join('\n');
+
+    window.open(`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`, '_blank');
+    closeModal();
+  }
+
+  // Close on Escape
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+  // ── SCROLL REVEAL ──
+  function initReveal() {
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); } });
+    }, { threshold: 0.08 });
+    document.querySelectorAll('.reveal').forEach((el, i) => {
+      el.style.transitionDelay = (i * 0.05) + 's';
+      obs.observe(el);
+    });
+  }
+  initReveal();
+</script>
+</body>
+</html>

@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>O4U Image Picker</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #222; }
+  header { background: #111; color: #fff; padding: 18px 24px; display: flex; align-items: center; gap: 16px; }
+  header h1 { font-size: 20px; font-weight: 600; }
+  header span { font-size: 13px; color: #aaa; }
+  .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+  
+  /* Product list sidebar */
+  .layout { display: grid; grid-template-columns: 300px 1fr; gap: 24px; }
+  .sidebar { position: sticky; top: 24px; height: fit-content; }
+  .product-card { background: #fff; border-radius: 12px; padding: 14px; margin-bottom: 10px; 
+                   border: 2px solid transparent; cursor: pointer; transition: all .15s; }
+  .product-card:hover { border-color: #ddd; }
+  .product-card.active { border-color: #111; background: #f9f9f9; }
+  .product-card.assigned { border-color: #22c55e; }
+  .product-name { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .product-meta { font-size: 12px; color: #777; }
+  .product-preview { width: 60px; height: 70px; object-fit: cover; border-radius: 6px; float: right; margin-left: 10px; }
+  .assigned-badge { display: inline-block; background: #dcfce7; color: #16a34a; font-size: 11px; 
+                     padding: 2px 8px; border-radius: 20px; margin-top: 4px; }
+  
+  /* Photo groups */
+  .main { }
+  .group-section { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+  .group-header { font-weight: 600; font-size: 14px; margin-bottom: 14px; color: #555; display: flex; 
+                   align-items: center; gap: 10px; }
+  .group-count { background: #eee; border-radius: 20px; padding: 2px 10px; font-size: 12px; }
+  .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  .photo-item { position: relative; cursor: pointer; border-radius: 8px; overflow: hidden; 
+                 border: 3px solid transparent; transition: all .15s; aspect-ratio: 3/4; }
+  .photo-item:hover { border-color: #aaa; }
+  .photo-item.selected { border-color: #111; }
+  .photo-item.assigned-to { border-color: #22c55e; }
+  .photo-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .photo-label { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.75); 
+                  color: #fff; font-size: 10px; padding: 4px 6px; line-height: 1.3; }
+  .photo-assign-tag { position: absolute; top: 4px; right: 4px; background: #22c55e; color: white; 
+                       font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 600; }
+
+  /* Action bar */
+  .action-bar { background: #111; color: #fff; padding: 14px 24px; position: sticky; bottom: 0; 
+                 display: flex; align-items: center; gap: 16px; }
+  .action-bar .progress { flex: 1; }
+  .action-bar .progress-text { font-size: 13px; color: #aaa; margin-bottom: 6px; }
+  .progress-bar { height: 4px; background: #333; border-radius: 2px; }
+  .progress-fill { height: 100%; background: #22c55e; border-radius: 2px; transition: width .3s; }
+  .btn-generate { background: #fff; color: #111; border: none; padding: 10px 24px; border-radius: 8px; 
+                   font-weight: 600; font-size: 14px; cursor: pointer; }
+  .btn-generate:hover { background: #f0f0f0; }
+  .btn-generate:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* Modal */
+  .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 100; 
+            align-items: center; justify-content: center; }
+  .modal.open { display: flex; }
+  .modal img { max-height: 90vh; max-width: 90vw; object-fit: contain; border-radius: 8px; }
+  .modal-close { position: absolute; top: 20px; right: 20px; color: #fff; font-size: 28px; 
+                  cursor: pointer; background: none; border: none; }
+
+  /* Output */
+  .output-box { display: none; background: #1e1e1e; color: #d4d4d4; padding: 20px; 
+                 border-radius: 12px; font-family: monospace; font-size: 12px; 
+                 white-space: pre; overflow-x: auto; margin-top: 20px; }
+  .copy-btn { background: #333; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; 
+               cursor: pointer; font-size: 13px; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>O4U Image Picker</h1>
+    <span>Assign product photos → generates updated products.js</span>
+  </div>
+</header>
+
+<div class="container">
+  <div class="layout">
+    <!-- Sidebar: products -->
+    <div class="sidebar">
+      <div style="font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:#999; margin-bottom:12px;">Products (12)</div>
+      <div id="product-list"></div>
+      <div style="margin-top:16px; font-size:12px; color:#999; line-height:1.6;">
+        Click a product → then click a photo to assign it. You can pick any photo from any group.
+      </div>
+    </div>
+
+    <!-- Main: photo groups -->
+    <div class="main" id="photo-groups"></div>
+  </div>
+  
+  <div id="output-section" style="display:none">
+    <h2 style="margin:24px 0 12px; font-size:16px;">✅ Generated products.js — copy & save to your website folder</h2>
+    <button class="copy-btn" onclick="copyOutput()">📋 Copy to clipboard</button>
+    <div class="output-box" id="output-box"></div>
+  </div>
+</div>
+
+<!-- Action bar -->
+<div class="action-bar">
+  <div class="progress">
+    <div class="progress-text" id="progress-text">0 of 12 products assigned</div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+  </div>
+  <button class="btn-generate" id="btn-generate" onclick="generateProductsJs()" disabled>
+    Generate products.js
+  </button>
+</div>
+
+<!-- Lightbox modal -->
+<div class="modal" id="modal" onclick="closeModal()">
+  <button class="modal-close" onclick="closeModal()">✕</button>
+  <img id="modal-img" src="" alt="">
+</div>
+
+<script>
+const PRODUCTS = [{"id": "w1", "name": "Indigo Denim Long Kurti", "category": "collar-neck", "price": 1225}, {"id": "w2", "name": "Indigo Denim Short Kurti", "category": "collar-neck", "price": 1195}, {"id": "w3", "name": "E.Grey Cord Set", "category": "front-button", "price": 1465}, {"id": "w4", "name": "Min.Red Cord Set", "category": "front-button", "price": 1465}, {"id": "w5", "name": "Rose Night Suit", "category": "round-neck", "price": 1195}, {"id": "w6", "name": "Jungle Green Night Suit", "category": "round-neck", "price": 1195}, {"id": "w7", "name": "E.Grey Kurta Set", "category": "salwar-set", "price": 1545}, {"id": "w8", "name": "Navy Blue Kurta Plazzo", "category": "salwar-set", "price": 1445}, {"id": "w9", "name": "Navy Premium Lounge Wear", "category": "tshirt-lower", "price": 924}, {"id": "w10", "name": "Black Premium Lounge Wear", "category": "tshirt-lower", "price": 799}, {"id": "w11", "name": "Gym Wear", "category": "tshirt-shorts", "price": 1445}, {"id": "w12", "name": "D.Olive Gym Wear", "category": "tshirt-shorts", "price": 1395}];
+const GROUPS = [["20260503_171058.jpg", "20260503_171100.jpg", "20260503_171105.jpg"], ["20260503_172040.jpg", "20260503_172043.jpg"], ["20260503_172249.jpg", "20260503_172252.jpg", "20260503_172300.jpg", "20260503_172304.jpg", "20260503_172308.jpg", "20260503_172311.jpg"], ["20260503_172536.jpg", "20260503_172540.jpg", "20260503_172545.jpg", "20260503_172550.jpg", "20260503_172638.jpg", "20260503_172641.jpg", "20260503_172644.jpg", "20260503_172754.jpg", "20260503_172757.jpg", "20260503_172800.jpg", "20260503_172803.jpg", "20260503_172809.jpg", "20260503_172812.jpg", "20260503_172817.jpg", "20260503_172819.jpg", "20260503_172856.jpg", "20260503_172859.jpg", "20260503_172903.jpg", "20260503_172906.jpg", "20260503_172914.jpg", "20260503_172917.jpg", "20260503_173039.jpg", "20260503_173042.jpg", "20260503_173046.jpg", "20260503_173049.jpg", "20260503_173107.jpg", "20260503_173138.jpg", "20260503_173214.jpg", "20260503_173216.jpg", "20260503_173220.jpg", "20260503_173321.jpg", "20260503_173326.jpg", "20260503_173328.jpg", "20260503_173334.jpg", "20260503_173336.jpg"], ["20260503_173539.jpg", "20260503_173541.jpg", "20260503_173548.jpg", "20260503_173608.jpg", "20260503_173614.jpg", "20260503_173725.jpg", "20260503_173728.jpg", "20260503_173740.jpg", "20260503_173745.jpg", "20260503_173753.jpg"], ["20260503_174320.jpg", "20260503_174323.jpg", "20260503_174332.jpg", "20260503_174334.jpg", "20260503_174341.jpg", "20260503_174345.jpg", "20260503_174349.jpg", "20260503_174352.jpg", "20260503_174357.jpg", "20260503_174400.jpg", "20260503_174419.jpg"], ["20260503_174558.jpg", "20260503_174601.jpg", "20260503_174603.jpg", "20260503_174611.jpg", "20260503_174734.jpg", "20260503_174741.jpg", "20260503_174750.jpg", "20260503_174756.jpg", "20260503_174804.jpg", "20260503_174811.jpg", "20260503_174815.jpg"], ["20260503_175634.jpg", "20260503_175638.jpg", "20260503_175656.jpg", "20260503_175706.jpg", "20260503_175730.jpg", "20260503_175733.jpg"], ["20260503_175955.jpg", "20260503_180000.jpg", "20260503_180007.jpg", "20260503_180024.jpg", "20260503_180131.jpg", "20260503_180134.jpg", "20260503_180139.jpg", "20260503_180142.jpg", "20260503_180149.jpg", "20260503_180153.jpg", "20260503_180202.jpg", "20260503_180205.jpg"], ["20260503_180451.jpg", "20260503_180453.jpg", "20260503_180458.jpg", "20260503_180501.jpg", "20260503_180508.jpg", "20260503_180512.jpg", "20260503_180521.jpg", "20260503_180527.jpg", "20260503_180613.jpg", "20260503_180617.jpg", "20260503_180620.jpg", "20260503_180623.jpg", "20260503_180629.jpg", "20260503_180633.jpg"], ["20260503_181441.jpg", "20260503_181520.jpg", "20260503_181522.jpg"], ["20260503_182000.jpg", "20260503_182003.jpg", "20260503_182007.jpg", "20260503_182010.jpg", "20260503_182014.jpg", "20260503_182017.jpg", "20260503_182025.jpg", "20260503_182029.jpg", "20260503_182039.jpg", "20260503_182043.jpg", "20260503_182054.jpg", "20260503_182057.jpg", "20260503_182114.jpg", "20260503_182118.jpg", "20260503_182128.jpg", "20260503_182131.jpg", "20260503_182136.jpg", "20260503_182139.jpg", "20260503_182142.jpg", "20260503_182146.jpg", "20260503_182156.jpg", "20260503_182200.jpg", "20260503_182224.jpg", "20260503_182231.jpg", "20260503_182237.jpg", "20260503_182244.jpg", "20260503_182251.jpg", "20260503_182254.jpg", "20260503_182305.jpg", "20260503_182308.jpg", "20260503_182314.jpg", "20260503_182318.jpg", "20260503_182346.jpg", "20260503_182349.jpg", "20260503_182353.jpg", "20260503_182355.jpg", "20260503_182359.jpg", "20260503_182401.jpg", "20260503_182403.jpg", "20260503_182404.jpg", "20260503_182419.jpg", "20260503_182422.jpg", "20260503_182427.jpg", "20260503_182429.jpg"], ["20260514_131114.jpg", "20260514_131120.jpg", "20260514_131128.jpg", "20260514_131149.jpg", "20260514_131152.jpg", "20260514_131156.jpg", "20260514_131159.jpg", "20260514_131237.jpg", "20260514_131240.jpg", "20260514_131245.jpg", "20260514_131248.jpg", "20260514_131258.jpg", "20260514_131302.jpg", "20260514_131307.jpg", "20260514_131313.jpg", "20260514_131320.jpg", "20260514_131324.jpg", "20260514_131329.jpg", "20260514_131340.jpg", "20260514_131345.jpg", "20260514_131348.jpg", "20260514_131353.jpg", "20260514_131358.jpg", "20260514_131403.jpg", "20260514_131407.jpg", "20260514_131432.jpg", "20260514_131435.jpg", "20260514_131440.jpg", "20260514_131442.jpg", "20260514_131447.jpg", "20260514_131451.jpg", "20260514_131456.jpg", "20260514_131500.jpg", "20260514_131506.jpg", "20260514_131509.jpg", "20260514_131521.jpg", "20260514_131526.jpg", "20260514_131541.jpg", "20260514_131543.jpg", "20260514_131547.jpg", "20260514_131549.jpg", "20260514_131559.jpg", "20260514_131601.jpg", "20260514_131612.jpg", "20260514_131614.jpg", "20260514_131618.jpg", "20260514_131620.jpg", "20260514_131622.jpg", "20260514_131626.jpg", "20260514_131655.jpg", "20260514_131658.jpg", "20260514_131702.jpg", "20260514_131705.jpg", "20260514_131711.jpg", "20260514_131714.jpg", "20260514_131717.jpg", "20260514_131720.jpg", "20260514_131726.jpg", "20260514_131730.jpg", "20260514_131734.jpg", "20260514_131736.jpg", "20260514_131741.jpg", "20260514_131743.jpg", "20260514_131804.jpg", "20260514_131925.jpg", "20260514_131928.jpg", "20260514_131932.jpg", "20260514_131957.jpg", "20260514_132002.jpg", "20260514_132039.jpg", "20260514_132045.jpg", "20260514_132056.jpg", "20260514_132105.jpg", "20260514_132112.jpg", "20260514_132118.jpg", "20260514_132122.jpg"], ["20260514_132340.jpg", "20260514_132343.jpg", "20260514_132350.jpg", "20260514_132352.jpg", "20260514_132358.jpg", "20260514_132400.jpg", "20260514_132404.jpg", "20260514_132407.jpg", "20260514_132411.jpg", "20260514_132413.jpg", "20260514_132418.jpg", "20260514_132420.jpg", "20260514_132445.jpg", "20260514_132448.jpg", "20260514_132452.jpg", "20260514_132458.jpg", "20260514_132502.jpg", "20260514_132506.jpg", "20260514_132530.jpg", "20260514_132533.jpg", "20260514_132536.jpg", "20260514_132539.jpg", "20260514_132546.jpg", "20260514_132556.jpg", "20260514_132607.jpg", "20260514_132611.jpg", "20260514_132614.jpg", "20260514_132618.jpg", "20260514_132621.jpg", "20260514_132630.jpg", "20260514_132633.jpg", "20260514_132636.jpg", "20260514_132757.jpg", "20260514_132759.jpg", "20260514_132803.jpg", "20260514_132833.jpg", "20260514_132840.jpg", "20260514_132844.jpg", "20260514_132848.jpg", "20260514_132904.jpg", "20260514_132955.jpg", "20260514_132958.jpg", "20260514_133002.jpg", "20260514_133005.jpg", "20260514_133019.jpg", "20260514_133022.jpg", "20260514_133028.jpg", "20260514_133031.jpg", "20260514_133147.jpg", "20260514_133258.jpg", "20260514_133303.jpg", "20260514_133306.jpg", "20260514_133313.jpg", "20260514_133330.jpg", "20260514_133337.jpg", "20260514_133340.jpg", "20260514_133348.jpg", "20260514_133351.jpg", "20260514_133355.jpg", "20260514_133358.jpg", "20260514_133403.jpg", "20260514_133405.jpg", "20260514_133456.jpg", "20260514_133500.jpg", "20260514_133507.jpg", "20260514_133509.jpg", "20260514_133513.jpg", "20260514_133516.jpg", "20260514_133521.jpg", "20260514_133524.jpg", "20260514_133607.jpg", "20260514_133610.jpg", "20260514_133617.jpg", "20260514_133618.jpg", "20260514_133624.jpg", "20260514_133628.jpg", "20260514_133702.jpg", "20260514_133705.jpg", "20260514_133710.jpg", "20260514_133716.jpg", "20260514_133723.jpg", "20260514_133727.jpg", "20260514_133731.jpg", "20260514_133733.jpg", "20260514_133740.jpg", "20260514_133743.jpg", "20260514_133749.jpg", "20260514_133751.jpg", "20260514_133805.jpg", "20260514_133807.jpg", "20260514_133819.jpg", "20260514_133821.jpg", "20260514_133829.jpg", "20260514_133833.jpg", "20260514_133840.jpg", "20260514_133848.jpg", "20260514_133852.jpg", "20260514_133854.jpg", "20260514_133859.jpg", "20260514_133904.jpg", "20260514_133913.jpg", "20260514_133915.jpg", "20260514_133920.jpg", "20260514_133922.jpg", "20260514_133926.jpg", "20260514_133929.jpg", "20260514_133937.jpg", "20260514_133938.jpg", "20260514_133944.jpg", "20260514_133948.jpg", "20260514_134005.jpg", "20260514_134039.jpg"], ["20260514_134328.jpg", "20260514_134331.jpg", "20260514_134334.jpg", "20260514_134339.jpg", "20260514_134341.jpg", "20260514_134357.jpg", "20260514_134400.jpg", "20260514_134406.jpg", "20260514_134409.jpg", "20260514_134414.jpg", "20260514_134416.jpg", "20260514_134421.jpg", "20260514_134424.jpg"], ["20260514_134600.jpg", "20260514_134607.jpg", "20260514_134622.jpg", "20260514_134626.jpg", "20260514_134628.jpg", "20260514_134630.jpg"], ["20260514_134905.jpg", "20260514_134911.jpg", "20260514_134924.jpg", "20260514_134942.jpg", "20260514_134947.jpg", "20260514_134951.jpg"]];
+const IMG_BASE = "stock images/O4u img/";
+
+// State
+let activeProduct = null;        // product id currently being assigned
+let assignments = {};            // product_id -> filename
+
+function init() {
+  renderProducts();
+  renderGroups();
+}
+
+function renderProducts() {
+  const el = document.getElementById('product-list');
+  el.innerHTML = PRODUCTS.map(p => `
+    <div class="product-card ${assignments[p.id] ? 'assigned' : ''}" 
+         id="pcard-${p.id}" onclick="selectProduct('${p.id}')">
+      ${assignments[p.id] ? `<img class="product-preview" src="${IMG_BASE}${assignments[p.id]}" onerror="this.style.display='none'">` : ''}
+      <div class="product-name">${p.name}</div>
+      <div class="product-meta">₹${p.price} · ${p.category}</div>
+      ${assignments[p.id] ? `<div class="assigned-badge">✓ assigned</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function renderGroups() {
+  const el = document.getElementById('photo-groups');
+  el.innerHTML = GROUPS.map((group, gi) => `
+    <div class="group-section">
+      <div class="group-header">
+        <span>Group ${gi+1}</span>
+        <span class="group-count">${group.length} photos</span>
+        <span style="font-weight:400; color:#999">${group[0].replace('.jpg','').replace('_',' ')}</span>
+      </div>
+      <div class="photo-grid">
+        ${group.map(f => `
+          <div class="photo-item ${isAssigned(f) ? 'assigned-to' : ''}" 
+               id="photo-${f.replace('.','_')}"
+               onclick="assignPhoto('${f}')" 
+               ondblclick="openModal('${f}')">
+            <img src="${IMG_BASE}${f}" loading="lazy" onerror="this.parentElement.style.display='none'">
+            <div class="photo-label">${f.slice(9,15)}</div>
+            ${isAssigned(f) ? `<div class="photo-assign-tag">${getAssignedProduct(f)}</div>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectProduct(pid) {
+  activeProduct = pid;
+  document.querySelectorAll('.product-card').forEach(c => c.classList.remove('active'));
+  const card = document.getElementById('pcard-' + pid);
+  if (card) { card.classList.add('active'); card.scrollIntoView({behavior:'smooth', block:'nearest'}); }
+  // Visual hint
+  document.body.style.cursor = 'crosshair';
+}
+
+function assignPhoto(filename) {
+  if (!activeProduct) {
+    alert('First click a product on the left, then click a photo to assign it.');
+    return;
+  }
+  // Remove previous assignment for this product
+  Object.keys(assignments).forEach(k => {
+    if (assignments[k] === filename) delete assignments[k];
+  });
+  assignments[activeProduct] = filename;
+  
+  const nextUnassigned = PRODUCTS.find(p => !assignments[p.id] && p.id !== activeProduct);
+  if (nextUnassigned) selectProduct(nextUnassigned.id);
+  else { activeProduct = null; document.body.style.cursor = ''; }
+
+  updateProgress();
+  renderProducts();
+  renderGroups();
+}
+
+function isAssigned(filename) {
+  return Object.values(assignments).includes(filename);
+}
+
+function getAssignedProduct(filename) {
+  const pid = Object.keys(assignments).find(k => assignments[k] === filename);
+  if (!pid) return '';
+  const p = PRODUCTS.find(x => x.id === pid);
+  return p ? p.id : pid;
+}
+
+function updateProgress() {
+  const count = Object.keys(assignments).length;
+  const pct = Math.round(count / PRODUCTS.length * 100);
+  document.getElementById('progress-text').textContent = count + ' of ' + PRODUCTS.length + ' products assigned';
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('btn-generate').disabled = count === 0;
+}
+
+function openModal(filename) {
+  document.getElementById('modal-img').src = IMG_BASE + filename;
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+function generateProductsJs() {
+  const lines = [];
+  lines.push('// ╔═══════════════════════════════════════════════════════════════╗');
+  lines.push('// ║         ONLY 4 YOU — AUTO-GENERATED PRODUCT DATABASE          ║');
+  lines.push('// ║         Generated by image-picker.html                        ║');
+  lines.push('// ╚═══════════════════════════════════════════════════════════════╝');
+  lines.push('');
+  lines.push('const PRODUCTS = [');
+  
+  const fullProducts = [
+    {id:"w1",  name:"Indigo Denim Long Kurti",       category:"collar-neck",   price:1225, sizes:["XL"],       colors:["Indigo"],       inStock:true},
+    {id:"w2",  name:"Indigo Denim Short Kurti",      category:"collar-neck",   price:1195, sizes:["M"],        colors:["Indigo"],       inStock:true},
+    {id:"w3",  name:"E.Grey Cord Set",               category:"front-button",  price:1465, sizes:["XL","2XL"], colors:["E.Grey"],       inStock:true},
+    {id:"w4",  name:"Min.Red Cord Set",              category:"front-button",  price:1465, sizes:["XL","2XL"], colors:["Min.Red"],      inStock:true},
+    {id:"w5",  name:"Rose Night Suit",               category:"round-neck",    price:1195, sizes:["S","M","L"],colors:["Rose"],         inStock:true},
+    {id:"w6",  name:"Jungle Green Night Suit",       category:"round-neck",    price:1195, sizes:["S","M","L"],colors:["Jungle Green"], inStock:true},
+    {id:"w7",  name:"E.Grey Kurta Set",              category:"salwar-set",    price:1545, sizes:["XL","2XL"], colors:["E.Grey"],       inStock:true},
+    {id:"w8",  name:"Navy Blue Kurta Plazzo",        category:"salwar-set",    price:1445, sizes:["XL","2XL"], colors:["Navy Blue"],    inStock:true},
+    {id:"w9",  name:"Navy Premium Lounge Wear",      category:"tshirt-lower",  price:924,  sizes:["XXL"],      colors:["Navy"],         inStock:true},
+    {id:"w10", name:"Black Premium Lounge Wear",     category:"tshirt-lower",  price:799,  sizes:["3XL"],      colors:["Black"],        inStock:true},
+    {id:"w11", name:"Gym Wear",                      category:"tshirt-shorts", price:1445, sizes:["2XL"],      colors:[""],             inStock:true},
+    {id:"w12", name:"D.Olive Gym Wear",              category:"tshirt-shorts", price:1395, sizes:["2XL"],      colors:["D.Olive"],      inStock:true},
+  ];
+
+  fullProducts.forEach((p, i) => {
+    const imgFile = assignments[p.id] || 'placeholder.jpg';
+    const imgPath = assignments[p.id] ? 'images/' + imgFile : 'images/placeholder.jpg';
+    const desc = p.name + '. Soft & comfortable fabric.';
+    const obj = `  {
+    id:          "${p.id}",
+    name:        "${p.name}",
+    category:    "${p.category}",
+    price:       ${p.price},
+    mrp:         null,
+    image:       "${imgPath}",
+    description: "${desc}",
+    badge:       "",
+    badgeStyle:  "",
+    sizes:       ${JSON.stringify(p.sizes)},
+    colors:      ${JSON.stringify(p.colors)},
+    inStock:     ${p.inStock}
+  }`;
+    lines.push(obj + (i < fullProducts.length - 1 ? ',' : ''));
+  });
+  
+  lines.push('];');
+  lines.push('');
+  
+  const output = lines.join('\n');
+  document.getElementById('output-box').textContent = output;
+  document.getElementById('output-section').style.display = 'block';
+  document.getElementById('output-section').scrollIntoView({behavior:'smooth'});
+}
+
+function copyOutput() {
+  const text = document.getElementById('output-box').textContent;
+  navigator.clipboard.writeText(text).then(() => alert('Copied! Now paste into products.js in your website folder.'));
+}
+
+init();
+</script>
+</body>
+</html>

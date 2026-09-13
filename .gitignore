@@ -1,0 +1,33 @@
+# ── Raw photography: never committed, never deployed ────────────────
+# 1.1 GB raw shoot folder + 1.1 GB ZIP. The photo tools read these
+# locally; they must never reach git or Netlify.
+website/stock images/
+product-photos/
+*.zip
+*.rar
+*.7z
+
+# ── Secrets ─────────────────────────────────────────────────────────
+.env
+.env.*
+*.key
+secrets.*
+
+# ── OS / editor noise ───────────────────────────────────────────────
+Thumbs.db
+desktop.ini
+.DS_Store
+~$*
+*.tmp
+*.bak
+.vscode/
+.idea/
+
+# ── Python ──────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ── Netlify local state ─────────────────────────────────────────────
+.netlify/
