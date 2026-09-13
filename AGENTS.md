@@ -27,7 +27,7 @@ One writable store only: the workbook. `admin.html` is a read-only preview.
 ```
 python scripts/build_catalogue.py            # root workbook → website/products.js
 python scripts/build_catalogue.py --workbook path/to/other.xlsx --out ... --images-dir ...
-python scripts/test_build_catalogue.py       # 12 self-checks, no pytest needed
+python scripts/test_build_catalogue.py       # 14 self-checks, no pytest needed
 ```
 
 Needs Python 3.10+ and `openpyxl`. Errors → exit 1 and `products.js` is NOT
