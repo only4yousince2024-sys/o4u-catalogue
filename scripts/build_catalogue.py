@@ -53,6 +53,7 @@ DEFAULT_WORKBOOK = ROOT / "O4U_Stock_Inventory_UPDATED_v2.xlsx"
 DEFAULT_OUT = ROOT / "website" / "products.js"
 DEFAULT_IMAGES_DIR = ROOT / "website" / "images"
 PREFERRED_SHEET = "Stock Inventory"
+REVIEWS_SHEET = "Reviews"          # optional; absent → REVIEWS = [] with a warning
 
 # ── Vocabulary ───────────────────────────────────────────────────────────────
 SIZE_ORDER = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"]
@@ -143,6 +144,17 @@ COLUMN_ALIASES = {
     "published":       ["published", "publish", "web", "show on website", "online", "live"],
     "notes":           ["notes", "note", "remarks"],
 }
+REVIEW_ALIASES = {
+    "name":      ["name", "customer", "customer name"],
+    "city":      ["city", "town", "location"],
+    "rating":    ["rating", "stars", "score"],
+    "review":    ["review", "text", "comment", "feedback"],
+    "date":      ["date", "received", "date received"],
+    "published": ["published", "publish", "show", "live"],
+    "source":    ["source", "channel", "via"],
+}
+REVIEW_REQUIRED = ["name", "rating", "review"]
+
 REQUIRED_COLUMNS = ["article", "description", "colour", "available_sizes", "mrp", "stock_qty"]
 OPTIONAL_COLUMNS = ["sno", "brand", "size", "notes"]
 SHOP_COLUMNS = {           # column absent → default (§5.2)
@@ -399,6 +411,85 @@ def read_rows(ws, header_row: int, colmap: dict[str, int], diag: Diag) -> list[d
     return rows
 
 
+# ── Reviews (optional sheet; never invented, never fatal) ────────────────────
+def read_reviews(wb, diag: Diag) -> list[dict]:
+    """
+    Sheet 'Reviews': Name, City, Rating (1-5, one decimal), Review, Date,
+    Published, Source. Missing sheet → [] + warning. Bad rows are skipped
+    with a warning. Rows are the owner's data — nothing is filled in.
+    """
+    if REVIEWS_SHEET not in wb.sheetnames:
+        diag.warn(f"Sheet {REVIEWS_SHEET!r} not found — REVIEWS = [] (the reviews section stays hidden)")
+        return []
+    ws = wb[REVIEWS_SHEET]
+    alias_lookup = {a: k for k, al in REVIEW_ALIASES.items() for a in al}
+    header_row, colmap = None, {}
+    for r in range(1, min(ws.max_row or 1, 10) + 1):
+        cells = [header_key(clean_str(c.value)) for c in ws[r]]
+        if "review" in cells or "rating" in cells:
+            header_row = r
+            for idx, h in enumerate(cells):
+                key = alias_lookup.get(h)
+                if key and key not in colmap:
+                    colmap[key] = idx
+            break
+    if header_row is None:
+        diag.warn(f"Sheet {REVIEWS_SHEET!r} has no header row with Name/Rating/Review — REVIEWS = []")
+        return []
+    missing = [k for k in REVIEW_REQUIRED if k not in colmap]
+    if missing:
+        diag.warn(f"Sheet {REVIEWS_SHEET!r} is missing column(s) {missing} — REVIEWS = []")
+        return []
+    if "published" not in colmap:
+        diag.warn(f"Sheet {REVIEWS_SHEET!r} has no 'Published' column — every review is treated as published")
+
+    out = []
+    for r_idx, row in enumerate(ws.iter_rows(min_row=header_row + 1, values_only=True), start=header_row + 1):
+        if all(clean_str(v) is None for v in row):
+            continue
+        where = f"Reviews row {r_idx}"
+
+        def cell(key):
+            i = colmap.get(key)
+            return row[i] if i is not None and i < len(row) else None
+
+        name, text = clean_str(cell("name")), clean_str(cell("review"))
+        if not name or not text:
+            diag.warn(f"{where}: Name or Review is blank — skipped")
+            continue
+        try:
+            rating = round(float(str(cell("rating")).replace(",", ".").strip()), 1)
+        except (TypeError, ValueError):
+            diag.warn(f"{where}: Rating {cell('rating')!r} is not a number — skipped")
+            continue
+        if not 1 <= rating <= 5:
+            diag.warn(f"{where}: Rating {rating} is outside 1-5 — skipped")
+            continue
+        pub = parse_bool(cell("published"), where, diag) if "published" in colmap else True
+        if pub is None:
+            if "published" in colmap:
+                diag.warn(f"{where}: Published blank — treated as TRUE")
+            pub = True
+        if not pub:
+            continue
+        d = cell("date")
+        if isinstance(d, _dt.datetime):
+            date = d.date().isoformat()
+        elif isinstance(d, _dt.date):
+            date = d.isoformat()
+        else:
+            date = clean_str(d) or ""
+        out.append({
+            "name": name,
+            "city": clean_str(cell("city")) or "",
+            "rating": rating,
+            "review": text,
+            "date": date,
+            "source": clean_str(cell("source")) or "",
+        })
+    return out
+
+
 # ── Grouping into products ───────────────────────────────────────────────────
 def clean_brand(b: str | None) -> str | None:
     if not b:
@@ -571,12 +662,13 @@ def build_products(rows: list[dict], colmap: dict[str, int], images_dir: Path, d
 
 
 # ── Output ───────────────────────────────────────────────────────────────────
-def write_products_js(products: list[dict], out: Path, source: Path, counts: dict) -> None:
+def write_products_js(products: list[dict], reviews: list[dict], out: Path, source: Path, counts: dict) -> None:
     published = [p for p in products if p["published"]]
     cats_present = [{"key": k, "label": v} for k, v in CATEGORIES.items() if any(p["category"] == k for p in published)]
     stamp = _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
     body = json.dumps(published, indent=2, ensure_ascii=False)
     cats = json.dumps(cats_present, indent=2, ensure_ascii=False)
+    revs = json.dumps(reviews, indent=2, ensure_ascii=False)
     header = (
         "// ╔═══════════════════════════════════════════════════════════════╗\n"
         "// ║   ONLY 4 YOU — GENERATED PRODUCT CATALOGUE. DO NOT HAND-EDIT.  ║\n"
@@ -584,17 +676,17 @@ def write_products_js(products: list[dict], out: Path, source: Path, counts: dic
         "// ║   Build  : python scripts/build_catalogue.py                   ║\n"
         "// ╚═══════════════════════════════════════════════════════════════╝\n"
         f"// Generated {stamp} from {source.name}\n"
-        f"// {counts['published']} published products · {counts['source_rows']} source rows\n\n"
+        f"// {counts['published']} published products · {counts['source_rows']} source rows · {counts['reviews']} reviews\n\n"
     )
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(header + f"const CATEGORIES = {cats};\n\nconst PRODUCTS = {body};\n", encoding="utf-8")
+    out.write_text(header + f"const CATEGORIES = {cats};\n\nconst PRODUCTS = {body};\n\n// Real customer reviews from the 'Reviews' sheet. Empty = section hidden.\nconst REVIEWS = {revs};\n", encoding="utf-8")
 
 
 def verify_output(out: Path) -> None:
     """The file is `const X = <json>;` blocks — re-parse the JSON to prove it is valid JS."""
     text = out.read_text(encoding="utf-8")
-    for name in ("CATEGORIES", "PRODUCTS"):
-        m = re.search(rf"const {name} = (.*?);\n(?=\n|const |$)", text, re.S)
+    for name in ("CATEGORIES", "PRODUCTS", "REVIEWS"):
+        m = re.search(rf"const {name} = (.*?);\n(?=\n|const |//|$)", text, re.S)
         if not m:
             raise RuntimeError(f"{out}: could not find `const {name}`")
         json.loads(m.group(1))
@@ -625,6 +717,7 @@ def main(argv=None) -> int:
     hdr = find_header(ws, diag)
     products: list[dict] = []
     rows: list[dict] = []
+    reviews: list[dict] = read_reviews(wb, diag)
     if hdr:
         header_row, colmap = hdr
         for key in REQUIRED_COLUMNS:
@@ -649,13 +742,14 @@ def main(argv=None) -> int:
         "missing_images": sum(1 for p in published if not p["images"]),
         "zero_stock": sum(1 for p in published if p["stockQty"] <= 0),
         "size_priced": sum(1 for p in published if p["sizePrices"]),
+        "reviews": len(reviews),
         "warnings": len(diag.warnings),
         "errors": len(diag.errors),
     }
 
     ok = not diag.errors
     if ok:
-        write_products_js(products, args.out, args.workbook, counts)
+        write_products_js(products, reviews, args.out, args.workbook, counts)
         try:
             verify_output(args.out)
         except Exception as e:  # pragma: no cover
@@ -682,6 +776,7 @@ def main(argv=None) -> int:
     print(f"  Missing images        {counts['missing_images']}")
     print(f"  Zero stock            {counts['zero_stock']}")
     print(f"  Size-priced variants  {counts['size_priced']}")
+    print(f"  Reviews               {counts['reviews']}")
     print(f"  Warnings              {counts['warnings']}")
     print(f"  Errors                {counts['errors']}")
     if ok:

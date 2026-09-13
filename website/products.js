@@ -3,8 +3,8 @@
 // ║   Source : the stock workbook (single source of truth)         ║
 // ║   Build  : python scripts/build_catalogue.py                   ║
 // ╚═══════════════════════════════════════════════════════════════╝
-// Generated 2026-09-13 23:17 from O4U_test_copy_row216_removed.xlsx
-// 172 published products · 214 source rows
+// Generated 2026-09-13 23:19 from O4U_test_copy_row216_removed.xlsx
+// 172 published products · 214 source rows · 0 reviews
 
 const CATEGORIES = [
   {
@@ -4688,3 +4688,6 @@ const PRODUCTS = [
     "badgeStyle": ""
   }
 ];
+
+// Real customer reviews from the 'Reviews' sheet. Empty = section hidden.
+const REVIEWS = [];

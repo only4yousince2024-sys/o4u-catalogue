@@ -81,8 +81,14 @@ def make_wb(rows, extra_headers=(), title=True):
     return tmp
 
 
-def run(rows, extra_headers=(), images=None):
+def run(rows, extra_headers=(), images=None, reviews=None):
     wbp = make_wb(rows, extra_headers)
+    if reviews is not None:
+        wb = openpyxl.load_workbook(wbp)
+        ws = wb.create_sheet("Reviews")
+        for r in reviews:
+            ws.append(r)
+        wb.save(wbp)
     out = wbp.parent / "products.js"
     imgdir = wbp.parent / "images"
     imgdir.mkdir()
@@ -92,7 +98,12 @@ def run(rows, extra_headers=(), images=None):
     text = out.read_text(encoding="utf-8") if out.exists() else ""
     import json, re
     prods = json.loads(re.search(r"const PRODUCTS = (.*?);\n", text, re.S).group(1)) if text else None
+    global LAST_REVIEWS
+    LAST_REVIEWS = json.loads(re.search(r"const REVIEWS = (.*?);\n", text, re.S).group(1)) if text else None
     return rc, prods
+
+
+LAST_REVIEWS = None
 
 
 ROW = [1, "Melini", "CS250A", "Cord Set", "Min.Red", "L", "1", 1415, 1, "M L XL 2XL", "", "", ""]
@@ -187,6 +198,28 @@ def test_images_discovered_in_order():
     assert rc == 0
     assert prods[0]["images"] == ["images/cs250a-min-red.jpg", "images/cs250a-min-red-2.jpg", "images/cs250a-min-red-3.png", "images/cs250a-min-red-9.jpg"]
     assert prods[0]["image"] == "images/cs250a-min-red.jpg"
+
+
+def test_reviews_absent_sheet_gives_empty_array():
+    rc, prods = run([ROW])
+    assert rc == 0 and LAST_REVIEWS == []
+
+
+def test_reviews_sheet_is_read_and_validated():
+    import datetime
+    reviews = [
+        ["Name", "City", "Rating", "Review", "Date", "Published", "Source"],
+        ["Priya S.", "Ludhiana", 4.5, "Fabric is lovely.", datetime.date(2026, 9, 1), "TRUE", "WhatsApp"],
+        ["Hidden", "Amritsar", 5, "Should not appear", None, "FALSE", "Instagram"],
+        ["Bad rating", "Jalandhar", 7, "Out of range", None, "TRUE", ""],
+        ["No text", "Jalandhar", 4, None, None, "TRUE", ""],
+        ["Blank pub", "", "3", "Honest three stars.", "Sept 2026", None, "in-store"],
+    ]
+    rc, prods = run([ROW], reviews=reviews)
+    assert rc == 0, "review problems must never fail the build"
+    assert [r["name"] for r in LAST_REVIEWS] == ["Priya S.", "Blank pub"]
+    assert LAST_REVIEWS[0] == {"name": "Priya S.", "city": "Ludhiana", "rating": 4.5, "review": "Fabric is lovely.", "date": "2026-09-01", "source": "WhatsApp"}
+    assert LAST_REVIEWS[1]["rating"] == 3.0 and LAST_REVIEWS[1]["date"] == "Sept 2026"
 
 
 def test_missing_required_column_blocks():

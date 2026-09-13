@@ -129,6 +129,32 @@ than one. A missing image is a warning and a placeholder, never an unpublish.
 `website/images/` also holds branding (`logo.png`, `hero-main.jpg`,
 `kids-hero.jpg`, `fevicon.png`).
 
+## Reviews (`REVIEWS` in products.js)
+
+Real reviews only. **Never generate, invent or placeholder-fill reviews,
+names, cities, ratings or dates** - not even as scaffolding. The build reads
+an optional workbook sheet named `Reviews`:
+
+| Column | Notes |
+|---|---|
+| `Name` | as the customer gave it (first name + initial is fine) |
+| `City` | Ludhiana, Amritsar, Jalandhar ... |
+| `Rating` | 1-5, one decimal allowed; anything else is skipped with a warning |
+| `Review` | the customer's own words |
+| `Date` | when received |
+| `Published` | TRUE / FALSE, same convention as products (blank = TRUE) |
+| `Source` | WhatsApp / Instagram / in-store |
+
+No sheet -> `REVIEWS = []` + one warning; never a build failure. The frontend
+removes the whole section when the array is empty (no "coming soon"), shows
+"4.4 from 11 reviews" computed from the entries (floored to one decimal,
+never rounded up), and carries no star markup or schema.org rating data.
+
+Note for the owner: five real reviews beat fifty invented ones, and they are
+easy to collect - after each delivered order, ask on WhatsApp. A 4.3 average
+with one honest three-star reads as true. A 5.0 average reads as bought,
+which is the opposite of the trust the section is meant to build.
+
 ## Frontend notes (`website/index.html`)
 
 * The WhatsApp number lives once, in `WA` inside the `<head>` config script.
@@ -140,6 +166,18 @@ than one. A missing image is a warning and a placeholder, never an unpublish.
   lines per item on purpose — 15 items ≈ 1,740 URL chars (limit ~2,000).
 * Wording is always "order request". Never "confirmed", "paid", "guaranteed".
   Delivery charge is not hardcoded anywhere (not decided).
+* Pre-order policy modal: opens on "Send order request" with a non-empty
+  cart, never on page load. Four points only (manual stock check, payment
+  after confirmation, delivery charges quoted on confirmation, 3-day
+  returns) - the same four sit in the footer. Acceptance is stored in
+  `localStorage` `o4u_policy_accepted_v1` (ISO timestamp, try/catch). Bump
+  to `_v2` if the text changes.
+* Statistics tiles (`[data-stat]`) are filled from products.js at load -
+  designs in stock and category count. Never type a number there; a claim
+  that cannot be computed or confirmed by the owner is removed, not softened.
+* Branding images index.html needs: `logo.png`, `hero-main.jpg`,
+  `kids-hero.jpg`, `fevicon.png`, `store.jpg` (About section, owner to
+  supply). The build warns when one is missing; the page shows a placeholder.
 
 ## Non-negotiables
 

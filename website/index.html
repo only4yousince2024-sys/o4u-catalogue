@@ -448,6 +448,8 @@
     }
     .testi-author strong { display: block; font-size: 0.82rem; color: var(--black); }
     .testi-author span { font-size: 0.72rem; color: var(--gray); }
+    .testi-rating { margin-left: auto; font-size: 0.8rem; font-weight: 700; color: var(--orange); white-space: nowrap; }
+    #testimonials[hidden] { display: none; }
 
     /* ══ MARQUEE ══ */
     .marquee-wrap {
@@ -1378,52 +1380,18 @@
 </section>
 
 <!-- ══════ TESTIMONIALS ══════ -->
-<section id="testimonials">
+<!-- ══════ REVIEWS ══════
+     Rendered from REVIEWS in products.js (the workbook's 'Reviews' sheet).
+     When there are no reviews the whole section is removed from the DOM. -->
+<section id="testimonials" hidden>
   <div class="section-head-row reveal" style="justify-content:center; text-align:center; margin-bottom:48px;">
     <div>
       <div class="section-eyebrow">✦ Real Customers</div>
       <h2 class="section-title">What They're Saying</h2>
+      <p class="section-sub" id="reviewsSummary"></p>
     </div>
   </div>
-  <div class="testi-grid">
-
-    <div class="testi-card reveal">
-      <div class="testi-stars">★★★★★</div>
-      <p class="testi-text">"Ordered the satin floral set for my birthday — the fabric is so soft and the colour is exactly as shown. My daughter loved it too and wants one for herself!"</p>
-      <div class="testi-author">
-        <div class="testi-avatar">P</div>
-        <div>
-          <strong>Priya S.</strong>
-          <span>Mumbai</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="testi-card reveal">
-      <div class="testi-stars">★★★★★</div>
-      <p class="testi-text">"First time ordering from WhatsApp and I was nervous about paying in advance. They sent me a photo of the actual piece before I paid. Felt so reassured. Will order again!"</p>
-      <div class="testi-author">
-        <div class="testi-avatar">R</div>
-        <div>
-          <strong>Rekha M.</strong>
-          <span>Delhi</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="testi-card reveal">
-      <div class="testi-stars">★★★★★</div>
-      <p class="testi-text">"The kids formal dress for my daughter's school event was perfect. Great quality and delivered fast. Size was spot on — they helped me pick the right one on chat."</p>
-      <div class="testi-author">
-        <div class="testi-avatar">A</div>
-        <div>
-          <strong>Anjali K.</strong>
-          <span>Pune</span>
-        </div>
-      </div>
-    </div>
-
-  </div>
+  <div class="testi-grid" id="reviewsGrid"></div>
 </section>
 
 <!-- ══════ ABOUT ══════ -->
@@ -1726,6 +1694,29 @@
     `;}).join('');
   }
 
+  // ── REVIEWS: real entries only, from the workbook. Empty → section removed. ──
+  function renderReviews() {
+    const section = document.getElementById('testimonials');
+    const list = (typeof REVIEWS !== 'undefined' && Array.isArray(REVIEWS)) ? REVIEWS.filter(r => r && r.name && r.review && Number(r.rating) >= 1 && Number(r.rating) <= 5) : [];
+    if (!list.length) { section.remove(); return; }
+    const avg = list.reduce((n, r) => n + Number(r.rating), 0) / list.length;   // computed, never rounded up
+    document.getElementById('reviewsSummary').textContent =
+      `${(Math.floor(avg * 10) / 10).toFixed(1)} from ${list.length} review${list.length === 1 ? '' : 's'}`;
+    document.getElementById('reviewsGrid').innerHTML = list.map(r => `
+      <div class="testi-card reveal">
+        <div class="testi-stars">${Number(r.rating).toFixed(1)} / 5</div>
+        <p class="testi-text">“${esc(r.review)}”</p>
+        <div class="testi-author">
+          <div class="testi-avatar">${esc(String(r.name).trim().charAt(0).toUpperCase())}</div>
+          <div>
+            <strong>${esc(r.name)}</strong>
+            <span>${esc([r.city, r.source].filter(Boolean).join(' · '))}</span>
+          </div>
+        </div>
+      </div>`).join('');
+    section.hidden = false;
+  }
+
   // Statistics tiles: computed from the catalogue, never hardcoded.
   function renderStats() {
     const designs = allProducts.length;
@@ -1796,6 +1787,7 @@
     allProducts = await loadProducts();
     renderFilters();
     renderStats();
+    renderReviews();
     if (allProducts.length) {
       grid.innerHTML = renderProducts(allProducts);
     } else {
