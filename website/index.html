@@ -1080,6 +1080,14 @@
     }
     .cart-steps { margin: 14px 0 0; padding-left: 18px; font-size: 0.72rem; color: var(--gray); line-height: 1.7; }
     .cart-steps li::marker { color: var(--orange); font-weight: 700; }
+    .cart-add-more {
+      width: 100%; margin: 0 0 14px; padding: 11px 14px;
+      background: none; border: 1.5px dashed var(--light); border-radius: 50px;
+      color: var(--black); cursor: pointer;
+      font-family: 'Nunito', sans-serif; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.2px;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .cart-add-more:hover { border-color: var(--black); background: var(--white); }
     .cart-offer { margin: 0 0 14px; font-size: 0.76rem; color: var(--black); }
     .cart-offer-text { font-weight: 600; margin-bottom: 8px; }
     .cart-offer-text.done { color: #1c8f4b; }
@@ -1089,6 +1097,7 @@
     .cart-offer-meta { display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--gray); margin-top: 6px; }
     .cart-sub-row { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--gray); margin-bottom: 4px; }
     .cart-sub-row.discount { color: #1c8f4b; font-weight: 600; }
+    .cart-sub-row[hidden], .cart-offer[hidden] { display: none; }
     .cart-sent { font-size: 0.74rem; color: var(--brown); background: rgba(229,97,28,0.08); border-radius: 10px; padding: 10px 12px; margin-top: 10px; display: none; line-height: 1.5; }
     .cart-sent.show { display: block; }
 
@@ -1628,6 +1637,8 @@
     </div>
     <div class="cart-lines" id="cartLines"></div>
     <div class="cart-foot" id="cartFoot">
+      <!-- shown only with items (the whole footer hides when the cart is empty); the × above stays as the exit -->
+      <button class="cart-add-more" type="button" onclick="addMoreItems()">+ Add more items</button>
       <div class="cart-offer" id="cartOffer" hidden></div>
       <div class="cart-sub-row" id="cartSubtotalRow" hidden><span>Subtotal</span><span id="cartSubtotal">₹0</span></div>
       <div class="cart-sub-row discount" id="cartDiscountRow" hidden><span id="cartDiscountLabel">Discount</span><span id="cartDiscount">−₹0</span></div>
@@ -2165,6 +2176,16 @@
     if (e && e.target !== document.getElementById('cartOverlay')) return;
     document.getElementById('cartOverlay').classList.remove('open');
     if (!document.getElementById('modalOverlay').classList.contains('open')) document.body.style.overflow = '';
+  }
+
+  // "Add more items": close the drawer and return to the grid. The active
+  // category filter is DOM state and is untouched, so it is preserved.
+  function addMoreItems() {
+    closeCart();
+    const target = document.getElementById('filterBar') || document.getElementById('grid');
+    const nav = document.querySelector('nav');
+    const y = target.getBoundingClientRect().top + window.scrollY - ((nav ? nav.offsetHeight : 0) + 16);
+    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
   }
 
   // Modal → cart
