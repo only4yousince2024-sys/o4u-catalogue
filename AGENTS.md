@@ -126,8 +126,10 @@ website/images/<pid>-2.jpg … -9.jpg   gallery images, in order    (deployed)
 The build discovers `<pid>.jpg` then `-2` … `-9` (jpg/jpeg/png/webp).
 `images[0]` is the card image; the modal shows a gallery when there is more
 than one. A missing image is a warning and a placeholder, never an unpublish.
-`website/images/` also holds branding (`logo.png`, `hero-main.jpg`,
-`kids-hero.jpg`, `fevicon.png`).
+`website/images/` also holds branding: `logo-round.png` (nav mark, footer
+mark, favicon, apple-touch-icon; falls back to `logo.png` if absent),
+`hero-main.jpg`, `store.jpg` (About), `og-cover.jpg` (1200x630 link
+preview). The build warns for any that are missing.
 
 ## Reviews (`REVIEWS` in products.js)
 
@@ -179,6 +181,17 @@ which is the opposite of the trust the section is meant to build.
   the threshold, `kind:'free-delivery'`, or 10% are the cheaper options).
   Never type the threshold or rate anywhere else; markup and the WhatsApp
   message read it from `orderTotals()`. Delivery is never in the threshold.
+* Support: `const SUPPORT = { heading, topics[{key,label,tag}], noteMax,
+  signature }` in the `<head>` config. The Help control (header pill +
+  floating button) opens a guided sheet that only ROUTES to WhatsApp with
+  `O4U SUPPORT — <tag>` / `Ref: S-MMDD-XXX` / product context / note. No AI,
+  no API keys in the page, no stock answers - a human confirms stock.
+  There are no generic "Order on WhatsApp" CTAs; the purchase path is
+  card Order -> modal Add -> cart Send.
+* No kids products exist, so the page carries no kids references. Re-add
+  only when kids stock is in the workbook.
+* `<head>` has description / Open Graph / theme-color tags. `og:image`
+  must stay an absolute URL; replace `REPLACE-WITH-DOMAIN` when live.
 * Product grid is two columns on every phone down to 320px (never one).
   Order buttons are one `.glass` token overlaid on the card image; card
   buttons blur only while `.in-view`.
