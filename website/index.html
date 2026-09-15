@@ -12,6 +12,13 @@
     // Every wa.me link on the page is filled from this at load time.
     const WA = '918146597775';
     const WA_DISPLAY = '+91 81465 97775';
+
+    // ── ORDER-VALUE OFFER ── the ONLY place the threshold and reward live.
+    // enabled:false until the owner confirms the numbers (20% / ₹2,000 is a
+    // proposal, not a decision — see AGENTS.md). Nothing renders while off.
+    //   kind: 'percent'       → rate off the subtotal once it reaches threshold
+    //   kind: 'free-delivery' → no discount line; delivery is waived instead
+    const OFFER = { enabled: false, kind: 'percent', threshold: 2000, rate: 0.20 };
   </script>
 
   <!--
@@ -1073,6 +1080,15 @@
     }
     .cart-steps { margin: 14px 0 0; padding-left: 18px; font-size: 0.72rem; color: var(--gray); line-height: 1.7; }
     .cart-steps li::marker { color: var(--orange); font-weight: 700; }
+    .cart-offer { margin: 0 0 14px; font-size: 0.76rem; color: var(--black); }
+    .cart-offer-text { font-weight: 600; margin-bottom: 8px; }
+    .cart-offer-text.done { color: #1c8f4b; }
+    .cart-offer-bar { height: 8px; border-radius: 50px; background: var(--light); overflow: hidden; }
+    .cart-offer-fill { height: 100%; background: linear-gradient(90deg, var(--orange), #f08a4b); border-radius: 50px; transition: width 0.35s; }
+    .cart-offer-fill.done { background: #25D366; }
+    .cart-offer-meta { display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--gray); margin-top: 6px; }
+    .cart-sub-row { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--gray); margin-bottom: 4px; }
+    .cart-sub-row.discount { color: #1c8f4b; font-weight: 600; }
     .cart-sent { font-size: 0.74rem; color: var(--brown); background: rgba(229,97,28,0.08); border-radius: 10px; padding: 10px 12px; margin-top: 10px; display: none; line-height: 1.5; }
     .cart-sent.show { display: block; }
 
@@ -1612,6 +1628,9 @@
     </div>
     <div class="cart-lines" id="cartLines"></div>
     <div class="cart-foot" id="cartFoot">
+      <div class="cart-offer" id="cartOffer" hidden></div>
+      <div class="cart-sub-row" id="cartSubtotalRow" hidden><span>Subtotal</span><span id="cartSubtotal">₹0</span></div>
+      <div class="cart-sub-row discount" id="cartDiscountRow" hidden><span id="cartDiscountLabel">Discount</span><span id="cartDiscount">−₹0</span></div>
       <div class="cart-total-row"><span>Total</span><strong id="cartTotal">₹0</strong></div>
       <div class="cart-fine">Delivery charges extra — we'll tell you the exact amount on WhatsApp.</div>
       <button class="modal-wa-btn glass" id="cartSendBtn" onclick="sendWhatsApp()">
@@ -2068,7 +2087,34 @@
   function removeLine(key) { cart = cart.filter(x => x.key !== key); saveCart(); renderCart(); }
   function clearCart() { cart = []; saveCart(); renderCart(); }
   const cartCount = () => cart.reduce((n, l) => n + l.quantity, 0);
-  const cartTotal = () => cart.reduce((n, l) => n + l.quantity * l.price, 0);
+  const cartSubtotal = () => cart.reduce((n, l) => n + l.quantity * l.price, 0);
+  const offerOn = () => !!(typeof OFFER !== 'undefined' && OFFER && OFFER.enabled && OFFER.threshold > 0);
+  // Subtotal, discount and total. Delivery is never part of this — it is
+  // quoted separately after confirmation.
+  function orderTotals(lines = cart) {
+    const subtotal = lines.reduce((n, l) => n + l.quantity * l.price, 0);
+    const on = offerOn();
+    const reached = on && subtotal >= OFFER.threshold;
+    const discount = (reached && OFFER.kind === 'percent') ? Math.round(subtotal * OFFER.rate) : 0;
+    return { subtotal, discount, total: subtotal - discount, offerOn: on, reached,
+             remaining: on ? Math.max(0, OFFER.threshold - subtotal) : 0,
+             freeDelivery: reached && OFFER.kind === 'free-delivery' };
+  }
+  const cartTotal = () => orderTotals().total;
+  const offerLabel = () => OFFER.kind === 'free-delivery' ? 'free delivery' : `${Math.round(OFFER.rate * 100)}% off`;
+
+  function renderOffer(t) {
+    const box = document.getElementById('cartOffer');
+    if (!t.offerOn || !cart.length) { box.hidden = true; box.innerHTML = ''; return; }
+    const pct = Math.min(100, Math.round(t.subtotal / OFFER.threshold * 100));
+    box.hidden = false;
+    box.innerHTML = t.reached
+      ? `<div class="cart-offer-text done">✓ ${esc(offerLabel().replace(/^./, c => c.toUpperCase()))} ${OFFER.kind === 'percent' ? `applied — you saved ₹${fmt(t.discount)}` : 'unlocked'}</div>
+         <div class="cart-offer-bar"><div class="cart-offer-fill done" style="width:100%"></div></div>`
+      : `<div class="cart-offer-text">Add ₹${fmt(t.remaining)} more to unlock ${esc(offerLabel())}</div>
+         <div class="cart-offer-bar"><div class="cart-offer-fill" style="width:${pct}%"></div></div>
+         <div class="cart-offer-meta"><span>₹${fmt(t.subtotal)} of ₹${fmt(OFFER.threshold)}</span><span>${pct}%</span></div>`;
+  }
 
   function renderCart() {
     const n = cartCount();
@@ -2079,6 +2125,7 @@
     if (!cart.length) {
       lines.innerHTML = `<div class="cart-empty"><strong>Nothing here yet</strong>Tap "Order" on any product to add it. You can add several items and send them together.</div>`;
       foot.style.display = 'none';
+      renderOffer(orderTotals());   // empty cart: no bar, no mention of the offer
       return;
     }
     foot.style.display = '';
@@ -2096,7 +2143,16 @@
           <button class="cart-remove" onclick="removeLine('${esc(l.key)}')">Remove</button>
         </div>
       </div>`).join('');
-    document.getElementById('cartTotal').textContent = '₹' + fmt(cartTotal());
+    const t = orderTotals();
+    renderOffer(t);
+    document.getElementById('cartSubtotalRow').hidden = !(t.discount > 0);
+    document.getElementById('cartDiscountRow').hidden = !(t.discount > 0);
+    if (t.discount > 0) {
+      document.getElementById('cartSubtotal').textContent = '₹' + fmt(t.subtotal);
+      document.getElementById('cartDiscountLabel').textContent = `Discount (${Math.round(OFFER.rate * 100)}%)`;
+      document.getElementById('cartDiscount').textContent = '−₹' + fmt(t.discount);
+    }
+    document.getElementById('cartTotal').textContent = '₹' + fmt(t.total);
   }
 
   function openCart() {
@@ -2156,8 +2212,15 @@
       out.push(`${i + 1}. ${l.name}`);
       out.push(bits.join(', '));
     });
-    out.push('', `TOTAL: ₹${fmt(lines.reduce((n, l) => n + l.quantity * l.price, 0))}`);
-    out.push('Please confirm stock & delivery charges 🙏');
+    const t = orderTotals(lines);
+    out.push('');
+    if (t.discount > 0) {
+      out.push(`Subtotal: ₹${fmt(t.subtotal)}`);
+      out.push(`Discount (${Math.round(OFFER.rate * 100)}%): −₹${fmt(t.discount)}`);
+    }
+    out.push(`TOTAL: ₹${fmt(t.total)}`);
+    if (t.freeDelivery) out.push(`Free delivery (order over ₹${fmt(OFFER.threshold)})`);
+    out.push(t.freeDelivery ? 'Please confirm stock 🙏' : 'Please confirm stock & delivery charges 🙏');
     return out.join('\n');
   }
   function orderUrl(lines, orderId, when) {
