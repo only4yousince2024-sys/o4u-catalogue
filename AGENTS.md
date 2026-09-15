@@ -6,9 +6,10 @@ accounts. Read this before touching anything.
 ## Architecture
 
 ```
-O4U_Stock_Inventory_UPDATED_v2.xlsx   (project root — SINGLE SOURCE OF TRUTH)
+O4U_Stock_Inventory_UPDATED_v2.xlsx   (project root — archive + anything not yet in Stockroom)
+stockroom.json                        (project root — LIVE products exported by O4U Stockroom, optional)
         ↓
-scripts/build_catalogue.py            clean → normalise → validate → generate
+scripts/build_catalogue.py            clean → normalise → validate → merge → generate
         ↓
 website/products.js                   GENERATED. Never hand-edit.
         ↓
@@ -18,7 +19,11 @@ WhatsApp order request → O4U checks stock manually → confirms → customer p
 advance incl. delivery → packed → Porter → 3-day return window
 ```
 
-One writable store only: the workbook. `admin.html` is a read-only preview.
+Products are now created in the **O4U Stockroom** artifact, which exports a ZIP
+of website images plus `stockroom.json`. Unzip it into the project: the JSON at
+the root, the images into `website/images/`. The workbook remains the archive
+and the source for anything not in Stockroom. Nothing else writes product
+data; `admin.html` is a read-only preview.
 `photo-assigner.html` and `image-picker.html` are local photo tools that read
 `website/stock images/` (gitignored, never deployed).
 
@@ -27,8 +32,13 @@ One writable store only: the workbook. `admin.html` is a read-only preview.
 ```
 python scripts/build_catalogue.py            # root workbook → website/products.js
 python scripts/build_catalogue.py --workbook path/to/other.xlsx --out ... --images-dir ...
-python scripts/test_build_catalogue.py       # 19 self-checks, no pytest needed
+python scripts/test_build_catalogue.py       # 24 self-checks, no pytest needed
+sync.bat                                     # owner's one step: build → commit → push (stops on a failed build)
 ```
+
+`sync.bat` is what the shop owner runs after unzipping a Stockroom export.
+It never pushes a failed build, skips the commit when nothing changed, and
+speaks plain language (no stack traces).
 
 Needs Python 3.10+ and `openpyxl`. Errors → exit 1 and `products.js` is NOT
 written. Warnings → exit 0. The report at the end is computed, never typed.
@@ -56,6 +66,27 @@ rows come in `Published = FALSE` until the owner switches them on; blank
 `Published` on older rows still means TRUE. Articles `O4U-NB-####` are the
 shop's own non-branded items: a blank brand is expected (no warning) and
 `brand` is emitted as `""` - the site shows no brand for them, ever.
+
+## stockroom.json (optional, wins over the workbook)
+
+```
+{ "exportedAt": "...", "products": [ { id, article, brand, category, type, colour,
+  features, sizes:[{size, mrp, barcode}], stock:{size: qty}, inStock, offerPrice,
+  notes, images:[filenames] } ] }
+```
+
+* Missing file → warning, build from the workbook alone. Never an error.
+* `id` must equal `slugify(article, colour)` — a mismatch is a build ERROR naming
+  both values. `category` must be one of the six KEYS (labels are an error here).
+* `sizes[].size` goes through `parse_sizes` (`Free` → `Free Size`); the lowest
+  `mrp` is `price`, the rest go to `sizePrices` exactly like the workbook.
+  `offerPrice` → `price = offerPrice, mrp = tag MRP`. `stockQty` = sum of
+  `stock{}` when present, else 1 if `inStock` else 0. `images[]` are used in the
+  given order, prefixed `images/` (missing files warn); an empty list falls back
+  to discovery by id. Blank brand → `""`, no warning.
+* Everything in the file is already published — no Published check is applied.
+* Same id in both sources → stockroom.json wins; the report lists the overrides
+  ("Stockroom overrides n"). Stockroom products are emitted first.
 
 `published` is explicit. Never derive it from images, stock or anything else.
 Rows whose `S.No` is blank while `Brand` holds a number are shifted one column

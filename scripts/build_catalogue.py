@@ -9,9 +9,10 @@ Reads the stock workbook (the SINGLE SOURCE OF TRUTH), cleans and validates
 every row, groups rows into products keyed by ARTICLE + COLOUR, discovers
 product images by Product ID, and writes  website/products.js.
 
-    O4U_Stock_Inventory_UPDATED_v2.xlsx      (project root)
+    O4U_Stock_Inventory_UPDATED_v2.xlsx      (project root — archive + anything not yet in Stockroom)
+    stockroom.json                           (project root — live products exported by O4U Stockroom, optional)
             ↓
-    scripts/build_catalogue.py               clean → normalise → validate → generate
+    scripts/build_catalogue.py               clean → normalise → validate → merge → generate
             ↓
     website/products.js                      generated — never hand-edit
 
@@ -50,6 +51,7 @@ for _stream in (sys.stdout, sys.stderr):
 # ── Paths ────────────────────────────────────────────────────────────────────
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_WORKBOOK = ROOT / "O4U_Stock_Inventory_UPDATED_v2.xlsx"
+DEFAULT_STOCKROOM = ROOT / "stockroom.json"     # optional: live products exported by O4U Stockroom
 DEFAULT_OUT = ROOT / "website" / "products.js"
 DEFAULT_IMAGES_DIR = ROOT / "website" / "images"
 PREFERRED_SHEET = "Stock Inventory"
@@ -699,8 +701,174 @@ def build_products(rows: list[dict], colmap: dict[str, int], images_dir: Path, d
     return products
 
 
+# ── Stockroom export (stockroom.json) ────────────────────────────────────────
+def _num(v):
+    """int from 1589 / 1589.0 / '1,589' / '₹1589'; None if blank or unparsable."""
+    if v is None or v == "":
+        return None
+    try:
+        return int(round(float(re.sub(r"[₹,\s]", "", str(v)))))
+    except ValueError:
+        return None
+
+
+def read_stockroom(path: Path, images_dir: Path, diag: Diag) -> list[dict]:
+    """
+    stockroom.json → product dicts in the same shape as build_products().
+    Everything in the file is already published (Stockroom only exports
+    published items), so no Published check is applied here.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:  # noqa: BLE001
+        diag.error(f"stockroom.json could not be read: {e}")
+        return []
+    items = data.get("products") if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        diag.error("stockroom.json: expected an object with a 'products' list")
+        return []
+
+    out: list[dict] = []
+    seen: set[str] = set()
+    for i, it in enumerate(items, start=1):
+        if not isinstance(it, dict):
+            diag.error(f"stockroom.json product #{i}: not an object")
+            continue
+        article = clean_str(it.get("article"))
+        colour = clean_str(it.get("colour")) or clean_str(it.get("color"))
+        pid = clean_str(it.get("id"))
+        where = f"stockroom {pid or article or '#' + str(i)}"
+        if not article:
+            diag.error(f"{where}: article is blank")
+            continue
+        expected = slugify(article, colour)
+        if pid != expected:
+            diag.error(f"{where}: id {pid!r} does not equal slugify(article, colour) = {expected!r} (article {article!r}, colour {colour!r})")
+            continue
+        if pid in seen:
+            diag.error(f"{where}: duplicate id in stockroom.json")
+            continue
+        seen.add(pid)
+
+        category = clean_str(it.get("category"))
+        if category not in CATEGORIES:
+            diag.error(f"{where}: unknown category {category!r} — must be one of {', '.join(CATEGORIES)}")
+            continue
+
+        ptype = clean_str(it.get("type")) or clean_str(it.get("description")) or ""
+        if not ptype:
+            diag.error(f"{where}: type is blank")
+            continue
+        brand = clean_brand(clean_str(it.get("brand")))          # "" → None → emitted as "", no warning
+
+        # Sizes + per-size MRP -------------------------------------------
+        size_entries = it.get("sizes") or []
+        size_mrp: dict[str, int] = {}
+        for se in size_entries:
+            raw = se.get("size") if isinstance(se, dict) else se
+            labels = parse_sizes(raw, f"{where} size", diag)
+            mrp = _num(se.get("mrp")) if isinstance(se, dict) else None
+            for lab in labels:
+                if mrp is not None and mrp > 0:
+                    size_mrp.setdefault(lab, mrp)
+                else:
+                    size_mrp.setdefault(lab, None)
+        sizes_list = sorted(size_mrp, key=size_sort_key)
+        if not sizes_list:
+            diag.warn(f"{where}: no sizes")
+        mrps = [m for m in size_mrp.values() if m]
+        if not mrps:
+            diag.error(f"{where}: no valid MRP on any size")
+            continue
+        mrp_base = min(mrps)
+        size_prices = {lab: m for lab, m in size_mrp.items() if m and m != mrp_base}
+
+        offer = _num(it.get("offerPrice"))
+        if offer:
+            price, mrp_out = offer, mrp_base
+            if offer >= mrp_base:
+                diag.warn(f"{where}: offerPrice ₹{offer} is not below MRP ₹{mrp_base} — no discount shown")
+                mrp_out = None
+            size_prices = {}
+        else:
+            price, mrp_out = mrp_base, None
+
+        # Stock ------------------------------------------------------------
+        stock = it.get("stock")
+        if isinstance(stock, dict) and stock:
+            qty = 0
+            for k, v in stock.items():
+                n = _num(v)
+                if n is None:
+                    diag.warn(f"{where}: stock[{k!r}] = {v!r} is not a number — ignored")
+                else:
+                    qty += max(0, n)
+        else:
+            qty = 1 if it.get("inStock") else 0
+
+        # Images (given order, prefixed) -----------------------------------
+        images = []
+        for f in it.get("images") or []:
+            f = clean_str(f)
+            if not f:
+                continue
+            f = f.replace("\\", "/").split("/")[-1]
+            if images_dir.is_dir() and not (images_dir / f).is_file():
+                diag.warn(f"{where}: image file missing: images/{f}")
+            images.append(f"images/{f}")
+        if not images:
+            images = find_images(pid, images_dir)
+        if not images:
+            diag.warn(f"{where}: no image — placeholder will show")
+
+        # Text -------------------------------------------------------------
+        name = f"{colour} {ptype}" if colour else ptype
+        bits = [ptype]
+        if colour:
+            bits.append(f"in {colour}")
+        if brand:
+            bits.append(f"by {brand}")
+        description = " ".join(bits) + "."
+        feats = it.get("features")
+        if isinstance(feats, list):
+            feats = ", ".join(clean_str(x) for x in feats if clean_str(x))
+        feats = clean_str(feats) if isinstance(feats, str) else None
+        if feats:
+            description += " " + feats.rstrip(".") + "."
+
+        out.append({
+            "id": pid,
+            "article": article,
+            "name": name,
+            "brand": brand or "",
+            "category": category,
+            "description": description,
+            "colors": [colour] if colour else [],
+            "sizes": sizes_list,
+            "price": price,
+            "mrp": mrp_out,
+            "sizePrices": size_prices,
+            "images": images,
+            "image": images[0] if images else "",
+            "stockQty": qty,
+            "published": True,
+            "badge": "",
+            "badgeStyle": "",
+        })
+    return out
+
+
+def merge_sources(stockroom: list[dict], workbook: list[dict], diag: Diag) -> tuple[list[dict], list[str]]:
+    """Stockroom products first (live stock), then workbook products not overridden."""
+    ids = {p["id"] for p in stockroom}
+    overridden = [p["id"] for p in workbook if p["id"] in ids]
+    for pid in overridden:
+        diag.warn(f"{pid}: present in both — stockroom.json wins over the workbook")
+    return stockroom + [p for p in workbook if p["id"] not in ids], overridden
+
+
 # ── Output ───────────────────────────────────────────────────────────────────
-def write_products_js(products: list[dict], reviews: list[dict], out: Path, source: Path, counts: dict) -> None:
+def write_products_js(products: list[dict], reviews: list[dict], out: Path, source: str, counts: dict) -> None:
     published = [p for p in products if p["published"]]
     cats_present = [{"key": k, "label": v} for k, v in CATEGORIES.items() if any(p["category"] == k for p in published)]
     stamp = _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -713,7 +881,7 @@ def write_products_js(products: list[dict], reviews: list[dict], out: Path, sour
         "// ║   Source : the stock workbook (single source of truth)         ║\n"
         "// ║   Build  : python scripts/build_catalogue.py                   ║\n"
         "// ╚═══════════════════════════════════════════════════════════════╝\n"
-        f"// Generated {stamp} from {source.name}\n"
+        f"// Generated {stamp} from {source}\n"
         f"// {counts['published']} published products · {counts['source_rows']} source rows · {counts['reviews']} reviews\n\n"
     )
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -736,6 +904,7 @@ def main(argv=None) -> int:
     ap.add_argument("--workbook", type=Path, default=DEFAULT_WORKBOOK, help="source workbook (default: root O4U_Stock_Inventory_UPDATED_v2.xlsx)")
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT, help="output JS file (default: website/products.js)")
     ap.add_argument("--images-dir", type=Path, default=DEFAULT_IMAGES_DIR, help="web images folder (default: website/images)")
+    ap.add_argument("--stockroom", type=Path, default=DEFAULT_STOCKROOM, help="Stockroom export (default: root stockroom.json; optional)")
     ap.add_argument("--quiet", action="store_true", help="only print the summary")
     args = ap.parse_args(argv)
 
@@ -771,6 +940,17 @@ def main(argv=None) -> int:
             rows = read_rows(ws, header_row, colmap, diag)
             products = build_products(rows, colmap, args.images_dir, diag)
 
+    # Stockroom export: live products; wins over the workbook on the same id.
+    stockroom: list[dict] = []
+    overridden: list[str] = []
+    if args.stockroom.is_file():
+        stockroom = read_stockroom(args.stockroom, args.images_dir, diag)
+        products, overridden = merge_sources(stockroom, products, diag)
+        source_name = f"{args.workbook.name} + {args.stockroom.name}"
+    else:
+        diag.warn(f"{args.stockroom.name} not found — building from the workbook alone")
+        source_name = args.workbook.name
+
     published = [p for p in products if p["published"]]
     counts = {
         "source_rows": len(rows),
@@ -781,13 +961,15 @@ def main(argv=None) -> int:
         "zero_stock": sum(1 for p in published if p["stockQty"] <= 0),
         "size_priced": sum(1 for p in published if p["sizePrices"]),
         "reviews": len(reviews),
+        "stockroom": len(stockroom),
+        "overridden": len(overridden),
         "warnings": len(diag.warnings),
         "errors": len(diag.errors),
     }
 
     ok = not diag.errors
     if ok:
-        write_products_js(products, reviews, args.out, args.workbook, counts)
+        write_products_js(products, reviews, args.out, source_name, counts)
         try:
             verify_output(args.out)
         except Exception as e:  # pragma: no cover
@@ -795,19 +977,21 @@ def main(argv=None) -> int:
             ok = False
             counts["errors"] = len(diag.errors)
 
-    if not args.quiet:
-        if diag.warnings:
-            print(f"\nWARNINGS ({len(diag.warnings)})")
-            for w in diag.warnings:
-                print(f"  ⚠ {w}")
-        if diag.errors:
-            print(f"\nERRORS ({len(diag.errors)})")
-            for e in diag.errors:
-                print(f"  ✖ {e}")
+    if not args.quiet and diag.warnings:
+        print(f"\nWARNINGS ({len(diag.warnings)})")
+        for w in diag.warnings:
+            print(f"  ⚠ {w}")
+    if diag.errors:
+        print(f"\nERRORS ({len(diag.errors)})")
+        for e in diag.errors:
+            print(f"  ✖ {e}")
 
     print("\nO4U CATALOGUE BUILD")
     print(f"  Workbook              {args.workbook.name}")
+    print(f"  Stockroom             {args.stockroom.name if args.stockroom.is_file() else '(none)'}")
     print(f"  Source rows           {counts['source_rows']}")
+    print(f"  Stockroom products    {counts['stockroom']}")
+    print(f"  Stockroom overrides   {counts['overridden']}" + (f"  ({', '.join(overridden)})" if overridden else ""))
     print(f"  Unique variants       {counts['variants']}")
     print(f"  Published             {counts['published']}")
     print(f"  Unpublished           {counts['unpublished']}")

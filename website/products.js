@@ -3,7 +3,7 @@
 // ║   Source : the stock workbook (single source of truth)         ║
 // ║   Build  : python scripts/build_catalogue.py                   ║
 // ╚═══════════════════════════════════════════════════════════════╝
-// Generated 2026-09-15 21:45 from O4U_test_copy_row216_removed.xlsx
+// Generated 2026-09-15 22:22 from O4U_test_copy_row216_removed.xlsx
 // 172 published products · 214 source rows · 0 reviews
 
 const CATEGORIES = [

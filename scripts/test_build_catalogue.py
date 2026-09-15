@@ -81,7 +81,7 @@ def make_wb(rows, extra_headers=(), title=True):
     return tmp
 
 
-def run(rows, extra_headers=(), images=None, reviews=None):
+def run(rows, extra_headers=(), images=None, reviews=None, stockroom=None):
     wbp = make_wb(rows, extra_headers)
     if reviews is not None:
         wb = openpyxl.load_workbook(wbp)
@@ -94,7 +94,11 @@ def run(rows, extra_headers=(), images=None, reviews=None):
     imgdir.mkdir()
     for name in images or []:
         (imgdir / name).write_bytes(b"x")
-    rc = bc.main(["--workbook", str(wbp), "--out", str(out), "--images-dir", str(imgdir), "--quiet"])
+    import json as _json
+    srp = wbp.parent / "stockroom.json"
+    if stockroom is not None:
+        srp.write_text(_json.dumps(stockroom), encoding="utf-8")
+    rc = bc.main(["--workbook", str(wbp), "--out", str(out), "--images-dir", str(imgdir), "--stockroom", str(srp), "--quiet"])
     text = out.read_text(encoding="utf-8") if out.exists() else ""
     import json, re
     prods = json.loads(re.search(r"const PRODUCTS = (.*?);\n", text, re.S).group(1)) if text else None
@@ -295,6 +299,66 @@ def test_published_blank_stays_true_and_false_hides():
     assert rc == 0
     ids = [p["id"] for p in prods]
     assert "cs250a-min-red" in ids and "ns1-rose" in ids and "14560b-black-pink-geometric" not in ids
+
+
+SR_PRODUCT = {
+    "id": "14560b-black-pink-geometric", "article": "14560B", "brand": "Sweet Pini",
+    "category": "front-button", "type": "Satin Nightsuit", "colour": "Black Pink Geometric",
+    "features": ["Satin", "Full sleeves"],
+    "sizes": [{"size": "XL", "mrp": 1589, "barcode": "1"}, {"size": "XXL", "mrp": 1689, "barcode": "2"}],
+    "stock": {"XL": 1, "XXL": 2}, "inStock": True, "offerPrice": None, "notes": "",
+    "images": ["14560b-black-pink-geometric.jpg", "14560b-black-pink-geometric-2.jpg"],
+}
+SR_NB = {
+    "id": "o4u-nb-0001-red-white", "article": "O4U-NB-0001", "brand": "",
+    "category": "tshirt-lower", "type": "Cotton Lycra T-shirt & Pants Set", "colour": "Red White",
+    "features": "", "sizes": [{"size": "Free", "mrp": 1490, "barcode": ""}],
+    "stock": {}, "inStock": True, "offerPrice": 1290, "notes": "", "images": [],
+}
+
+
+def test_stockroom_products_build():
+    sr = {"exportedAt": "2026-09-15T10:00:00Z", "products": [SR_PRODUCT, SR_NB]}
+    rc, prods = run([ROW], stockroom=sr, images=["14560b-black-pink-geometric.jpg", "14560b-black-pink-geometric-2.jpg", "o4u-nb-0001-red-white.jpg"])
+    assert rc == 0 and [p["id"] for p in prods] == ["14560b-black-pink-geometric", "o4u-nb-0001-red-white", "cs250a-min-red"]
+    a, b = prods[0], prods[1]
+    assert a["sizes"] == ["XL", "2XL"] and a["price"] == 1589 and a["mrp"] is None and a["sizePrices"] == {"2XL": 1689}
+    assert a["stockQty"] == 3 and a["brand"] == "Sweet Pini" and a["published"] is True
+    assert a["images"] == ["images/14560b-black-pink-geometric.jpg", "images/14560b-black-pink-geometric-2.jpg"]
+    assert a["description"] == "Satin Nightsuit in Black Pink Geometric by Sweet Pini. Satin, Full sleeves."
+    assert b["sizes"] == ["Free Size"] and b["price"] == 1290 and b["mrp"] == 1490 and b["brand"] == ""
+    assert b["stockQty"] == 1 and b["images"] == ["images/o4u-nb-0001-red-white.jpg"]   # discovered by id when images[] is empty
+    assert b["description"] == "Cotton Lycra T-shirt & Pants Set in Red White."
+
+
+def test_stockroom_id_mismatch_is_error():
+    bad = dict(SR_PRODUCT, id="14560b-black-pink")
+    rc, prods = run([ROW], stockroom={"products": [bad]})
+    assert rc == 1 and prods is None
+
+
+def test_stockroom_unknown_category_is_error():
+    bad = dict(SR_PRODUCT, category="Front Button Set")     # label, not key → error (keys only)
+    rc, prods = run([ROW], stockroom={"products": [bad]})
+    assert rc == 1 and prods is None
+    bad2 = dict(SR_PRODUCT, category="outerwear")
+    rc, prods = run([ROW], stockroom={"products": [bad2]})
+    assert rc == 1 and prods is None
+
+
+def test_stockroom_overrides_workbook_same_id():
+    sr_cs = {"id": "cs250a-min-red", "article": "CS250A", "brand": "Melini", "category": "round-neck",
+             "type": "Cord Set", "colour": "Min.Red", "features": "", "sizes": [{"size": "M", "mrp": 1515}],
+             "stock": {"M": 5}, "inStock": True, "offerPrice": None, "notes": "", "images": []}
+    rc, prods = run([ROW], stockroom={"products": [sr_cs]})
+    assert rc == 0 and len(prods) == 1
+    p = prods[0]
+    assert p["category"] == "round-neck" and p["price"] == 1515 and p["stockQty"] == 5 and p["sizes"] == ["M"]
+
+
+def test_missing_stockroom_builds_from_workbook():
+    rc, prods = run([ROW])          # no stockroom.json written → workbook alone, cleanly
+    assert rc == 0 and [p["id"] for p in prods] == ["cs250a-min-red"]
 
 
 def test_missing_required_column_blocks():
