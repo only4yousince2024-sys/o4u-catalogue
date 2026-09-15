@@ -167,7 +167,7 @@ IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".webp"]
 MAX_GALLERY = 9
 
 # Branding files index.html references. Missing = warning (placeholder shows), never an error.
-BRANDING_ASSETS = ["logo.png", "hero-main.jpg", "kids-hero.jpg", "fevicon.png", "store.jpg"]
+BRANDING_ASSETS = ["logo-round.png", "hero-main.jpg", "store.jpg", "og-cover.jpg"]
 
 
 # ── Diagnostics ──────────────────────────────────────────────────────────────
