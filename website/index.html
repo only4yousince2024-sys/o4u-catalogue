@@ -51,28 +51,8 @@
   </script>
 
   <!--
-  ╔══════════════════════════════════════════════════════╗
-  ║              IMAGE SETUP — ADD YOUR PHOTOS           ║
-  ╠══════════════════════════════════════════════════════╣
-  ║  Create an "images" folder next to this file and    ║
-  ║  save your photos with these exact names:            ║
-  ║                                                      ║
-  ║  HERO:                                               ║
-  ║    images/hero-main.jpg  (lavender tee girl)         ║
-  ║                                                      ║
-  ║  WOMEN'S PRODUCTS:                                   ║
-  ║    images/w1.jpg  purple floral pyjama set           ║
-  ║    images/w2.jpg  pink floral comfort set            ║
-  ║    images/w3.jpg  beige/brown comfort set            ║
-  ║    images/w4.jpg  pink satin pyjama set              ║
-  ║                                                      ║
-  ║  KIDS PRODUCTS:                                      ║
-  ║    images/k1.jpg  mint green formal dress            ║
-  ║    images/k2.jpg  pink fabulous girl sweatshirt      ║
-  ║                                                      ║
-  ║  ABOUT SECTION:                                      ║
-  ║    images/store.jpg   your clothing rack photo       ║
-  ╚══════════════════════════════════════════════════════╝
+    Images live in website/images/. Product photos are named from the Product ID
+    (see AGENTS.md). Branding: logo-round.png, hero-main.jpg, store.jpg, og-cover.jpg.
   -->
 
   <style>
@@ -323,20 +303,6 @@
       flex-shrink: 0;
     }
     .hero-main-card img {
-      width: 100%; height: 100%;
-      object-fit: cover;
-      object-position: center top;
-    }
-    .hero-kids-card {
-      width: 190px;
-      height: 260px;
-      border-radius: 20px;
-      overflow: hidden;
-      box-shadow: 0 16px 40px rgba(0,0,0,0.12);
-      flex-shrink: 0;
-      margin-top: 80px;
-    }
-    .hero-kids-card img {
       width: 100%; height: 100%;
       object-fit: cover;
       object-position: center top;
@@ -1372,7 +1338,6 @@
 
   <ul class="nav-links">
     <li><a href="#catalogue">Women</a></li>
-    <li><a href="#catalogue">Kids</a></li>
     <li><a href="#about">About</a></li>
     <li><a href="#footer">Contact</a></li>
   </ul>
@@ -1401,7 +1366,7 @@
       Comfort you<br>can <em>live in.</em>
     </h1>
     <p class="hero-sub">
-      Premium comfort sets for women & adorable styles for kids.
+      Women's comfort wear — night sets, cord sets and kurta sets.
       Browse the catalogue and order in seconds — right on WhatsApp.
     </p>
     <div class="hero-btns">
@@ -1413,9 +1378,6 @@
   <div class="hero-visual">
     <div class="hero-main-card">
       <img src="images/hero-main.jpg" alt="Women's Comfort Sets"/>
-    </div>
-    <div class="hero-kids-card">
-      <img src="images/kids-hero.jpg" alt="Kids Collection"/>
     </div>
   </div>
 
@@ -1432,21 +1394,21 @@
 <div class="marquee-wrap">
   <div class="marquee-track">
     <span class="marquee-item">Women's Comfort Sets <span class="dot"></span></span>
-    <span class="marquee-item">Kids Formals <span class="dot"></span></span>
+    <span class="marquee-item">Cord Sets <span class="dot"></span></span>
     <span class="marquee-item">Night Wear <span class="dot"></span></span>
     <span class="marquee-item">Order on WhatsApp <span class="dot"></span></span>
     <span class="marquee-item">Free Size Help <span class="dot"></span></span>
     <span class="marquee-item">Fast Delivery <span class="dot"></span></span>
     <span class="marquee-item">New Arrivals <span class="dot"></span></span>
-    <span class="marquee-item">Kids Casuals <span class="dot"></span></span>
+    <span class="marquee-item">Kurta Sets <span class="dot"></span></span>
     <span class="marquee-item">Women's Comfort Sets <span class="dot"></span></span>
-    <span class="marquee-item">Kids Formals <span class="dot"></span></span>
+    <span class="marquee-item">Cord Sets <span class="dot"></span></span>
     <span class="marquee-item">Night Wear <span class="dot"></span></span>
     <span class="marquee-item">Order on WhatsApp <span class="dot"></span></span>
     <span class="marquee-item">Free Size Help <span class="dot"></span></span>
     <span class="marquee-item">Fast Delivery <span class="dot"></span></span>
     <span class="marquee-item">New Arrivals <span class="dot"></span></span>
-    <span class="marquee-item">Kids Casuals <span class="dot"></span></span>
+    <span class="marquee-item">Kurta Sets <span class="dot"></span></span>
   </div>
 </div>
 
@@ -1542,7 +1504,7 @@
         <h2 class="section-title">Built on comfort.<br>Made with care.</h2>
       </div>
       <p class="about-text">
-        Only 4 You is a comfort wear store on Pakhowal Road, Ludhiana. We stock women's loungewear, night sets and kurta sets, and formals for kids — chosen for fabric first. Pieces that keep their shape, breathe through the season, and feel the same on the tenth wear as the first.
+        Only 4 You is a comfort wear store on Pakhowal Road, Ludhiana. We stock women's loungewear, night sets and kurta sets — chosen for fabric first. Pieces that keep their shape, breathe through the season, and feel the same on the tenth wear as the first.
       </p>
       <p class="about-text">
         Ordering is straightforward. Send us the product on WhatsApp, we confirm availability and size, and arrange delivery. No accounts, no checkout queues — a direct conversation with the people who run the shop.
@@ -1571,8 +1533,8 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
           </div>
           <div class="pillar-text">
-            <strong>Women &amp; kids</strong>
-            <span>Comfort wear and formals, under one roof</span>
+            <strong>Women's comfort wear</strong>
+            <span>Loungewear, night sets and kurta sets, under one roof</span>
           </div>
         </div>
       </div>
@@ -1588,7 +1550,7 @@
         <img class="logo-mark" src="images/logo-round.png" alt="Only 4 You" onerror="this.onerror=null;this.src='images/logo.png'"/>
         ONLY <span>4</span> YOU
       </a>
-      <p class="footer-tagline">Comfort wear & kids fashion you can order in minutes — right on WhatsApp.</p>
+      <p class="footer-tagline">Women's comfort wear you can order in minutes — right on WhatsApp.</p>
       <div class="footer-socials">
         <a href="https://instagram.com/only4yousince2024" target="_blank" class="fsoc" title="Instagram">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
@@ -1603,8 +1565,7 @@
       <h5>Quick Links</h5>
       <ul class="footer-links">
         <li><a href="#hero">Home</a></li>
-        <li><a href="#catalogue">Shop Women</a></li>
-        <li><a href="#catalogue">Shop Kids</a></li>
+        <li><a href="#catalogue">Shop the Collection</a></li>
         <li><a href="#about">About Us</a></li>
       </ul>
     </div>
