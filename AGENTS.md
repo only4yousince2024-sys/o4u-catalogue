@@ -172,6 +172,16 @@ which is the opposite of the trust the section is meant to build.
   returns) - the same four sit in the footer. Acceptance is stored in
   `localStorage` `o4u_policy_accepted_v1` (ISO timestamp, try/catch). Bump
   to `_v2` if the text changes.
+* Order-value offer: `const OFFER = { enabled, kind, threshold, rate }` in
+  the `<head>` config, next to `WA`. Ships `enabled:false` - 20% over 2,000
+  is a PROPOSAL the owner has not confirmed (the Market Research Report
+  calls standing discounts the Discount Death Spiral; free delivery over
+  the threshold, `kind:'free-delivery'`, or 10% are the cheaper options).
+  Never type the threshold or rate anywhere else; markup and the WhatsApp
+  message read it from `orderTotals()`. Delivery is never in the threshold.
+* Product grid is two columns on every phone down to 320px (never one).
+  Order buttons are one `.glass` token overlaid on the card image; card
+  buttons blur only while `.in-view`.
 * Statistics tiles (`[data-stat]`) are filled from products.js at load -
   designs in stock and category count. Never type a number there; a claim
   that cannot be computed or confirmed by the owner is removed, not softened.
