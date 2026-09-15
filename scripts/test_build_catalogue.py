@@ -49,7 +49,7 @@ def test_sizes():
     assert out == [] and errs, "dangling 'to' must be an error"
     out, errs = sizes("3XL to M")
     assert errs, "reversed range must be an error"
-    out, errs = sizes("M L FREE")
+    out, errs = sizes("M L BIG")
     assert out == ["M", "L"] and errs, "unknown token must be an error"
     assert sizes(1) == ([], [f"t: unknown size token '1' in '1'"])
     assert "to" not in [s.lower() for s in sizes("M to 3XL")[0]]
@@ -220,6 +220,81 @@ def test_reviews_sheet_is_read_and_validated():
     assert [r["name"] for r in LAST_REVIEWS] == ["Priya S.", "Blank pub"]
     assert LAST_REVIEWS[0] == {"name": "Priya S.", "city": "Ludhiana", "rating": 4.5, "review": "Fabric is lovely.", "date": "2026-09-01", "source": "WhatsApp"}
     assert LAST_REVIEWS[1]["rating"] == 3.0 and LAST_REVIEWS[1]["date"] == "Sept 2026"
+
+
+def test_free_size():
+    assert sizes("Free Size")[0] == ["Free Size"]
+    assert sizes("FREE SIZE, XL")[0] == ["XL", "Free Size"]          # after 5XL in order
+    assert sizes("freesize")[0] == ["Free Size"] and sizes("One Size")[0] == ["Free Size"]
+    assert sizes("free")[0] == ["Free Size"]
+    assert sizes("5XL Free Size M")[0] == ["M", "5XL", "Free Size"]
+    out, errs = sizes("FS")
+    assert out == [] and errs, "FS is full sleeves on Sweet Pini tags, never free size"
+    rows = [[1, "", "O4U-NB-0001", "Cotton Lycra T-shirt & Pants Set", "Red White", "Free Size", "", 1490, 1, "Free Size", "", "", "", "tshirt-lower"]]
+    rc, prods = run(rows, ["Category"])
+    assert rc == 0 and prods[0]["sizes"] == ["Free Size"]
+
+
+def test_category_column_override_and_blank_fallback():
+    rows = [
+        [1, "Sweet Pini", "14560B", "Satin Nightsuit", "Black Pink Geometric", "XL", "", 1589, 1, "XL, XXL", "", "", "", "front-button"],
+        [2, "Sweet Pini", "14560B", "Satin Nightsuit", "Black Pink Geometric", "XXL", "", 1689, 1, "XL, XXL", "", "", "", "Front Button Set"],
+        ROW + [None],                                                   # blank → CATEGORY_MAP (Cord Set → front-button)
+        [3, "Melini", "NS1", "Night Suit", "Rose", "M", "", 999, 1, "M L", "", "", "", "Salwar Set"],   # label overrides map
+    ]
+    rc, prods = run(rows, ["Category"])
+    assert rc == 0
+    by = {p["id"]: p for p in prods}
+    assert by["14560b-black-pink-geometric"]["category"] == "front-button"
+    assert by["14560b-black-pink-geometric"]["brand"] == "Sweet Pini"
+    assert by["14560b-black-pink-geometric"]["sizes"] == ["XL", "2XL"]
+    assert by["14560b-black-pink-geometric"]["sizePrices"] == {"2XL": 1689}
+    assert by["cs250a-min-red"]["category"] == "front-button"
+    assert by["ns1-rose"]["category"] == "salwar-set"
+
+
+def test_category_column_unknown_or_conflicting_blocks():
+    rc, prods = run([ROW + ["Outerwear"]], ["Category"])
+    assert rc == 1 and prods is None
+    rows = [ROW + ["front-button"], [2, "Melini", "CS250A", "Cord Set", "Min.Red", "XL", "", 1415, 1, "M L", "", "", "", "round-neck"]]
+    rc, prods = run(rows, ["Category"])
+    assert rc == 1 and prods is None, "rows of one product disagreeing on Category must block"
+
+
+def test_non_branded_blank_brand_no_warning():
+    rows = [[1, None, "O4U-NB-0001", "Cotton Lycra T-shirt & Pants Set", "Red White", "Free Size", "", 1490, 1, "Free Size", "", "", "", "tshirt-lower"]]
+    d = bc.Diag()
+    wbp = make_wb(rows, ["Category"])
+    wb = openpyxl.load_workbook(wbp, data_only=True, read_only=True)
+    ws = bc.find_sheet(wb, d)
+    header_row, colmap = bc.find_header(ws, d)
+    parsed = bc.read_rows(ws, header_row, colmap, d)
+    prods = bc.build_products(parsed, colmap, wbp.parent, d)
+    assert prods[0]["brand"] == "" and prods[0]["description"] == "Cotton Lycra T-shirt & Pants Set in Red White."
+    assert not any("brand" in w.lower() for w in d.warnings), d.warnings
+    assert not d.errors
+    # a branded article with a blank brand still warns
+    d2 = bc.Diag()
+    bc.build_products(bc.read_rows(ws, header_row, colmap, d2), colmap, wbp.parent, d2) if False else None
+    rows2 = [[1, None, "CS250A", "Cord Set", "Min.Red", "L", "", 1415, 1, "M L", "", "", ""]]
+    wbp2 = make_wb(rows2)
+    wb2 = openpyxl.load_workbook(wbp2, data_only=True, read_only=True)
+    ws2 = bc.find_sheet(wb2, d2); hr2, cm2 = bc.find_header(ws2, d2)
+    bc.build_products(bc.read_rows(ws2, hr2, cm2, d2), cm2, wbp2.parent, d2)
+    assert any("brand is blank" in w for w in d2.warnings)
+
+
+def test_published_blank_stays_true_and_false_hides():
+    rows = [
+        ROW + [None, None],                                                                                     # old row, blank → published
+        [2, "Sweet Pini", "14560B", "Satin Nightsuit", "Black Pink Geometric", "XL", "", 1589, 1, "XL, XXL", "", "", "", "front-button", "FALSE"],   # new Stockroom rows
+        [3, "Sweet Pini", "14560B", "Satin Nightsuit", "Black Pink Geometric", "XXL", "", 1689, 1, "XL, XXL", "", "", "", "front-button", "FALSE"],
+        [4, "Melini", "NS1", "Night Suit", "Rose", "M", "", 999, 1, "M L", "", "", "", None, "TRUE"],
+    ]
+    rc, prods = run(rows, ["Category", "Published"])
+    assert rc == 0
+    ids = [p["id"] for p in prods]
+    assert "cs250a-min-red" in ids and "ns1-rose" in ids and "14560b-black-pink-geometric" not in ids
 
 
 def test_missing_required_column_blocks():

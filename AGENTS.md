@@ -27,7 +27,7 @@ One writable store only: the workbook. `admin.html` is a read-only preview.
 ```
 python scripts/build_catalogue.py            # root workbook → website/products.js
 python scripts/build_catalogue.py --workbook path/to/other.xlsx --out ... --images-dir ...
-python scripts/test_build_catalogue.py       # 14 self-checks, no pytest needed
+python scripts/test_build_catalogue.py       # 19 self-checks, no pytest needed
 ```
 
 Needs Python 3.10+ and `openpyxl`. Errors → exit 1 and `products.js` is NOT
@@ -48,6 +48,14 @@ Shop-controlled (absent today; the build defaults them with ONE warning):
 | `Selling Price` | MRP (+ warning per product when the column exists but is blank) |
 | `Offer Price` | no discount shown |
 | `Published` | TRUE — a missing column must never empty the catalogue |
+| `Category` | `CATEGORY_MAP` from the Description. When filled it must be a category key or label (`front-button` / `Front Button Set`) and overrides the map; unknown value or rows of one product that disagree = build error |
+
+Rows now arrive from **O4U Stockroom** (phone capture, written by the inventory
+chat) one row per size, with `Category`, `Offer Price` and `Published`. New
+rows come in `Published = FALSE` until the owner switches them on; blank
+`Published` on older rows still means TRUE. Articles `O4U-NB-####` are the
+shop's own non-branded items: a blank brand is expected (no warning) and
+`brand` is emitted as `""` - the site shows no brand for them, ever.
 
 `published` is explicit. Never derive it from images, stock or anything else.
 Rows whose `S.No` is blank while `Brand` holds a number are shifted one column
@@ -61,7 +69,8 @@ the `Image URL` column are ignored.
 * Product ID = slug of `article + colour`: lowercase, `&` → `and`, any run of
   non-alphanumerics → `-`, trimmed. `CS250A + Min.Red` → `cs250a-min-red`,
   `KPL310D/B + Violet` → `kpl310d-b-violet`, blank colour → `gw19b`.
-* IDs are stable across builds and match `photo-assigner.html`. Never index
+* IDs are stable across builds and match `photo-assigner.html` and Stockroom
+  (`14560B + Black Pink Geometric` → `14560b-black-pink-geometric`). Never index
   based (`w1`, `w2`).
 * Same article+colour with two descriptions (e.g. `7724090-F + Pink` in the
   current workbook) is a **build error**. Fix the workbook; don't relax the
@@ -107,8 +116,11 @@ An unmapped description is a build error — add the mapping, never a default.
 
 ## Sizes
 
-Vocabulary and order: `XS S M L XL 2XL 3XL 4XL 5XL`. `XXL` → `2XL`,
-`XXXL` → `3XL`. Ranges `M to 3XL`, `L-3XL`, `M–3XL` expand. One parser
+Vocabulary and order: `XS S M L XL 2XL 3XL 4XL 5XL Free Size`. `XXL` → `2XL`,
+`XXXL` → `3XL`; `Free Size` / `FREESIZE` / `One Size` / `FREE` → `Free Size`
+(emitted with that exact label). **`FS` is NOT free size** - on Sweet Pini tags
+it means full sleeves - so it is an error, never an alias. The frontend writes
+"Size XL" but plain "Free Size". Ranges `M to 3XL`, `L-3XL`, `M–3XL` expand. One parser
 (`parse_sizes`) reads both `Size` and `Available Sizes`; the product gets the
 union. `to` is never a size. Fix the parser, never a product.
 

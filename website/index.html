@@ -1758,6 +1758,8 @@
   // Unit price for a chosen size — some articles are priced per size (sizePrices).
   const unitPrice = (p, size) => (size && p.sizePrices && p.sizePrices[size]) ? p.sizePrices[size] : p.price;
   const priceLabel = p => (hasSizePrices(p) ? 'From ' : '') + '₹' + fmt(p.price);
+  // "Size XL" but plain "Free Size" (never "Size Free Size")
+  const sizeLabel = sz => /size/i.test(sz) ? sz : 'Size ' + sz;
 
   // Product image placeholder — same SVG the card used before, no filename shown to customers.
   const PH_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -2130,7 +2132,7 @@
       <div class="cart-line" data-key="${esc(l.key)}">
         <div>
           <div class="cart-line-name">${esc(l.name)}</div>
-          <div class="cart-line-meta">${esc(l.article)}${l.colour ? ' · ' + esc(l.colour) : ''}${l.size ? ' · Size ' + esc(l.size) : ''} · ₹${fmt(l.price)} each</div>
+          <div class="cart-line-meta">${esc(l.article)}${l.colour ? ' · ' + esc(l.colour) : ''}${l.size ? ' · ' + esc(sizeLabel(l.size)) : ''} · ₹${fmt(l.price)} each</div>
         </div>
         <div class="cart-line-price">₹${fmt(l.price * l.quantity)}</div>
         <div class="cart-line-ctl">
@@ -2274,7 +2276,7 @@
     lines.forEach((l, i) => {
       const bits = [l.article || '-'];
       if (l.colour) bits.push(l.colour);
-      if (l.size) bits.push('Size ' + l.size);
+      if (l.size) bits.push(sizeLabel(l.size));
       bits.push('Qty ' + l.quantity, '₹' + fmt(l.price * l.quantity));
       out.push(`${i + 1}. ${l.name}`);
       out.push(bits.join(', '));

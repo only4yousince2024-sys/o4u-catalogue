@@ -56,15 +56,21 @@ PREFERRED_SHEET = "Stock Inventory"
 REVIEWS_SHEET = "Reviews"          # optional; absent → REVIEWS = [] with a warning
 
 # ── Vocabulary ───────────────────────────────────────────────────────────────
-SIZE_ORDER = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"]
+SIZE_ORDER = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL", "FREE"]
 SIZE_ALIASES = {
     "XXS": "XS",
     "XXL": "2XL",
     "XXXL": "3XL",
     "XXXXL": "4XL",
     "XXXXXL": "5XL",
+    "FREESIZE": "FREE",
+    "ONESIZE": "FREE",
+    # NOT "FS": on Sweet Pini tags FS means full sleeves, not free size.
 }
+SIZE_LABEL = {"FREE": "Free Size"}               # how a canonical token is written in products.js
 SIZE_RANK = {s: i for i, s in enumerate(SIZE_ORDER)}
+SIZE_RANK.update({SIZE_LABEL[k]: SIZE_RANK[k] for k in SIZE_LABEL})   # labels sort like their token
+size_sort_key = SIZE_RANK.__getitem__
 
 CATEGORIES = OrderedDict([
     ("front-button", "Front Button Set"),
@@ -124,6 +130,7 @@ BRAND_MAP = {
     "sweet touch": "Sweet Touch",
     "sweettouch": "Sweet Touch",
     "melini": "Melini",
+    "sweet pini": "Sweet Pini",
     "zaps / j.t. international": "Zaps",
     "zaps": "Zaps",
 }
@@ -143,7 +150,9 @@ COLUMN_ALIASES = {
     "offer_price":     ["offer price", "offer", "sale price", "discount price"],
     "published":       ["published", "publish", "web", "show on website", "online", "live"],
     "notes":           ["notes", "note", "remarks"],
+    "category":        ["category", "web category", "website category"],
 }
+NON_BRANDED_PREFIX = "O4U-NB-"        # the shop's own items: a blank brand is expected
 REVIEW_ALIASES = {
     "name":      ["name", "customer", "customer name"],
     "city":      ["city", "town", "location"],
@@ -289,6 +298,8 @@ def parse_sizes(raw, where: str, diag: Diag) -> list[str]:
     if s is None:
         return []
     s = s.replace("–", "-").replace("—", "-")
+    # 'Free Size' / 'One Size' are two words; fold them into one token first.
+    s = re.sub(r"\b(?:free\s*size|one\s*size|free)\b", "FREE", s, flags=re.I)
     found: set[str] = set()
 
     # Split into list items on commas / semicolons / pipes / slashes.
@@ -333,7 +344,7 @@ def parse_sizes(raw, where: str, diag: Diag) -> list[str]:
                 continue
             for k in range(SIZE_RANK[a], SIZE_RANK[b] + 1):
                 found.add(SIZE_ORDER[k])
-    return sorted(found, key=SIZE_RANK.__getitem__)
+    return [SIZE_LABEL.get(t, t) for t in sorted(found, key=SIZE_RANK.__getitem__)]
 
 
 # ── Workbook reading ─────────────────────────────────────────────────────────
@@ -407,6 +418,7 @@ def read_rows(ws, header_row: int, colmap: dict[str, int], diag: Diag) -> list[d
             "offer_price": cell("offer_price") if "offer_price" in colmap else None,
             "published": cell("published") if "published" in colmap else None,
             "notes": clean_str(cell("notes")),
+            "category": clean_str(cell("category")) if "category" in colmap else None,
         })
     return rows
 
@@ -504,6 +516,24 @@ def category_for(desc: str, where: str, diag: Diag) -> str | None:
     return key
 
 
+_CATEGORY_LOOKUP = {**{k.lower(): k for k in CATEGORIES}, **{v.lower(): k for k, v in CATEGORIES.items()}}
+
+
+def category_from_column(values: list[str], where: str, diag: Diag) -> str | None:
+    """Explicit `Category` cells (key or label). Unknown → error; rows that disagree → error."""
+    keys = set()
+    for v in values:
+        k = _CATEGORY_LOOKUP.get(re.sub(r"\s+", " ", v.strip()).lower())
+        if k is None:
+            diag.error(f"{where}: unknown Category {v!r} — use one of {', '.join(CATEGORIES)}")
+            return None
+        keys.add(k)
+    if len(keys) > 1:
+        diag.error(f"{where}: rows disagree on Category {sorted(keys)}")
+        return None
+    return keys.pop() if keys else None
+
+
 def find_images(pid: str, images_dir: Path) -> list[str]:
     """<pid>.<ext>, then <pid>-2.<ext> … <pid>-9.<ext>, in order. First ext wins."""
     out = []
@@ -554,10 +584,18 @@ def build_products(rows: list[dict], colmap: dict[str, int], images_dir: Path, d
         if len(brands) > 1:
             diag.warn(f"{where}: multiple brands {brands} — using {brands[0]!r}")
         brand = brands[0] if brands else None
-        if brand is None:
+        non_branded = article.upper().startswith(NON_BRANDED_PREFIX)
+        if non_branded:
+            brand = None                      # the shop's own item: never show a brand
+        elif brand is None:
             diag.warn(f"{where}: brand is blank")
 
-        category = category_for(desc, where, diag)
+        # Category: the explicit column wins when filled; blank falls back to CATEGORY_MAP.
+        cat_values = [r["category"] for r in rs if r["category"]]
+        if cat_values:
+            category = category_from_column(cat_values, where, diag)
+        else:
+            category = category_for(desc, where, diag)
         if category is None:
             continue
 
@@ -566,7 +604,7 @@ def build_products(rows: list[dict], colmap: dict[str, int], images_dir: Path, d
         for r in rs:
             sizes.update(parse_sizes(r["avail_raw"], f"row {r['row']} Available Sizes", diag))
             sizes.update(parse_sizes(r["size_raw"], f"row {r['row']} Size", diag))
-        sizes_list = sorted(sizes, key=SIZE_RANK.__getitem__)
+        sizes_list = sorted(sizes, key=size_sort_key)
         if not sizes_list:
             diag.warn(f"{where}: no sizes found in Size / Available Sizes")
 
