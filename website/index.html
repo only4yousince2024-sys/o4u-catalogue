@@ -76,18 +76,18 @@
     html { scroll-behavior: smooth; }
 
     /* ══ LIQUID GLASS — one token, reused by every WhatsApp/order button ══
-       Base is the darker green (rgba(28,160,76,.62)) rather than the raw
-       WhatsApp green: white text over the lighter tint failed contrast on
-       light photos. Text-shadow stays for legibility over photography. */
+       WhatsApp green at 0.86 alpha: the blur still reads at the edges and
+       over photography, but the green stays vivid (0.58 washed it out).
+       Tune between 0.82 and 0.90 only. Text-shadow stays for legibility. */
     .glass {
       position: relative; overflow: hidden; isolation: isolate;
-      background: rgba(28, 160, 76, 0.62);
-      -webkit-backdrop-filter: blur(14px) saturate(180%);
-      backdrop-filter: blur(14px) saturate(180%);
-      border: 1px solid rgba(255, 255, 255, 0.35);
+      background: rgba(37, 211, 102, 0.86);
+      -webkit-backdrop-filter: blur(16px) saturate(200%);
+      backdrop-filter: blur(16px) saturate(200%);
+      border: 1px solid rgba(255, 255, 255, 0.38);
       box-shadow:
-        0 4px 18px rgba(0, 0, 0, 0.18),
-        inset 0 1px 0 rgba(255, 255, 255, 0.45);
+        0 6px 20px rgba(37, 211, 102, 0.30),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
       color: #fff;
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
     }
@@ -100,7 +100,7 @@
     .glass > svg { position: relative; }
     /* Card buttons: blur only while the card is on screen (172 cards). */
     .pcard .glass { -webkit-backdrop-filter: none; backdrop-filter: none; }
-    .pcard.in-view .glass { -webkit-backdrop-filter: blur(14px) saturate(180%); backdrop-filter: blur(14px) saturate(180%); }
+    .pcard.in-view .glass { -webkit-backdrop-filter: blur(16px) saturate(200%); backdrop-filter: blur(16px) saturate(200%); }
     /* Fallbacks: solid fill, no transparency */
     @supports not (backdrop-filter: blur(1px)) {
       .glass, .pcard .glass, .pcard.in-view .glass { background: var(--green); backdrop-filter: none; -webkit-backdrop-filter: none; }
