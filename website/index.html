@@ -56,6 +56,42 @@
 
     html { scroll-behavior: smooth; }
 
+    /* ══ LIQUID GLASS — one token, reused by every WhatsApp/order button ══
+       Base is the darker green (rgba(28,160,76,.62)) rather than the raw
+       WhatsApp green: white text over the lighter tint failed contrast on
+       light photos. Text-shadow stays for legibility over photography. */
+    .glass {
+      position: relative; overflow: hidden; isolation: isolate;
+      background: rgba(28, 160, 76, 0.62);
+      -webkit-backdrop-filter: blur(14px) saturate(180%);
+      backdrop-filter: blur(14px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      box-shadow:
+        0 4px 18px rgba(0, 0, 0, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.45);
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+    }
+    /* soft specular highlight along the top edge */
+    .glass::before {
+      content: ''; position: absolute; inset: 0 0 auto 0; height: 55%;
+      background: linear-gradient(to bottom, rgba(255,255,255,0.28), rgba(255,255,255,0));
+      pointer-events: none; z-index: -1;
+    }
+    .glass > svg { position: relative; }
+    /* Card buttons: blur only while the card is on screen (172 cards). */
+    .pcard .glass { -webkit-backdrop-filter: none; backdrop-filter: none; }
+    .pcard.in-view .glass { -webkit-backdrop-filter: blur(14px) saturate(180%); backdrop-filter: blur(14px) saturate(180%); }
+    /* Fallbacks: solid fill, no transparency */
+    @supports not (backdrop-filter: blur(1px)) {
+      .glass, .pcard .glass, .pcard.in-view .glass { background: var(--green); backdrop-filter: none; -webkit-backdrop-filter: none; }
+      .glass::before { display: none; }
+    }
+    @media (prefers-reduced-transparency: reduce) {
+      .glass, .pcard .glass, .pcard.in-view .glass { background: var(--green); backdrop-filter: none; -webkit-backdrop-filter: none; }
+      .glass::before { display: none; }
+    }
+
     body {
       font-family: 'Nunito', sans-serif;
       background: var(--bg);
@@ -112,26 +148,15 @@
 
     .nav-wa {
       display: flex; align-items: center; gap: 7px;
-      background: linear-gradient(160deg, #2dd17a 0%, #1aad5e 60%, #158f4d 100%);
-      color: #fff;
       text-decoration: none;
       font-size: 0.74rem;
       font-weight: 600;
       letter-spacing: 0.3px;
       padding: 9px 18px;
       border-radius: 50px;
-      border: 1px solid rgba(255,255,255,0.18);
-      box-shadow:
-        0 1px 0 rgba(255,255,255,0.28) inset,
-        0 -1px 0 rgba(0,0,0,0.2) inset,
-        0 6px 20px rgba(25,180,90,0.32),
-        0 2px 6px rgba(0,0,0,0.1);
-      transition: transform 0.22s, box-shadow 0.22s;
+      transition: transform 0.22s;
     }
-    .nav-wa:hover {
-      transform: translateY(-1px) scale(1.02);
-      box-shadow: 0 1px 0 rgba(255,255,255,0.28) inset, 0 -1px 0 rgba(0,0,0,0.2) inset, 0 10px 28px rgba(25,180,90,0.4);
-    }
+    .nav-wa:hover { transform: translateY(-1px) scale(1.02); }
     .nav-wa svg { width: 14px; height: 14px; }
 
     /* ══ HERO ══ */
@@ -633,21 +658,21 @@
     }
 
     .wa-btn {
+      position: absolute; right: 12px; bottom: 12px; z-index: 2;
       display: inline-flex; align-items: center; gap: 6px;
-      background: var(--green); color: #fff;
-      text-decoration: none;
-      font-size: 0.72rem; font-weight: 600;
-      padding: 9px 15px; border-radius: 50px;
+      text-decoration: none; cursor: pointer;
+      font-family: 'Nunito', sans-serif;
+      font-size: 0.74rem; font-weight: 700; letter-spacing: 0.3px;
+      padding: 10px 16px; border-radius: 50px;
       white-space: nowrap;
-      transition: opacity 0.2s, transform 0.15s;
-      box-shadow: 0 3px 12px rgba(37,211,102,0.3);
+      transition: transform 0.15s;
     }
-    .wa-btn:hover { opacity: 0.88; transform: scale(1.03); }
-    .wa-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+    .wa-btn:hover { transform: scale(1.04); }
+    .wa-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
 
     /* Currently unavailable (stockQty 0) — still browsable, greyed */
     .pcard-off .pcard-img img, .pcard-off .pcard-ph { filter: grayscale(0.6); opacity: 0.75; }
-    .pcard-off .wa-btn { background: var(--gray); box-shadow: none; }
+    .pcard-off .wa-btn { background: rgba(90, 86, 80, 0.6); }
 
     /* ══ ABOUT ══ */
     #about {
@@ -930,17 +955,15 @@
 
     .modal-wa-btn {
       width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
-      background: var(--green); color: #fff;
-      border: none; border-radius: 50px; padding: 15px;
+      border-radius: 50px; padding: 15px;
       font-family: 'Nunito', sans-serif; font-size: 0.88rem; font-weight: 700;
       cursor: pointer; letter-spacing: 0.3px;
-      box-shadow: 0 4px 16px rgba(37,211,102,0.35);
       transition: opacity 0.2s, transform 0.2s;
     }
     .modal-wa-btn:hover { opacity: 0.9; transform: translateY(-1px); }
     .modal-wa-btn svg { width: 18px; height: 18px; }
     .modal-wa-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-    .modal-add-btn { background: var(--black); box-shadow: 0 4px 16px rgba(0,0,0,0.18); }
+
     .modal-note { text-align: center; font-size: 0.7rem; color: var(--gray); margin-top: 10px; }
     .size-hint { font-size: 0.72rem; color: var(--orange); font-weight: 600; margin: -12px 0 16px; display: none; }
     .size-hint.show { display: block; }
@@ -1085,13 +1108,11 @@
     .float-wa {
       position: fixed; bottom: 28px; right: 28px; z-index: 999;
       width: 56px; height: 56px; border-radius: 50%;
-      background: var(--green);
       display: flex; align-items: center; justify-content: center;
       text-decoration: none;
-      box-shadow: 0 6px 24px rgba(37,211,102,0.45);
-      transition: transform 0.2s, box-shadow 0.2s;
+      transition: transform 0.2s;
     }
-    .float-wa:hover { transform: scale(1.1); box-shadow: 0 10px 32px rgba(37,211,102,0.55); }
+    .float-wa:hover { transform: scale(1.1); }
     .float-wa svg { width: 28px; height: 28px; fill: #fff; }
 
     /* ══ REVEAL ══ */
@@ -1186,9 +1207,8 @@
         font-size: 0.74rem; margin-bottom: 10px;
         display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
       }
-      .pcard-foot { gap: 6px; flex-wrap: wrap; }
       .pcard-price { font-size: 0.95rem; }
-      .wa-btn { font-size: 0.68rem; padding: 7px 12px; gap: 4px; }
+      .wa-btn { font-size: 0.7rem; padding: 8px 13px; gap: 5px; right: 10px; bottom: 10px; }
 
       /* About */
       #about { padding: 52px 18px; }
@@ -1231,10 +1251,9 @@
         overflow: hidden; overflow-wrap: anywhere;
       }
       .pcard-desc { display: none; }
-      .pcard-foot { gap: 6px; flex-wrap: wrap; }
       .pcard-price { font-size: 0.88rem; }
       .pcard-old { font-size: 0.66rem; margin-left: 3px; }
-      .wa-btn { font-size: 0.66rem; padding: 7px 11px; gap: 4px; }
+      .wa-btn { font-size: 0.66rem; padding: 7px 11px; gap: 4px; right: 8px; bottom: 8px; }
       .pcard-badge { font-size: 0.52rem; padding: 4px 9px; top: 8px; left: 8px; }
       .pcard-ph { font-size: 0.58rem; letter-spacing: 1px; gap: 6px; }
       .pcard-ph svg { width: 28px; height: 28px; }
@@ -1263,7 +1282,7 @@
     <span class="nav-cart-label">Your order</span>
     <span class="cart-count" data-n="0">0</span>
   </button>
-  <a class="nav-wa" href="#" data-wa="Hi! I visited Only 4 You and want to place an order 👗" target="_blank" rel="noopener">
+  <a class="nav-wa glass" href="#" data-wa="Hi! I visited Only 4 You and want to place an order 👗" target="_blank" rel="noopener">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
     Order on WhatsApp
   </a>
@@ -1550,7 +1569,7 @@
 </footer>
 
 <!-- ══════ FLOATING WA ══════ -->
-<a class="float-wa" href="#" data-wa="Hi! I visited Only 4 You website and want to place an order 👗" target="_blank" rel="noopener" title="Order on WhatsApp">
+<a class="float-wa glass" href="#" data-wa="Hi! I visited Only 4 You website and want to place an order 👗" target="_blank" rel="noopener" title="Order on WhatsApp">
   <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
 </a>
 
@@ -1573,7 +1592,7 @@
     <div class="cart-foot" id="cartFoot">
       <div class="cart-total-row"><span>Total</span><strong id="cartTotal">₹0</strong></div>
       <div class="cart-fine">Delivery charges extra — we'll tell you the exact amount on WhatsApp.</div>
-      <button class="modal-wa-btn" id="cartSendBtn" onclick="sendWhatsApp()">
+      <button class="modal-wa-btn glass" id="cartSendBtn" onclick="sendWhatsApp()">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
         Send order request on WhatsApp
       </button>
@@ -1601,7 +1620,7 @@
       <li><span><strong>Returns within 3 days</strong> of delivery.</span></li>
     </ul>
     <div class="policy-actions">
-      <button class="modal-wa-btn" id="policyAccept" onclick="policyAccept()">Accept &amp; send order</button>
+      <button class="modal-wa-btn glass" id="policyAccept" onclick="policyAccept()">Accept &amp; send order</button>
       <button class="policy-cancel" id="policyCancelBtn" onclick="policyCancel()">Cancel</button>
     </div>
   </div>
@@ -1644,7 +1663,7 @@
         <span class="qty-num" id="qtyNum">1</span>
         <button class="qty-btn" onclick="changeQty(1)">+</button>
       </div>
-      <button class="modal-wa-btn modal-add-btn" id="modalAddBtn" onclick="addCurrentToCart()">
+      <button class="modal-wa-btn modal-add-btn glass" id="modalAddBtn" onclick="addCurrentToCart()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
         Add to order
       </button>
@@ -1708,6 +1727,10 @@
           </div>
           ${!avail ? `<span class="pcard-badge b-dark">Currently unavailable</span>`
             : p.badge ? `<span class="pcard-badge ${badgeClass[p.badgeStyle] || 'b-orange'}">${esc(p.badge)}</span>` : ''}
+          <button class="wa-btn glass" onclick="event.stopPropagation(); openModal('${esc(p.id)}')">
+            <svg viewBox="0 0 24 24" fill="currentColor" style="width:13px;height:13px;flex-shrink:0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+            ${avail ? 'Order' : 'Ask'}
+          </button>
         </div>
         <div class="pcard-body">
           <div class="pcard-cat">${esc(catLabel(p.category))}</div>
@@ -1715,10 +1738,6 @@
           <div class="pcard-desc">${esc(p.description)}</div>
           <div class="pcard-foot">
             <div class="pcard-price">${priceLabel(p)}${p.mrp ? ` <span class="pcard-old">₹${fmt(p.mrp)}</span>` : ''}</div>
-            <button class="wa-btn" onclick="event.stopPropagation(); openModal('${esc(p.id)}')">
-              <svg viewBox="0 0 24 24" fill="currentColor" style="width:13px;height:13px;flex-shrink:0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
-              ${avail ? 'Order' : 'Ask'}
-            </button>
           </div>
         </div>
       </div>
@@ -1821,6 +1840,7 @@
     renderReviews();
     if (allProducts.length) {
       grid.innerHTML = renderProducts(allProducts);
+      watchCards();
     } else {
       grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--gray);padding:40px">No products found. Run <code>python scripts/build_catalogue.py</code> to generate products.js.</p>';
     }
@@ -2141,6 +2161,15 @@
   renderCart();
 
   // ── SCROLL REVEAL ──
+  // Glass blur is expensive; only cards on screen get backdrop-filter.
+  const viewObs = ('IntersectionObserver' in window) ? new IntersectionObserver(entries => {
+    entries.forEach(e => e.target.classList.toggle('in-view', e.isIntersecting));
+  }, { rootMargin: '120px 0px' }) : null;
+  function watchCards() {
+    if (!viewObs) { document.querySelectorAll('#grid .pcard').forEach(c => c.classList.add('in-view')); return; }
+    document.querySelectorAll('#grid .pcard').forEach(c => viewObs.observe(c));
+  }
+
   function initReveal() {
     const obs = new IntersectionObserver(entries => {
       entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); } });
