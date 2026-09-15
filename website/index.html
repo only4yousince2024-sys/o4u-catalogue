@@ -31,6 +31,23 @@
     //   kind: 'percent'       → rate off the subtotal once it reaches threshold
     //   kind: 'free-delivery' → no discount line; delivery is waived instead
     const OFFER = { enabled: false, kind: 'percent', threshold: 2000, rate: 0.20 };
+
+    // ── SUPPORT ── the guided Help flow. Topics and the message shape are
+    // defined here and nowhere else. It only routes; it never answers
+    // stock questions (a human confirms availability before money moves).
+    const SUPPORT = {
+      heading: 'How can we help?',
+      topics: [
+        { key: 'size',     label: 'Is this available in my size?', tag: 'Size availability' },
+        { key: 'delivery', label: 'Delivery time and charges',     tag: 'Delivery' },
+        { key: 'returns',  label: 'Returns and exchanges',         tag: 'Returns' },
+        { key: 'order',    label: 'Where is my order?',            tag: 'Order status' },
+        { key: 'other',    label: 'Something else',                tag: 'Other' }
+      ],
+      noteMax: 200,
+      notePlaceholder: 'Short note (optional)',
+      signature: 'Sent from only4you website'
+    };
   </script>
 
   <!--
@@ -815,7 +832,7 @@
     .footer-contact-row a { color: inherit; text-decoration: none; }
     .footer-contact-row a:hover { color: #fff; }
 
-    .footer-wa-btn {
+    .footer-wa-btn-unused {
       display: inline-flex; align-items: center; gap: 8px;
       background: var(--green); color: #fff;
       text-decoration: none; font-size: 0.75rem; font-weight: 600;
@@ -1140,21 +1157,64 @@
       .policy-list li { font-size: 0.8rem; }
     }
 
+    /* ══ HELP / SUPPORT SHEET ══ */
+    .help-overlay {
+      position: fixed; inset: 0; z-index: 1002;
+      background: rgba(17,17,16,0.55); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .help-overlay.open { opacity: 1; pointer-events: all; }
+    .help {
+      background: var(--white); border-radius: 20px;
+      width: 100%; max-width: 440px; padding: 24px 22px 20px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.22); position: relative;
+      transform: translateY(14px); transition: transform 0.2s; outline: none;
+    }
+    .help-overlay.open .help { transform: translateY(0); }
+    .help h3 { font-family: 'Playfair Display', serif; font-style: italic; font-size: 1.35rem; font-weight: 600; margin-bottom: 4px; }
+    .help-context { font-size: 0.72rem; color: var(--gray); margin-bottom: 12px; }
+    .help-context strong { color: var(--black); font-weight: 600; }
+    .help-topics { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+    .help-topic {
+      display: flex; align-items: center; gap: 10px; text-align: left; width: 100%;
+      background: var(--white); border: 1.5px solid var(--light); border-radius: 12px;
+      padding: 10px 12px; cursor: pointer;
+      font-family: 'Nunito', sans-serif; font-size: 0.82rem; font-weight: 600; color: var(--black);
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .help-topic::before { content: '▸'; color: var(--orange); font-size: 0.8rem; }
+    .help-topic:hover { border-color: var(--black); }
+    .help-topic.selected { border-color: var(--orange); background: rgba(229,97,28,0.06); }
+    .help-note {
+      width: 100%; resize: none; height: 64px; padding: 10px 12px; border-radius: 12px;
+      border: 1.5px solid var(--light); background: var(--white);
+      font-family: 'Nunito', sans-serif; font-size: 0.82rem; color: var(--black); margin-bottom: 4px;
+    }
+    .help-note:focus { outline: none; border-color: var(--orange); }
+    .help-count { text-align: right; font-size: 0.66rem; color: var(--gray); margin-bottom: 12px; }
+    .help .modal-wa-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+    @media (max-width: 640px) {
+      .help-overlay { align-items: flex-end; padding: 0; }
+      .help { max-width: 100%; border-radius: 20px 20px 0 0; padding: 20px 18px calc(16px + env(safe-area-inset-bottom)); }
+      .help-topic { padding: 9px 11px; font-size: 0.8rem; }
+    }
+
     /* Footer: the same four points, always visible */
     .footer-policy { list-style: none; display: flex; flex-direction: column; gap: 8px; }
     .footer-policy li { font-size: 0.78rem; line-height: 1.55; color: rgba(255,255,255,0.5); font-weight: 300; }
     .footer-policy strong { color: rgba(255,255,255,0.8); font-weight: 600; }
 
     /* ══ FLOAT WA ══ */
-    .float-wa {
+    .float-help {
       position: fixed; bottom: 28px; right: 28px; z-index: 999;
       width: 56px; height: 56px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      text-decoration: none;
+      cursor: pointer; text-decoration: none;
       transition: transform 0.2s;
     }
-    .float-wa:hover { transform: scale(1.1); }
-    .float-wa svg { width: 28px; height: 28px; fill: #fff; }
+    .float-help:hover { transform: scale(1.1); }
+    .float-help svg { width: 26px; height: 26px; }
 
     /* ══ REVEAL ══ */
     .reveal {
@@ -1346,7 +1406,6 @@
     </p>
     <div class="hero-btns">
       <a href="#catalogue" class="btn-dark">Browse Collection</a>
-      <a href="#" data-wa="Hi! I want to see your full collection 👗" target="_blank" class="btn-ghost">Order on WhatsApp</a>
     </div>
   </div>
 
@@ -1570,10 +1629,6 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
         <a href="https://instagram.com/only4yousince2024" target="_blank">@only4yousince2024</a>
       </div>
-      <a class="footer-wa-btn" href="#" data-wa="Hi! I want to order from Only 4 You 👗" target="_blank" rel="noopener">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
-        Order Now
-      </a>
     </div>
   </div>
 
@@ -1584,9 +1639,9 @@
 </footer>
 
 <!-- ══════ FLOATING WA ══════ -->
-<a class="float-wa glass" href="#" data-wa="Hi! I visited Only 4 You website and want to place an order 👗" target="_blank" rel="noopener" title="Order on WhatsApp">
-  <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
-</a>
+<button class="float-help glass" type="button" onclick="openHelp()" aria-label="Help" title="Help">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/><path d="M9.5 9.5a2.5 2.5 0 015 0c0 1.5-2.5 2-2.5 3.5"/><line x1="12" y1="16.5" x2="12.01" y2="16.5"/></svg>
+</button>
 
 <button class="float-cart" id="floatCart" type="button" onclick="openCart()" aria-label="Open your order">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
@@ -1629,6 +1684,19 @@
   <button class="gal-nav gal-next" type="button" onclick="event.stopPropagation(); galStep(1)" aria-label="Next photo">›</button>
   <div class="gal-count" id="galFullCount"></div>
   <button class="gal-full-close" type="button" onclick="galFullClose()" aria-label="Close">✕</button>
+</div>
+
+<!-- ══ HELP / SUPPORT — guided topics, routed to WhatsApp (built from SUPPORT config) ══ -->
+<div class="help-overlay" id="helpOverlay" onclick="closeHelp(event)">
+  <div class="help" id="helpBox" role="dialog" aria-modal="true" aria-labelledby="helpTitle" tabindex="-1" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeHelp()" aria-label="Close">✕</button>
+    <h3 id="helpTitle"></h3>
+    <div class="help-context" id="helpContext"></div>
+    <div class="help-topics" id="helpTopics"></div>
+    <textarea class="help-note" id="helpNote" rows="2"></textarea>
+    <div class="help-count" id="helpCount"></div>
+    <button class="modal-wa-btn glass" id="helpSend" onclick="sendHelp()" disabled>Continue on WhatsApp</button>
+  </div>
 </div>
 
 <!-- ══ PRE-ORDER POLICY (shown once, when sending the order) ══ -->
@@ -1997,7 +2065,7 @@
     if (e && e.currentTarget === document.getElementById('modalOverlay') && e.target !== e.currentTarget) return;
     document.getElementById('modalOverlay').classList.remove('open');
     document.getElementById('galFull').classList.remove('open');
-    if (!document.getElementById('cartOverlay').classList.contains('open')) document.body.style.overflow = '';
+    if (!document.getElementById('cartOverlay').classList.contains('open') && !document.getElementById('helpOverlay').classList.contains('open')) document.body.style.overflow = '';
   }
 
   function selectSize(btn, size) {
@@ -2131,9 +2199,64 @@
     if (!document.getElementById('modalOverlay').classList.contains('open')) document.body.style.overflow = '';
   }
 
-  // Help control (the guided support sheet replaces this in the support-flow commit)
+  // ── HELP / SUPPORT — guided, one-shot hand-off. No storage, no AI, no stock answers. ──
+  let helpTopic = null, helpProduct = null, helpReturnFocus = null;
   function openHelp() {
-    window.open(`https://wa.me/${WA}?text=${encodeURIComponent('Hi! I have a question about Only 4 You.')}`, '_blank');
+    helpTopic = null;
+    // if a product is being viewed, carry it into the message automatically
+    helpProduct = document.getElementById('modalOverlay').classList.contains('open') ? modalProduct : null;
+    helpReturnFocus = document.activeElement;
+    document.getElementById('helpTitle').textContent = SUPPORT.heading;
+    const ctx = document.getElementById('helpContext');
+    ctx.innerHTML = helpProduct ? `About <strong>${esc(helpProduct.name)}</strong> · ${esc(helpProduct.article || '')}` : '';
+    ctx.style.display = helpProduct ? '' : 'none';
+    document.getElementById('helpTopics').innerHTML = SUPPORT.topics.map(t =>
+      `<button type="button" class="help-topic" data-key="${esc(t.key)}" onclick="pickHelpTopic('${esc(t.key)}')">${esc(t.label)}</button>`).join('');
+    const note = document.getElementById('helpNote');
+    note.value = ''; note.maxLength = SUPPORT.noteMax; note.placeholder = `${SUPPORT.notePlaceholder}, ${SUPPORT.noteMax} chars`;
+    updateHelpCount();
+    document.getElementById('helpSend').disabled = true;
+    document.getElementById('helpOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => { const first = document.querySelector('.help-topic'); if (first) first.focus(); }, 30);
+  }
+  function pickHelpTopic(key) {
+    helpTopic = SUPPORT.topics.find(t => t.key === key) || null;
+    document.querySelectorAll('.help-topic').forEach(b => b.classList.toggle('selected', b.dataset.key === key));
+    document.getElementById('helpSend').disabled = !helpTopic;
+  }
+  function updateHelpCount() {
+    const note = document.getElementById('helpNote');
+    if (note.value.length > SUPPORT.noteMax) note.value = note.value.slice(0, SUPPORT.noteMax);   // pasted text bypasses maxlength
+    const n = note.value.length;
+    document.getElementById('helpCount').textContent = `${n} / ${SUPPORT.noteMax}`;
+  }
+  document.getElementById('helpNote').addEventListener('input', updateHelpCount);
+  function closeHelp(e) {
+    if (e && e.target !== document.getElementById('helpOverlay')) return;
+    document.getElementById('helpOverlay').classList.remove('open');
+    const anyOpen = ['modalOverlay', 'cartOverlay', 'policyOverlay'].some(id => document.getElementById(id).classList.contains('open'));
+    if (!anyOpen) document.body.style.overflow = '';
+    if (helpReturnFocus && helpReturnFocus.focus) helpReturnFocus.focus();
+    helpReturnFocus = null;
+  }
+  // Ref: S-MMDD-XXX — same scheme as order IDs
+  const makeSupportRef = (d = new Date()) => makeOrderId(d).replace(/^O4U-/, 'S-');
+  function buildSupportMessage(topic, product, note, ref) {
+    const out = [`O4U SUPPORT — ${topic.tag}`, `Ref: ${ref}`];
+    if (product) out.push(`Product: ${product.name} (${product.article || '-'})`);
+    if (note) out.push('', `"${note}"`);
+    out.push('', SUPPORT.signature);
+    return out.join('\n');
+  }
+  function sendHelp() {
+    if (!helpTopic) return;
+    const note = document.getElementById('helpNote').value.trim().slice(0, SUPPORT.noteMax);
+    const msg = buildSupportMessage(helpTopic, helpProduct, note, makeSupportRef());
+    const url = `https://wa.me/${WA}?text=${encodeURIComponent(msg)}`;
+    const w = window.open(url, '_blank');
+    if (!w) window.location.href = url;
+    closeHelp();
   }
 
   // "Add more items": close the drawer and return to the grid. The active
@@ -2248,7 +2371,8 @@
   // Keyboard: Escape closes; arrows drive the gallery while the modal is open
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
-      if (document.getElementById('galFull').classList.contains('open')) galFullClose();
+      if (document.getElementById('helpOverlay').classList.contains('open')) closeHelp();
+      else if (document.getElementById('galFull').classList.contains('open')) galFullClose();
       else if (document.getElementById('policyOverlay').classList.contains('open')) policyCancel();
       else if (document.getElementById('cartOverlay').classList.contains('open')) closeCart();
       else closeModal();
