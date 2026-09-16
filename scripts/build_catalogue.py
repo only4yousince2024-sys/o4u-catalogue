@@ -952,6 +952,8 @@ def main(argv=None) -> int:
         source_name = args.workbook.name
 
     published = [p for p in products if p["published"]]
+    if not published and not diag.errors:
+        diag.error("0 published products — refusing to write an EMPTY catalogue. Unzip a Stockroom export (stockroom.json + images) or publish rows in the workbook, then build again.")
     counts = {
         "source_rows": len(rows),
         "variants": len(products),

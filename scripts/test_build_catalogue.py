@@ -361,6 +361,14 @@ def test_missing_stockroom_builds_from_workbook():
     assert rc == 0 and [p["id"] for p in prods] == ["cs250a-min-red"]
 
 
+def test_empty_catalogue_is_refused():
+    rows = [ROW + ["FALSE"]]                       # the only product is unpublished → nothing to show
+    rc, prods = run(rows, ["Published"])
+    assert rc == 1 and prods is None, "an empty catalogue must never be written"
+    rc, prods = run([], ["Published"])            # empty live sheet, no stockroom.json
+    assert rc == 1 and prods is None
+
+
 def test_missing_required_column_blocks():
     wb = openpyxl.Workbook()
     ws = wb.active
