@@ -35,3 +35,6 @@ venv/
 
 # Unreferenced branding originals moved out of the deploy root (kept on disk)
 archive/
+
+# sync.bat run log (local only)
+sync.log
