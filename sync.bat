@@ -32,8 +32,8 @@ if not defined AUTO (
 
 :: ---- 1. newest ZIP -------------------------------------------------------
 set "ZIP="
-for /f "delims=" %%f in ('dir /b /a-d /o-d "%DL%\o4u-website-images-*.zip" "%DL%\o4u-for-website-*.zip" 2^>nul') do (
-  if not defined ZIP set "ZIP=%DL%\%%f"
+for /f "usebackq delims=" %%f in (`powershell -NoProfile -Command "Get-ChildItem -Path '%DL%\o4u-website-images-*.zip','%DL%\o4u-for-website-*.zip' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName"`) do (
+  if not defined ZIP set "ZIP=%%f"
 )
 if not defined ZIP (
   echo Nothing new - no o4u-website-images-*.zip or o4u-for-website-*.zip in %DL%
