@@ -178,7 +178,9 @@ IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".webp"]
 MAX_GALLERY = 9
 
 # Branding files index.html references. Missing = warning (placeholder shows), never an error.
-BRANDING_ASSETS = ["logo-round.png", "hero-main.jpg", "store.jpg", "og-cover.jpg"]
+BRANDING_ASSETS = ["logo-round.png", "hero-main.jpg", "store.jpg", "og-cover.jpg",
+                   "apple-touch-icon.png", "icon-192.png", "icon-512.png"]   # icon set: owner-supplied, never generated
+SITE_ROOT_ASSETS = ["favicon.ico", "site.webmanifest"]                        # relative to website/
 
 
 # ── Diagnostics ──────────────────────────────────────────────────────────────
@@ -918,6 +920,9 @@ def main(argv=None) -> int:
         for name in BRANDING_ASSETS:
             if not (args.images_dir / name).is_file():
                 diag.warn(f"branding image missing: images/{name} — the site shows its placeholder until it is added")
+        for name in SITE_ROOT_ASSETS:
+            if not (args.out.parent / name).is_file():
+                diag.warn(f"site file missing: {name} — the <head> tag stays in place; add the file to website/")
 
     wb = openpyxl.load_workbook(args.workbook, data_only=True, read_only=True)
     ws = find_sheet(wb, diag)

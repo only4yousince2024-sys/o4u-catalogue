@@ -169,8 +169,10 @@ website/images/<pid>-2.jpg … -9.jpg   gallery images, in order    (deployed)
 The build discovers `<pid>.jpg` then `-2` … `-9` (jpg/jpeg/png/webp).
 `images[0]` is the card image; the modal shows a gallery when there is more
 than one. A missing image is a warning and a placeholder, never an unpublish.
-`website/images/` also holds branding: `logo-round.png` (nav mark, footer
-mark, favicon, apple-touch-icon; falls back to `logo.png` if absent),
+`website/images/` also holds branding: `logo-round.png` (nav + footer mark;
+falls back to `logo.png` if absent), the icon set `apple-touch-icon.png`
+(180), `icon-192.png`, `icon-512.png` (all owner-supplied - never generate
+substitutes) with `website/favicon.ico` (32) and `website/site.webmanifest`,
 `hero-main.jpg`, `store.jpg` (About), `og-cover.jpg` (1200x630 link
 preview). The build warns for any that are missing.
 
@@ -242,7 +244,7 @@ which is the opposite of the trust the section is meant to build.
   designs in stock and category count. Never type a number there; a claim
   that cannot be computed or confirmed by the owner is removed, not softened.
 * Branding images index.html needs: `logo.png`, `hero-main.jpg`,
-  `kids-hero.jpg`, `fevicon.png`, `store.jpg` (About section, owner to
+  `store.jpg` (About section, owner to
   supply). The build warns when one is missing; the page shows a placeholder.
 
 ## Non-negotiables
