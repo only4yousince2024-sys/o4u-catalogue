@@ -1,6 +1,169 @@
 {
-  "exportedAt": "2026-09-17T08:17:39.472Z",
+  "exportedAt": "2026-09-17T17:41:23.627Z",
   "products": [
+    {
+      "id": "3960-lavender-floral",
+      "article": "3960",
+      "brand": "Sweet Pini",
+      "category": "front-button",
+      "type": "Satin Nightsuit",
+      "colour": "Lavender Floral",
+      "features": "Satin, Full Sleeves, Button-Up, Contrast Piping",
+      "sizes": [
+        {
+          "size": "L",
+          "mrp": 1589,
+          "barcode": "3960L"
+        },
+        {
+          "size": "XL"
+        }
+      ],
+      "stock": {
+        "L": 1,
+        "XL": 1
+      },
+      "inStock": true,
+      "offerPrice": null,
+      "notes": "",
+      "images": [
+        "3960-lavender-floral.jpg",
+        "3960-lavender-floral-2.jpg",
+        "3960-lavender-floral-3.jpg",
+        "3960-lavender-floral-4.jpg",
+        "3960-lavender-floral-5.jpg"
+      ]
+    },
+    {
+      "id": "14558-navy-peach-abstract",
+      "article": "14558",
+      "brand": "Sweet Pini",
+      "category": "front-button",
+      "type": "Satin Nightsuit",
+      "colour": "Navy Peach Abstract",
+      "features": "Satin, Full Sleeves, Button-Up, Contrast Piping, Elastic Waist Pants",
+      "sizes": [
+        {
+          "size": "L",
+          "mrp": 1589,
+          "barcode": "14558L"
+        }
+      ],
+      "stock": {
+        "L": 1
+      },
+      "inStock": true,
+      "offerPrice": null,
+      "notes": "",
+      "images": [
+        "14558-navy-peach-abstract.jpg",
+        "14558-navy-peach-abstract-2.jpg",
+        "14558-navy-peach-abstract-3.jpg",
+        "14558-navy-peach-abstract-4.jpg",
+        "14558-navy-peach-abstract-5.jpg"
+      ]
+    },
+    {
+      "id": "14602b-purple-floral",
+      "article": "14602B",
+      "brand": "Sweet Pini",
+      "category": "front-button",
+      "type": "Satin Nightsuit",
+      "colour": "Purple Floral",
+      "features": "Satin, Full Sleeves, Button-Up, Contrast Piping",
+      "sizes": [
+        {
+          "size": "M",
+          "mrp": 1589,
+          "barcode": "14602M"
+        },
+        {
+          "size": "L"
+        },
+        {
+          "size": "XL"
+        }
+      ],
+      "stock": {
+        "L": 1,
+        "M": 1,
+        "XL": 1
+      },
+      "inStock": true,
+      "offerPrice": null,
+      "notes": "",
+      "images": [
+        "14602b-purple-floral.jpg",
+        "14602b-purple-floral-2.jpg",
+        "14602b-purple-floral-3.jpg",
+        "14602b-purple-floral-4.jpg",
+        "14602b-purple-floral-5.jpg"
+      ]
+    },
+    {
+      "id": "14560b-black-pink-geometric",
+      "article": "14560B",
+      "brand": "Sweet Pini",
+      "category": "front-button",
+      "type": "Satin Nightsuit",
+      "colour": "Black Pink Geometric",
+      "features": "Satin, Full Sleeves, Button-Up",
+      "sizes": [
+        {
+          "size": "XL",
+          "mrp": 1589,
+          "barcode": "14560XL"
+        },
+        {
+          "size": "XXL",
+          "mrp": 1689,
+          "barcode": "14560XXL"
+        }
+      ],
+      "stock": {
+        "XL": 1,
+        "XXL": 1
+      },
+      "inStock": true,
+      "offerPrice": null,
+      "notes": "",
+      "images": [
+        "14560b-black-pink-geometric.jpg",
+        "14560b-black-pink-geometric-2.jpg",
+        "14560b-black-pink-geometric-3.jpg",
+        "14560b-black-pink-geometric-4.jpg",
+        "14560b-black-pink-geometric-5.jpg"
+      ]
+    },
+    {
+      "id": "14563a-maroon-floral",
+      "article": "14563A",
+      "brand": "Sweet Pini",
+      "category": "front-button",
+      "type": "Satin Nightsuit",
+      "colour": "Maroon Floral",
+      "features": "Satin, Full Sleeves, Button-Up, Contrast Piping",
+      "sizes": [
+        {
+          "size": "L",
+          "mrp": 1589,
+          "barcode": "14563L"
+        }
+      ],
+      "stock": {
+        "L": 1
+      },
+      "inStock": true,
+      "offerPrice": null,
+      "notes": "",
+      "images": [
+        "14563a-maroon-floral.jpg",
+        "14563a-maroon-floral-2.jpg",
+        "14563a-maroon-floral-3.jpg",
+        "14563a-maroon-floral-4.jpg",
+        "14563a-maroon-floral-5.jpg"
+      ]
+    },
     {
       "id": "o4u-nb-0001-red-white",
       "article": "O4U-NB-0001",
