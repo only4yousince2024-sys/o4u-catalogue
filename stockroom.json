@@ -1,0 +1,33 @@
+{
+  "exportedAt": "2026-09-17T08:17:39.472Z",
+  "products": [
+    {
+      "id": "o4u-nb-0001-red-white",
+      "article": "O4U-NB-0001",
+      "brand": "",
+      "category": "tshirt-lower",
+      "type": "Cotton Lycra T-shirt & Pants Set",
+      "colour": "Red White",
+      "features": "Cotton lycra, raglan half sleeves, cropped tee with Brazil print, drawstring wide-leg pants",
+      "sizes": [
+        {
+          "size": "FREE",
+          "mrp": 1490
+        }
+      ],
+      "stock": {
+        "Free": 1
+      },
+      "inStock": true,
+      "offerPrice": null,
+      "notes": "Given verbally: Cotton lycra fabric, t-shirt / bottom set, Rs 1490",
+      "images": [
+        "o4u-nb-0001-red-white.jpg",
+        "o4u-nb-0001-red-white-2.jpg",
+        "o4u-nb-0001-red-white-3.jpg",
+        "o4u-nb-0001-red-white-4.jpg",
+        "o4u-nb-0001-red-white-5.jpg"
+      ]
+    }
+  ]
+}
