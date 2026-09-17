@@ -6,7 +6,7 @@ title O4U sync
 :: ---------------------------------------------------------------------------
 ::  O4U SYNC - one step from a Stockroom export to the live site.
 ::
-::    1. find the newest  o4u-website-images-*.zip  in Downloads
+::    1. find the newest  o4u-website-images-*.zip / o4u-for-website-*.zip  in Downloads
 ::    2. nothing there?  -> "Nothing new", exit 0
 ::    3. unzip: images -> website\images\, stockroom.json -> project root
 ::    4. build the catalogue (stops here if the build fails - never publishes a bad build)
@@ -32,11 +32,11 @@ if not defined AUTO (
 
 :: ---- 1. newest ZIP -------------------------------------------------------
 set "ZIP="
-for /f "delims=" %%f in ('dir /b /a-d /o-d "%DL%\o4u-website-images-*.zip" 2^>nul') do (
+for /f "delims=" %%f in ('dir /b /a-d /o-d "%DL%\o4u-website-images-*.zip" "%DL%\o4u-for-website-*.zip" 2^>nul') do (
   if not defined ZIP set "ZIP=%DL%\%%f"
 )
 if not defined ZIP (
-  echo Nothing new - no o4u-website-images-*.zip in %DL%
+  echo Nothing new - no o4u-website-images-*.zip or o4u-for-website-*.zip in %DL%
   goto :quiet_exit
 )
 call :log "==== %DATE% %TIME:~0,5%  found %ZIP%"

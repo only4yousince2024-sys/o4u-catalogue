@@ -3,7 +3,7 @@
 // ║   Source : the stock workbook (single source of truth)         ║
 // ║   Build  : python scripts/build_catalogue.py                   ║
 // ╚═══════════════════════════════════════════════════════════════╝
-// Generated 2026-09-17 13:59 from O4U_Stock_Inventory_UPDATED_v2.xlsx + stockroom.json
+// Generated 2026-09-17 14:52 from O4U_Stock_Inventory_UPDATED_v2.xlsx + stockroom.json
 // 1 published products · 0 source rows · 0 reviews
 
 const CATEGORIES = [
