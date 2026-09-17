@@ -1,10 +1,10 @@
 # Netlify: publish the website/ folder as-is. products.js is committed
 # (generated locally by scripts/build_catalogue.py), so there is no build step.
+#
+# No custom Cache-Control on /images/: Netlify applies path headers to 404s
+# as well, so a long max-age let browsers remember a missing image for a
+# week, and re-exported product photos (same filename) would go stale.
+# Netlify's default (max-age=0, must-revalidate + ETag) revalidates cheaply.
 [build]
   publish = "website"
   command = ""
-
-[[headers]]
-  for = "/images/*"
-  [headers.values]
-    Cache-Control = "public, max-age=604800"
