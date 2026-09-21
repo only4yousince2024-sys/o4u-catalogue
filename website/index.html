@@ -74,6 +74,23 @@
 
     html { scroll-behavior: smooth; }
 
+    /* Keyboard focus is always visible; mouse/touch focus is not decorated. */
+    :focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+    .glass:focus-visible { outline-color: #fff; }
+
+    /* 44px minimum hit area on the small controls, without changing their size:
+       an invisible ::after pad. Insets are sized so neighbouring chips don't overlap. */
+    .modal-close, .gal-nav, .gal-full-close, .qty-btn, .cart-remove, .size-btn, .filter-btn,
+    .wa-btn, .nav-help, .cart-copy, .cart-clear, .gal-thumb, .fsoc { position: relative; }
+    .wa-btn, .modal-close, .gal-nav, .gal-full-close { position: absolute; }   /* keep their layout position */
+    .modal-close::after, .gal-nav::after, .gal-full-close::after, .qty-btn::after, .cart-remove::after,
+    .size-btn::after, .filter-btn::after, .wa-btn::after, .nav-help::after, .cart-copy::after,
+    .cart-clear::after, .fsoc::after { content: ''; position: absolute; inset: -7px; }
+    .size-btn::after { inset: -6px -3px; }
+    .filter-btn::after { inset: -4px 0; }
+    .qty-btn::after { inset: -5px; }
+    .cart-remove::after { inset: -14px -6px; }
+
     /* ══ LIQUID GLASS — one token, reused by every WhatsApp/order button ══
        WhatsApp green at 0.86 alpha: the blur still reads at the edges and
        over photography, but the green stays vivid (0.58 washed it out).
@@ -1961,9 +1978,13 @@
     } else { cs.style.display = 'none'; }
 
     document.getElementById('modal').scrollTop = 0;   // a re-opened sheet starts at the image, not where it was left
+    modalReturnFocus = document.activeElement;
     document.getElementById('modalOverlay').classList.add('open');
     document.body.style.overflow = 'hidden';
+    setTimeout(() => { const c = document.querySelector('#modal .modal-close'); if (c) c.focus({ preventScroll: true }); }, 30);
   }
+  let modalReturnFocus = null, cartReturnFocus = null;
+  const restoreFocus = el => { if (el && el.focus && document.contains(el)) el.focus({ preventScroll: true }); };
 
   // ── GALLERY (vanilla: main image + thumbs, swipe, arrow keys) ──
   let galImages = [], galIndex = 0;
@@ -2048,8 +2069,10 @@
   function closeModal(e) {
     if (e && e.target !== document.getElementById('modalOverlay') && e.type !== 'click') return;
     if (e && e.currentTarget === document.getElementById('modalOverlay') && e.target !== e.currentTarget) return;
+    const wasOpen = document.getElementById('modalOverlay').classList.contains('open');
     document.getElementById('modalOverlay').classList.remove('open');
     document.getElementById('galFull').classList.remove('open');
+    if (wasOpen) { restoreFocus(modalReturnFocus); modalReturnFocus = null; }
     if (!document.getElementById('cartOverlay').classList.contains('open') && !document.getElementById('helpOverlay').classList.contains('open')) document.body.style.overflow = '';
   }
 
@@ -2208,12 +2231,16 @@
   function openCart() {
     renderCart();
     document.getElementById('cartSent').classList.remove('show');
+    cartReturnFocus = document.activeElement;
     document.getElementById('cartOverlay').classList.add('open');
     document.body.style.overflow = 'hidden';
+    setTimeout(() => { const c = document.querySelector('#cartDrawer .modal-close'); if (c) c.focus({ preventScroll: true }); }, 30);
   }
   function closeCart(e) {
     if (e && e.target !== document.getElementById('cartOverlay')) return;
+    const wasOpen = document.getElementById('cartOverlay').classList.contains('open');
     document.getElementById('cartOverlay').classList.remove('open');
+    if (wasOpen) { restoreFocus(cartReturnFocus); cartReturnFocus = null; }
     if (!document.getElementById('modalOverlay').classList.contains('open')) document.body.style.overflow = '';
   }
 

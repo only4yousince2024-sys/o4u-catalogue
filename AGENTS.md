@@ -207,11 +207,20 @@ which is the opposite of the trust the section is meant to build.
 
 * The WhatsApp number lives once, in `WA` inside the `<head>` config script.
   Static links carry `data-wa="message"` and are filled at load.
-* Cart is client-side (`localStorage` key `o4u_cart_v1`). A line is
-  product + colour + size; `Product A / Pink / M` and `/ L` never merge.
-* Order message: `O4U ORDER`, `Order ID: O4U-MMDD-XXX`, time, then per item
-  `n. Name` / `article, colour, Size X, Qty n, ₹total`, then `TOTAL`. Two
-  lines per item on purpose — 15 items ≈ 1,740 URL chars (limit ~2,000).
+* Cart is client-side (`localStorage` key `o4u_cart_v1`, shape
+  `{ lines, updatedAt, sentAt }`; every read/write is try/catch - no storage
+  means an in-memory cart). A line is product + colour + size;
+  `Product A / Pink / M` and `/ L` never merge. Quantities are whole numbers
+  1..99. A cart expires after 7 days; a sent cart is kept 30 minutes (so
+  "Copy order details" still works) then discarded on the next load.
+* Order message: `ORDER REQUEST — ONLY 4 YOU`, `Ref: O4U-MMDD-XXX`, time,
+  then per item `n. Name` / `Article: <article> · <colour>` /
+  `Size: X · Qty: n · ₹total`, then `Items total`, `Delivery: to be
+  confirmed`, the two confirmation lines and the signature. Article and
+  colour are on EVERY line. If the wa.me URL would pass ~1,900 chars the
+  builder switches to a one-line-per-item compact layout (10 items ≈ 1,740;
+  15 long-named items can still exceed - the "Copy order details" fallback
+  covers that).
 * Wording is always "order request". Never "confirmed", "paid", "guaranteed".
   Delivery charge is not hardcoded anywhere (not decided).
 * Pre-order policy modal: opens on "Send order request" with a non-empty
