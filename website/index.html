@@ -1091,6 +1091,12 @@
     .cart-sub-row[hidden], .cart-offer[hidden] { display: none; }
     .cart-sent { font-size: 0.74rem; color: var(--brown); background: rgba(229,97,28,0.08); border-radius: 10px; padding: 10px 12px; margin-top: 10px; display: none; line-height: 1.5; }
     .cart-sent.show { display: block; }
+    .cart-copy {
+      background: none; border: 1.5px solid var(--brown); color: var(--brown); border-radius: 50px;
+      padding: 6px 12px; margin: 4px 2px; cursor: pointer; min-height: 32px;
+      font-family: 'Nunito', sans-serif; font-size: 0.74rem; font-weight: 700;
+    }
+    .cart-copy:hover { background: var(--brown); color: #fff; }
 
     /* ══ PRE-ORDER POLICY MODAL ══ */
     .policy-overlay {
@@ -1647,7 +1653,7 @@
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
         Send order request on WhatsApp
       </button>
-      <div class="cart-sent" id="cartSent">WhatsApp should now be open with your order request. If nothing happened, tap the button again. We'll reply to confirm stock &amp; delivery charges.</div>
+      <div class="cart-sent" id="cartSent">WhatsApp should now be open with your order request. If nothing happened, tap the button again or <button type="button" class="cart-copy" onclick="copyOrderDetails(this)">Copy order details</button> and paste them to us on WhatsApp. We'll reply to confirm stock &amp; delivery charges.</div>
       <button class="cart-clear" onclick="clearCart()">Clear order</button>
     </div>
   </aside>
@@ -1770,7 +1776,7 @@
   const unitPrice = (p, size) => (size && p.sizePrices && p.sizePrices[size]) ? p.sizePrices[size] : p.price;
   const priceLabel = p => (hasSizePrices(p) ? 'From ' : '') + '₹' + fmt(p.price);
   // "Size XL" but plain "Free Size" (never "Size Free Size")
-  const sizeLabel = sz => /size/i.test(sz) ? sz : 'Size ' + sz;
+  const sizeLabel = sz => /size/i.test(sz) ? sz : 'Size: ' + sz;
 
   // Product image placeholder — same SVG the card used before, no filename shown to customers.
   const PH_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -2144,7 +2150,7 @@
       <div class="cart-line" data-key="${esc(l.key)}">
         <div>
           <div class="cart-line-name">${esc(l.name)}</div>
-          <div class="cart-line-meta">${esc(l.article)}${l.colour ? ' · ' + esc(l.colour) : ''}${l.size ? ' · ' + esc(sizeLabel(l.size)) : ''} · ₹${fmt(l.price)} each</div>
+          <div class="cart-line-meta">${esc(l.article)}${l.colour ? ' · ' + esc(l.colour) : ''}${l.size ? ' · ' + esc(sizeLabel(l.size).replace(':', '')) : ''} · ₹${fmt(l.price)} each</div>
         </div>
         <div class="cart-line-price">₹${fmt(l.price * l.quantity)}</div>
         <div class="cart-line-ctl">
@@ -2283,15 +2289,21 @@
   // Compact on purpose: some WhatsApp clients truncate URLs around 2,000
   // characters, and a 15-item order in a labelled multi-line layout is ~2,450.
   // Two lines per item: name, then  article, colour, size, qty, line price.
-  function buildOrderMessage(lines, orderId, when) {
-    const out = ['O4U ORDER', `Order ID: ${orderId}`, `Time: ${formatStamp(when)}`, ''];
+  // The shop owner fulfils the order from this text: article number and colour
+  // appear on EVERY line. It is an order REQUEST - nothing here may read as
+  // confirmed or paid. `compact` = one line per item for very large carts so the
+  // wa.me URL stays under ~2,000 characters (some clients truncate beyond that).
+  function buildOrderMessage(lines, orderId, when, compact = false) {
+    const out = ['ORDER REQUEST — ONLY 4 YOU', `Ref: ${orderId}`, `Time: ${formatStamp(when)}`, ''];
     lines.forEach((l, i) => {
-      const bits = [l.article || '-'];
-      if (l.colour) bits.push(l.colour);
-      if (l.size) bits.push(sizeLabel(l.size));
-      bits.push('Qty ' + l.quantity, '₹' + fmt(l.price * l.quantity));
       out.push(`${i + 1}. ${l.name}`);
-      out.push(bits.join(', '));
+      if (compact) {
+        // commas encode to 3 chars; ' · ' encodes to 9 - matters at 15 items
+        out.push([l.article || '-', l.colour, l.size ? sizeLabel(l.size) : '', `Qty: ${l.quantity}`, `₹${fmt(l.price * l.quantity)}`].filter(Boolean).join(', '));
+      } else {
+        out.push(`Article: ${l.article || '-'}${l.colour ? ' · ' + l.colour : ''}`);
+        out.push(`${l.size ? sizeLabel(l.size) + ' · ' : ''}Qty: ${l.quantity} · ₹${fmt(l.price * l.quantity)}`);
+      }
     });
     const t = orderTotals(lines);
     out.push('');
@@ -2299,13 +2311,20 @@
       out.push(`Subtotal: ₹${fmt(t.subtotal)}`);
       out.push(`Discount (${Math.round(OFFER.rate * 100)}%): −₹${fmt(t.discount)}`);
     }
-    out.push(`TOTAL: ₹${fmt(t.total)}`);
-    if (t.freeDelivery) out.push(`Free delivery (order over ₹${fmt(OFFER.threshold)})`);
-    out.push(t.freeDelivery ? 'Please confirm stock 🙏' : 'Please confirm stock & delivery charges 🙏');
+    out.push(`Items total: ₹${fmt(t.total)}`);
+    out.push(t.freeDelivery ? `Delivery: free (order over ₹${fmt(OFFER.threshold)})` : 'Delivery: to be confirmed');
+    if (compact) out.push('', 'Please confirm availability and delivery charge. Prices subject to confirmation by O4U.');
+    else out.push('', 'Please confirm availability and delivery charge.', 'Prices subject to confirmation by O4U.', SUPPORT.signature);
     return out.join('\n');
   }
+  const WA_URL_LIMIT = 1900;
+  function orderMessageFor(lines, orderId, when) {
+    let msg = buildOrderMessage(lines, orderId, when);
+    if (encodeURIComponent(msg).length + 40 > WA_URL_LIMIT) msg = buildOrderMessage(lines, orderId, when, true);
+    return msg;
+  }
   function orderUrl(lines, orderId, when) {
-    return `https://wa.me/${WA}?text=${encodeURIComponent(buildOrderMessage(lines, orderId, when))}`;
+    return `https://wa.me/${WA}?text=${encodeURIComponent(orderMessageFor(lines, orderId, when))}`;
   }
   // ── PRE-ORDER POLICY ──
   // Shown once per device, at the moment of sending (never on page load).
@@ -2338,13 +2357,33 @@
     sendWhatsApp(true);
   }
 
+  let lastOrder = null;   // { ref, when } of the last hand-off, so the copy fallback matches it
   function sendWhatsApp(accepted) {
     if (!cart.length) return;
     if (!accepted && !policyAccepted()) { policyOpen(document.getElementById('cartSendBtn')); return; }
-    const url = orderUrl(cart, makeOrderId(), new Date());
+    lastOrder = { ref: makeOrderId(), when: new Date() };
+    const url = orderUrl(cart, lastOrder.ref, lastOrder.when);
     const w = window.open(url, '_blank');
     if (!w) window.location.href = url;   // popup blocked (common on mobile) → same tab
     document.getElementById('cartSent').classList.add('show');
+  }
+  // Fallback when WhatsApp does not open: the same text goes to the clipboard,
+  // so a failed hand-off never loses the customer's order.
+  async function copyOrderDetails(btn) {
+    if (!cart.length) return;
+    if (!lastOrder) lastOrder = { ref: makeOrderId(), when: new Date() };
+    const text = orderMessageFor(cart, lastOrder.ref, lastOrder.when);
+    let ok = false;
+    try { await navigator.clipboard.writeText(text); ok = true; } catch (e) { /* fall through */ }
+    if (!ok) {
+      try {
+        const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta);
+        ta.select(); ok = document.execCommand('copy'); document.body.removeChild(ta);
+      } catch (e) { ok = false; }
+    }
+    if (btn) { const old = btn.textContent; btn.textContent = ok ? 'Copied ✓' : 'Could not copy'; setTimeout(() => { btn.textContent = old; }, 1800); }
+    if (!ok) window.prompt('Copy your order details:', text);   // last resort: selectable text
   }
 
   // Keyboard: Escape closes; arrows drive the gallery while the modal is open
