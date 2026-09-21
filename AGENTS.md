@@ -34,6 +34,7 @@ python scripts/build_catalogue.py            # root workbook → website/product
 python scripts/build_catalogue.py --workbook path/to/other.xlsx --out ... --images-dir ...
 python scripts/test_build_catalogue.py       # 24 self-checks, no pytest needed
 sync.bat                                     # owner's one step: build → commit → push (stops on a failed build)
+scripts/cart_tests.js                        # 19 cart checks: paste into the site's browser console (F12) and run
 ```
 
 `sync.bat` is what the shop owner runs after unzipping a Stockroom export.

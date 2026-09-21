@@ -2076,33 +2076,65 @@
 
   // ── CART (client-side only; kept in localStorage so it survives the
   //    WhatsApp hand-off on phones). One line per product + colour + size. ──
+  // Storage: localStorage, key o4u_cart_v1 = { lines, updatedAt, sentAt }.
+  // Every read/write is wrapped - no storage means an in-memory cart, never a throw.
+  // A cart older than 7 days, or one that was sent more than 30 minutes ago,
+  // is discarded on load (30 min keeps 'Copy order details' usable right after
+  // a hand-off that failed to open WhatsApp).
   const CART_KEY = 'o4u_cart_v1';
-  let cart = loadCart();
+  const CART_MAX_QTY = 99, CART_TTL_MS = 7 * 24 * 3600 * 1000, CART_SENT_TTL_MS = 30 * 60 * 1000;
+  let cartSentAt = null;
 
   const lineKey = (productId, colour, size) => [productId, colour || '', size || ''].join('|');
-  const validLine = l => l && typeof l === 'object' && l.productId && Number(l.quantity) > 0 && Number(l.price) >= 0;
+  // Quantity is always a whole number 1..99; anything else is rejected/clamped.
+  const cleanQty = q => { const n = Math.floor(Number(q)); return Number.isFinite(n) ? Math.min(CART_MAX_QTY, Math.max(1, n)) : 1; };
+  const validLine = l => l && typeof l === 'object' && typeof l.productId === 'string' && l.productId &&
+                         Number.isFinite(Number(l.quantity)) && Number(l.quantity) >= 1 && Number.isFinite(Number(l.price)) && Number(l.price) >= 0;
+  const sanitiseLine = l => ({
+    key: lineKey(l.productId, l.colour, l.size), productId: String(l.productId), article: String(l.article || ''),
+    name: String(l.name || ''), colour: String(l.colour || ''), size: String(l.size || ''),
+    quantity: cleanQty(l.quantity), price: Math.round(Number(l.price))
+  });
   function loadCart() {
-    try { const c = JSON.parse(localStorage.getItem(CART_KEY) || '[]'); return Array.isArray(c) ? c.filter(validLine) : []; }
-    catch (e) { return []; }
+    try {
+      const raw = JSON.parse(localStorage.getItem(CART_KEY) || 'null');
+      const now = Date.now();
+      let lines = [], updatedAt = now, sentAt = null;
+      if (Array.isArray(raw)) lines = raw;                         // pre-v2 shape
+      else if (raw && typeof raw === 'object') { lines = raw.lines || []; updatedAt = Number(raw.updatedAt) || now; sentAt = Number(raw.sentAt) || null; }
+      if (now - updatedAt > CART_TTL_MS) return [];                 // expired
+      if (sentAt && now - sentAt > CART_SENT_TTL_MS) return [];     // already sent
+      cartSentAt = sentAt;
+      return Array.isArray(lines) ? lines.filter(validLine).map(sanitiseLine) : [];
+    } catch (e) { return []; }
   }
-  function saveCart() { try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch (e) {} }
+  let cart = loadCart();
+  function saveCart() {
+    try { localStorage.setItem(CART_KEY, JSON.stringify({ lines: cart, updatedAt: Date.now(), sentAt: cartSentAt })); } catch (e) { /* in-memory only */ }
+  }
 
   function addToCart(p, colour, size, quantity) {
+    if (!p || !p.id) return;
+    const q = cleanQty(quantity);
     const key = lineKey(p.id, colour, size);
     const existing = cart.find(l => l.key === key);
-    if (existing) existing.quantity = Math.min(99, existing.quantity + quantity);
-    else cart.push({ key, productId: p.id, article: p.article || '', name: p.name, colour: colour || '', size: size || '', quantity, price: unitPrice(p, size) });
+    if (existing) existing.quantity = cleanQty(existing.quantity + q);
+    else cart.push({ key, productId: p.id, article: p.article || '', name: p.name, colour: colour || '', size: size || '', quantity: q, price: Math.round(unitPrice(p, size)) });
+    cartSentAt = null;                       // a changed cart is a new order request
     saveCart(); renderCart();
   }
   function updateLineQty(key, delta) {
     const l = cart.find(x => x.key === key);
     if (!l) return;
-    l.quantity += delta;
-    if (l.quantity <= 0) cart = cart.filter(x => x.key !== key);
+    const d = Math.trunc(Number(delta)) || 0;
+    const next = l.quantity + d;
+    if (next <= 0) cart = cart.filter(x => x.key !== key);      // stepping below 1 removes the line
+    else l.quantity = cleanQty(next);
+    cartSentAt = null;
     saveCart(); renderCart();
   }
-  function removeLine(key) { cart = cart.filter(x => x.key !== key); saveCart(); renderCart(); }
-  function clearCart() { cart = []; saveCart(); renderCart(); }
+  function removeLine(key) { cart = cart.filter(x => x.key !== key); cartSentAt = null; saveCart(); renderCart(); }
+  function clearCart() { cart = []; cartSentAt = null; saveCart(); renderCart(); }
   const cartCount = () => cart.reduce((n, l) => n + l.quantity, 0);
   const cartSubtotal = () => cart.reduce((n, l) => n + l.quantity * l.price, 0);
   const offerOn = () => !!(typeof OFFER !== 'undefined' && OFFER && OFFER.enabled && OFFER.threshold > 0);
@@ -2139,6 +2171,7 @@
     document.getElementById('floatCart').classList.toggle('has-items', n > 0);
     const lines = document.getElementById('cartLines');
     const foot = document.getElementById('cartFoot');
+    document.getElementById('cartSendBtn').disabled = !cart.length;
     if (!cart.length) {
       lines.innerHTML = `<div class="cart-empty"><strong>Nothing here yet</strong>Tap "Order" on any product to add it. You can add several items and send them together.</div>`;
       foot.style.display = 'none';
@@ -2362,6 +2395,7 @@
     if (!cart.length) return;
     if (!accepted && !policyAccepted()) { policyOpen(document.getElementById('cartSendBtn')); return; }
     lastOrder = { ref: makeOrderId(), when: new Date() };
+    cartSentAt = Date.now(); saveCart();
     const url = orderUrl(cart, lastOrder.ref, lastOrder.when);
     const w = window.open(url, '_blank');
     if (!w) window.location.href = url;   // popup blocked (common on mobile) → same tab
