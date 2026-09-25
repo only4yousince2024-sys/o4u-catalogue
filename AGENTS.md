@@ -242,7 +242,13 @@ which is the opposite of the trust the section is meant to build.
   `O4U SUPPORT — <tag>` / `Ref: S-MMDD-XXX` / product context / note. No AI,
   no API keys in the page, no stock answers - a human confirms stock.
   There are no generic "Order on WhatsApp" CTAs; the purchase path is
-  card Order -> modal Add -> cart Send.
+  card "Add to bag" -> modal "Add to bag" -> bag "Send order request on WhatsApp".
+* Language: "bag" = the container the customer fills; "order" = the request
+  sent to WhatsApp. The WhatsApp message itself still says ORDER REQUEST.
+* Colour rule: `--cta` (#EA580C, flat, no gradient) = O4U actions (Browse
+  Collection, Add to bag, Filter, Help). WhatsApp green (`.glass`) = ONLY
+  buttons that actually open WhatsApp. A green button that doesn't open
+  WhatsApp, or an orange one that does, is a bug.
 * No kids products exist, so the page carries no kids references. Re-add
   only when kids stock is in the workbook.
 * `<head>` has description / Open Graph / theme-color tags. `og:image`
