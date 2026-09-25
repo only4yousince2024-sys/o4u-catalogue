@@ -1027,6 +1027,41 @@
       display: inline-flex; align-items: center; justify-content: center;
     }
     .cart-count[data-n="0"] { display: none; }
+    /* count changed: one short pulse. No bounce, spin or colour flash. */
+    @keyframes badgePulse { 0% { transform: scale(1); } 40% { transform: scale(1.25); } 100% { transform: scale(1); } }
+    .cart-count.pulse { animation: badgePulse 300ms ease-out; }
+    @media (prefers-reduced-motion: reduce) { .cart-count.pulse { animation: none; } }
+
+    /* Toast: bottom-right on desktop, bottom-centre of the space left of the
+       floating buttons on phones - it never sits on top of them. */
+    .bag-toast {
+      position: fixed; z-index: 1000;
+      bottom: var(--fab-bottom); right: calc(var(--fab-right) + 56px + 16px);
+      display: flex; align-items: center; gap: 10px;
+      background: var(--black); color: #fff; border-radius: 14px;
+      padding: 10px 10px 10px 14px; box-shadow: 0 8px 28px rgba(0,0,0,0.25);
+      font-family: 'Nunito', sans-serif; font-size: 0.84rem; font-weight: 600;
+      opacity: 0; transform: translateY(10px); pointer-events: none; visibility: hidden;
+      transition: opacity 0.2s, transform 0.2s, visibility 0s linear 0.2s;
+    }
+    .bag-toast.show { opacity: 1; transform: translateY(0); pointer-events: auto; visibility: visible; transition-delay: 0s; }
+    .bag-toast svg { width: 16px; height: 16px; flex-shrink: 0; color: #fff; }
+    .bag-toast-btn {
+      position: relative; background: none; border: 1.5px solid rgba(255,255,255,0.5); color: #fff;
+      border-radius: 50px; padding: 6px 12px; cursor: pointer; white-space: nowrap;
+      font-family: 'Nunito', sans-serif; font-size: 0.76rem; font-weight: 700;
+    }
+    .bag-toast-btn::after { content: ''; position: absolute; inset: -7px -4px; }
+    .bag-toast-btn:hover { background: #fff; color: var(--black); }
+    .bag-toast-btn:focus-visible { outline-color: #fff; }
+    @media (prefers-reduced-motion: reduce) { .bag-toast { transform: none; } }
+    @media (max-width: 640px) {
+      .bag-toast {
+        left: 12px; right: calc(var(--fab-right) + 50px + 10px);
+        width: fit-content; max-width: calc(100vw - 12px - var(--fab-right) - 60px); margin: 0 auto;
+        font-size: 0.8rem;
+      }
+    }
     .nav-right { display: flex; align-items: center; }
 
     :root { --fab-bottom: max(20px, env(safe-area-inset-bottom)); --fab-right: 20px; }
@@ -1275,7 +1310,8 @@
     }
     .float-help:hover { transform: scale(1.1); }
     body:has(.cart-overlay.open, .modal-overlay.open, .help-overlay.open, .policy-overlay.open, .filter-overlay.open, .gal-full.open) .float-help,
-    body:has(.cart-overlay.open, .modal-overlay.open, .help-overlay.open, .policy-overlay.open, .filter-overlay.open, .gal-full.open) .float-cart { display: none; }
+    body:has(.cart-overlay.open, .modal-overlay.open, .help-overlay.open, .policy-overlay.open, .filter-overlay.open, .gal-full.open) .float-cart,
+    body:has(.cart-overlay.open, .help-overlay.open, .policy-overlay.open, .filter-overlay.open) .bag-toast { display: none; }
     .float-help svg { width: 26px; height: 26px; }
 
     /* ══ REVEAL ══ */
@@ -1712,6 +1748,13 @@
   <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
   <span class="cart-count" data-n="0">0</span>
 </button>
+
+<!-- ══ BAG TOAST — quiet confirmation for every add after the first of a session ══ -->
+<div class="bag-toast" id="bagToast" role="status" aria-live="polite">
+  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+  <span id="bagToastText"></span>
+  <button type="button" class="bag-toast-btn" onclick="toastViewBag()">View bag</button>
+</div>
 
 <!-- ══ CART DRAWER ══ -->
 <div class="cart-overlay" id="cartOverlay" onclick="closeCart(event)">
@@ -2396,9 +2439,16 @@
          <div class="cart-offer-meta"><span>₹${fmt(t.subtotal)} of ₹${fmt(OFFER.threshold)}</span><span>${pct}%</span></div>`;
   }
 
+  let lastBadgeCount = null;
+  function pulseBadges() {
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    document.querySelectorAll('.cart-count').forEach(el => { el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse'); });
+  }
   function renderCart() {
     const n = cartCount();
     document.querySelectorAll('.cart-count').forEach(el => { el.textContent = n; el.dataset.n = n; });
+    if (lastBadgeCount !== null && n !== lastBadgeCount) pulseBadges();
+    lastBadgeCount = n;
     document.getElementById('floatCart').classList.toggle('has-items', n > 0);
     const lines = document.getElementById('cartLines');
     const foot = document.getElementById('cartFoot');
@@ -2536,8 +2586,41 @@
       : (p.colors && p.colors[0]) || '';
     addToCart(p, colour, selectedSize || '', qty);
     closeModal();
-    openCart();
+    // First add of a session opens the bag once (the customer sees how it works and
+    // the order-value offer). Every add after that confirms quietly: toast + badge pulse.
+    if (!bagSeen()) { markBagSeen(); openCart(); }
+    else showBagToast();
   }
+
+  // sessionStorage, not localStorage: a new visit gets one fresh look at the bag.
+  // No storage (private mode, blocked) → an in-memory flag for the page lifetime.
+  const BAG_SEEN_KEY = 'o4u_bag_opened';
+  let bagSeenMem = false;
+  function bagSeen() {
+    if (bagSeenMem) return true;
+    try { return sessionStorage.getItem(BAG_SEEN_KEY) === '1'; } catch (e) { return false; }
+  }
+  function markBagSeen() {
+    bagSeenMem = true;
+    try { sessionStorage.setItem(BAG_SEEN_KEY, '1'); } catch (e) { /* in-memory only */ }
+  }
+
+  let bagToastTimer = null;
+  function showBagToast() {
+    const t = document.getElementById('bagToast');
+    const n = cartCount();
+    const text = document.getElementById('bagToastText');
+    clearTimeout(bagToastTimer);             // a new add resets the timer; never a second toast
+    t.classList.add('show');
+    text.textContent = '';                   // re-set so an identical line is still announced once
+    setTimeout(() => { text.textContent = `Added to bag · ${n} item${n === 1 ? '' : 's'}`; }, 30);
+    bagToastTimer = setTimeout(hideBagToast, 2500);
+  }
+  function hideBagToast() {
+    clearTimeout(bagToastTimer); bagToastTimer = null;
+    document.getElementById('bagToast').classList.remove('show');
+  }
+  function toastViewBag() { hideBagToast(); openCart(); }
 
   // ── WHATSAPP ORDER REQUEST ──
   // Order ID: O4U-MMDD-XXX (client-side, for reference in the chat only).

@@ -213,6 +213,11 @@ which is the opposite of the trust the section is meant to build.
   `Product A / Pink / M` and `/ L` never merge. Quantities are whole numbers
   1..99. A cart expires after 7 days; a sent cart is kept 30 minutes (so
   "Copy order details" still works) then discarded on the next load.
+* Bag opening: the FIRST add of a session opens the drawer (so the customer
+  sees the bag and the offer once); every later add closes the modal, shows
+  one toast ("Added to bag · n items" + View bag, 2.5 s, timer resets, never
+  stacks, role=status) and pulses the badge (skipped under reduced motion).
+  Flag: `sessionStorage` `o4u_bag_opened`, try/catch, in-memory fallback.
 * Order message: `ORDER REQUEST — ONLY 4 YOU`, `Ref: O4U-MMDD-XXX`, time,
   then per item `n. Name` / `Article: <article> · <colour>` /
   `Size: X · Qty: n · ₹total`, then `Items total`, `Delivery: to be
