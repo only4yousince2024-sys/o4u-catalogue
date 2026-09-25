@@ -256,8 +256,9 @@
       max-width: 420px;
     }
 
+    /* Browse Collection, then Filter directly under it; equal widths */
     .hero-btns {
-      display: flex; gap: 14px; flex-wrap: wrap;
+      display: inline-flex; flex-direction: column; gap: 12px;
     }
 
     .btn-ghost {
@@ -1003,6 +1004,7 @@
       padding: 14px 30px; border-radius: 50px; font-family: 'Nunito', sans-serif;
     }
     .btn-hero:hover { transform: translateY(-2px); }
+    .btn-hero.btn-cta { border: 1.5px solid transparent; }   /* same height as the outline button */
 
     .modal-note { text-align: center; font-size: 0.7rem; color: var(--gray); margin-top: 10px; }
     .size-hint { font-size: 0.72rem; color: var(--orange); font-weight: 600; margin: -12px 0 16px; display: none; }
@@ -1205,6 +1207,59 @@
       .help-topic { padding: 9px 11px; font-size: 0.8rem; }
     }
 
+    /* ══ FILTER SHEET ══ */
+    .hero-filter { font-size: 15px; font-weight: 600; }
+    .hero-filter svg { width: 16px; height: 16px; flex-shrink: 0; }
+    .filter-count {
+      min-width: 20px; height: 20px; padding: 0 6px; border-radius: 50px;
+      background: var(--cta); color: #fff; font-size: 0.7rem; font-weight: 700;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .filter-count[hidden] { display: none; }
+    .btn-cta-outline:hover .filter-count { background: #fff; color: var(--cta-hover); }
+    .filter-overlay {
+      position: fixed; inset: 0; z-index: 1002;
+      background: rgba(17,17,16,0.55); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .filter-overlay.open { opacity: 1; pointer-events: all; }
+    .filter-sheet {
+      background: var(--white); border-radius: 20px; position: relative;
+      width: 100%; max-width: 460px; max-height: 90vh; overflow-y: auto; padding: 24px 22px 20px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.22); outline: none;
+      transform: translateY(14px); transition: transform 0.2s;
+    }
+    .filter-overlay.open .filter-sheet { transform: translateY(0); }
+    .filter-sheet h3 { font-family: 'Playfair Display', serif; font-style: italic; font-size: 1.35rem; font-weight: 600; margin-bottom: 16px; }
+    .filter-group[hidden] { display: none; }
+    .fchips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+    .fchip {
+      position: relative; padding: 8px 16px; border-radius: 50px; cursor: pointer;
+      border: 1.5px solid var(--light); background: var(--white); color: var(--black);
+      font-family: 'Nunito', sans-serif; font-size: 0.8rem; font-weight: 500;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .fchip::after { content: ''; position: absolute; inset: -5px -3px; }
+    .fchip:hover { border-color: var(--black); }
+    .fchip[aria-pressed="true"] { background: var(--black); border-color: var(--black); color: #fff; }
+    .filter-result { font-size: 0.8rem; font-weight: 600; color: var(--black); margin-bottom: 12px; }
+    .filter-foot { display: flex; gap: 10px; align-items: center; }
+    .filter-clear {
+      background: none; border: 1.5px solid var(--light); color: var(--gray); border-radius: 50px;
+      padding: 13px 18px; cursor: pointer; font-family: 'Nunito', sans-serif; font-size: 0.82rem; font-weight: 600;
+    }
+    .filter-clear:hover { border-color: var(--black); color: var(--black); }
+    .filter-apply { flex: 1; padding: 13px 18px; }
+    .grid-empty { text-align: center; color: var(--gray); padding: 40px 20px; font-size: 0.9rem; }
+    .grid-empty[hidden] { display: none; }
+    .grid-empty p { margin-bottom: 16px; }
+    .grid-empty .btn-hero { font-size: 0.85rem; font-weight: 600; padding: 11px 24px; }
+    @media (max-width: 640px) {
+      .filter-overlay { align-items: flex-end; padding: 0; }
+      .filter-sheet { max-width: 100%; max-height: 88svh; border-radius: 20px 20px 0 0; padding: 20px 18px calc(16px + env(safe-area-inset-bottom)); }
+    }
+
     /* Footer: the same four points, always visible */
     .footer-policy { list-style: none; display: flex; flex-direction: column; gap: 8px; }
     .footer-policy li { font-size: 0.78rem; line-height: 1.55; color: rgba(255,255,255,0.5); font-weight: 300; }
@@ -1219,8 +1274,8 @@
       transition: transform 0.2s;
     }
     .float-help:hover { transform: scale(1.1); }
-    body:has(.cart-overlay.open, .modal-overlay.open, .help-overlay.open, .policy-overlay.open, .gal-full.open) .float-help,
-    body:has(.cart-overlay.open, .modal-overlay.open, .help-overlay.open, .policy-overlay.open, .gal-full.open) .float-cart { display: none; }
+    body:has(.cart-overlay.open, .modal-overlay.open, .help-overlay.open, .policy-overlay.open, .filter-overlay.open, .gal-full.open) .float-help,
+    body:has(.cart-overlay.open, .modal-overlay.open, .help-overlay.open, .policy-overlay.open, .filter-overlay.open, .gal-full.open) .float-cart { display: none; }
     .float-help svg { width: 26px; height: 26px; }
 
     /* ══ REVEAL ══ */
@@ -1277,8 +1332,8 @@
       .hero-content { max-width: 100%; padding: 0 20px; position: relative; z-index: 1; }
       .hero-title { font-size: clamp(2rem, 8vw, 2.8rem); }
       .hero-sub { font-size: 0.86rem; margin-bottom: 28px; max-width: 100%; }
-      .hero-btns { flex-direction: column; gap: 10px; }
-      .hero-btns a { text-align: center; justify-content: center; }
+      .hero-btns { display: flex; flex-direction: column; gap: 10px; }
+      .hero-btns > * { text-align: center; justify-content: center; }
       .stat-num { font-size: 1.5rem; }
 
       /* Trust strip */
@@ -1411,6 +1466,11 @@
     </p>
     <div class="hero-btns">
       <a href="#catalogue" class="btn-hero btn-cta">Browse Collection</a>
+      <button type="button" class="btn-hero btn-cta-outline hero-filter" id="filterOpenBtn" onclick="openFilter()" aria-haspopup="dialog" aria-label="Filter products">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8.5V19l-4 2v-7.5z"/></svg>
+        Filter
+        <span class="filter-count" id="filterCount" hidden>0</span>
+      </button>
     </div>
   </div>
 
@@ -1503,6 +1563,10 @@
 
   <!-- Grid — rendered dynamically from products.js -->
   <div class="product-grid" id="grid"></div>
+  <div class="grid-empty" id="gridEmpty" hidden>
+    <p>No products match these filters.</p>
+    <button type="button" class="btn-hero btn-cta-outline" onclick="clearFilters(true)">Clear filters</button>
+  </div>
 </section>
 
 <!-- ══════ TESTIMONIALS ══════ -->
@@ -1696,6 +1760,31 @@
     <textarea class="help-note" id="helpNote" rows="2"></textarea>
     <div class="help-count" id="helpCount"></div>
     <button class="modal-wa-btn glass" id="helpSend" onclick="sendHelp()" disabled><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg> Continue on WhatsApp</button>
+  </div>
+</div>
+
+<!-- ══ FILTER — size (made in), price, sort. In memory only; never persisted. ══ -->
+<div class="filter-overlay" id="filterOverlay" onclick="closeFilter(event)">
+  <div class="filter-sheet" id="filterSheet" role="dialog" aria-modal="true" aria-labelledby="filterTitle" tabindex="-1" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeFilter()" aria-label="Close">✕</button>
+    <h3 id="filterTitle">Filter</h3>
+    <div class="filter-group" id="fgSize">
+      <div class="modal-label" id="fSizesLabel">Available in size</div>
+      <div class="fchips" id="fSizes" role="group" aria-labelledby="fSizesLabel"></div>
+    </div>
+    <div class="filter-group" id="fgPrice">
+      <div class="modal-label" id="fPricesLabel">Price</div>
+      <div class="fchips" id="fPrices" role="group" aria-labelledby="fPricesLabel"></div>
+    </div>
+    <div class="filter-group">
+      <div class="modal-label" id="fSortLabel">Sort</div>
+      <div class="fchips" id="fSort" role="group" aria-labelledby="fSortLabel"></div>
+    </div>
+    <div class="filter-result" id="filterResult" role="status" aria-live="polite"></div>
+    <div class="filter-foot">
+      <button type="button" class="filter-clear" onclick="clearFilters()">Clear all</button>
+      <button type="button" class="btn-hero btn-cta filter-apply" onclick="applyFilterAndClose()">Show products</button>
+    </div>
   </div>
 </div>
 
@@ -1922,6 +2011,7 @@
     applyWhatsAppLinks();
     allProducts = await loadProducts();
     renderFilters();
+    renderFilterSheet();
     renderReviews();
     if (allProducts.length) {
       grid.innerHTML = renderProducts(allProducts);
@@ -1933,16 +2023,126 @@
   })();
 
   // ── FILTER ──
+  // One state for the category chips and the Filter sheet; they combine.
+  // Memory only: a returning customer always sees the full collection.
+  // Size = sizes a product is MADE in (never live stock - the site doesn't know it).
+  // "Newest" = catalogue order as generated (there is no date field).
+  const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', 'Free Size'];
+  const PRICE_BUCKETS = [
+    { key: 'u800',   label: 'Under ₹800',     min: 0,    max: 800 },
+    { key: '800',    label: '₹800–1,500',     min: 800,  max: 1500 },
+    { key: '1500',   label: '₹1,500–2,500',   min: 1500, max: 2500 },
+    { key: '2500',   label: '₹2,500+',        min: 2500, max: Infinity }
+  ];
+  const SORTS = [
+    { key: 'newest', label: 'Newest' },
+    { key: 'low',    label: 'Price low to high' },
+    { key: 'high',   label: 'Price high to low' }
+  ];
+  const fState = { cat: 'all', sizes: new Set(), price: null, sort: 'newest' };
+  const inBucket = (p, key) => { const b = PRICE_BUCKETS.find(x => x.key === key); return !b || (p.price >= b.min && p.price < b.max); };
+  const matchesFilters = (p, st = fState) =>
+    (st.cat === 'all' || p.category === st.cat) &&
+    (!st.sizes.size || (p.sizes || []).some(sz => st.sizes.has(sz))) &&
+    (!st.price || inBucket(p, st.price));
+
   function filter(cat, btn) {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    document.querySelectorAll('#grid .pcard').forEach(card => {
-      const cats = card.dataset.cat || '';
-      const show = cat === 'all' || cats.includes(cat);
+    if (btn) btn.classList.add('active');
+    fState.cat = cat;
+    applyFilters();
+  }
+
+  // Build the sheet from what the catalogue actually contains.
+  function renderFilterSheet() {
+    const present = new Set(allProducts.flatMap(p => p.sizes || []));
+    const sizes = [...present].sort((a, b) => (SIZE_ORDER.indexOf(a) + 1 || 99) - (SIZE_ORDER.indexOf(b) + 1 || 99));
+    const buckets = PRICE_BUCKETS.filter(b => allProducts.some(p => inBucket(p, b.key)));
+    const chip = (group, key, label) => `<button type="button" class="fchip" data-group="${group}" data-key="${esc(key)}" aria-pressed="false" onclick="toggleFilterChip(this)">${esc(label)}</button>`;
+    document.getElementById('fSizes').innerHTML = sizes.map(sz => chip('size', sz, sz)).join('');
+    document.getElementById('fgSize').hidden = sizes.length < 2;          // one size = nothing to choose
+    document.getElementById('fPrices').innerHTML = buckets.map(b => chip('price', b.key, b.label)).join('');
+    document.getElementById('fgPrice').hidden = buckets.length < 2;
+    document.getElementById('fSort').innerHTML = SORTS.map(o => chip('sort', o.key, o.label)).join('');
+    syncFilterSheet();
+  }
+  function toggleFilterChip(btn) {
+    const { group, key } = btn.dataset;
+    if (group === 'size') { fState.sizes.has(key) ? fState.sizes.delete(key) : fState.sizes.add(key); }
+    else if (group === 'price') fState.price = fState.price === key ? null : key;   // single-select, tap again to clear
+    else if (group === 'sort') fState.sort = key;
+    applyFilters();
+  }
+  function syncFilterSheet() {
+    document.querySelectorAll('#filterSheet .fchip').forEach(b => {
+      const { group, key } = b.dataset;
+      const on = group === 'size' ? fState.sizes.has(key) : group === 'price' ? fState.price === key : fState.sort === key;
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
+  function applyFilters() {
+    const grid = document.getElementById('grid');
+    const cards = [...grid.querySelectorAll('.pcard')];
+    if (!cards.length) return;
+    const byId = Object.fromEntries(allProducts.map((p, i) => [p.id, { p, i }]));
+    // sort: move the cards (stable - ties keep catalogue order)
+    const key = c => byId[c.dataset.id] || { p: { price: 0 }, i: 1e9 };
+    cards.sort((a, b) => {
+      const A = key(a), B = key(b);
+      const d = fState.sort === 'low' ? A.p.price - B.p.price : fState.sort === 'high' ? B.p.price - A.p.price : 0;
+      return d || A.i - B.i;
+    }).forEach(c => grid.appendChild(c));
+    let n = 0;
+    cards.forEach(card => {
+      const e = byId[card.dataset.id];
+      const show = !!e && matchesFilters(e.p);
+      if (show) n++;
+      card._show = show;
       card.style.transition = 'opacity 0.22s';
       if (show) { card.style.display = ''; requestAnimationFrame(() => card.style.opacity = '1'); }
-      else { card.style.opacity = '0'; setTimeout(() => card.style.display = 'none', 210); }
+      else { card.style.opacity = '0'; setTimeout(() => { if (!card._show) card.style.display = 'none'; }, 210); }
     });
+    document.getElementById('gridEmpty').hidden = n > 0;
+    document.getElementById('filterResult').textContent = `${n} product${n === 1 ? '' : 's'}`;
+    const active = fState.sizes.size + (fState.price ? 1 : 0);
+    const badge = document.getElementById('filterCount');
+    badge.textContent = active; badge.hidden = !active;
+    document.getElementById('filterOpenBtn').setAttribute('aria-label', active ? `Filter products, ${active} active` : 'Filter products');
+    syncFilterSheet();
+  }
+  // Sheet "Clear all" = the sheet's filters. The grid's "Clear filters" also resets the category.
+  function clearFilters(all) {
+    fState.sizes.clear(); fState.price = null; fState.sort = 'newest';
+    if (all) {
+      fState.cat = 'all';
+      document.querySelectorAll('.filter-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+    }
+    applyFilters();
+  }
+
+  let filterReturnFocus = null;
+  function openFilter() {
+    filterReturnFocus = document.activeElement;
+    applyFilters();
+    document.getElementById('filterOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => { const f = document.querySelector('#filterSheet .fchip'); (f || document.getElementById('filterSheet')).focus({ preventScroll: true }); }, 30);
+  }
+  function closeFilter(e) {
+    if (e && e.target !== document.getElementById('filterOverlay')) return;
+    if (!document.getElementById('filterOverlay').classList.contains('open')) return;
+    document.getElementById('filterOverlay').classList.remove('open');
+    document.body.style.overflow = '';
+    restoreFocus(filterReturnFocus); filterReturnFocus = null;
+  }
+  // "Show products": close and take the customer to the results.
+  function applyFilterAndClose() {
+    closeFilter();
+    const target = document.getElementById('filterBar') || document.getElementById('grid');
+    const nav = document.querySelector('nav');
+    const y = target.getBoundingClientRect().top + window.scrollY - ((nav ? nav.offsetHeight : 0) + 16);
+    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
   }
 
   // ── MODAL ──
@@ -2459,6 +2659,7 @@
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       if (document.getElementById('helpOverlay').classList.contains('open')) closeHelp();
+      else if (document.getElementById('filterOverlay').classList.contains('open')) closeFilter();
       else if (document.getElementById('galFull').classList.contains('open')) galFullClose();
       else if (document.getElementById('policyOverlay').classList.contains('open')) policyCancel();
       else if (document.getElementById('cartOverlay').classList.contains('open')) closeCart();

@@ -249,6 +249,11 @@ which is the opposite of the trust the section is meant to build.
   Collection, Add to bag, Filter, Help). WhatsApp green (`.glass`) = ONLY
   buttons that actually open WhatsApp. A green button that doesn't open
   WhatsApp, or an orange one that does, is a bug.
+* Filter (hero, under Browse Collection): "Available in size" (sizes a
+  product is MADE in - never live stock), price buckets (only those with
+  products), sort Newest (= catalogue order, no date field) / price. It
+  combines with the category chips, lives in memory only (never stored), and
+  has no colour filter until the display-name map exists.
 * No kids products exist, so the page carries no kids references. Re-add
   only when kids stock is in the workbook.
 * `<head>` has description / Open Graph / theme-color tags. `og:image`
