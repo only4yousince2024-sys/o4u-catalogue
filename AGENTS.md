@@ -254,6 +254,12 @@ which is the opposite of the trust the section is meant to build.
   Collection, Add to bag, Filter, Help). WhatsApp green (`.glass`) = ONLY
   buttons that actually open WhatsApp. A green button that doesn't open
   WhatsApp, or an orange one that does, is a bug.
+* Product modal ends with "More from the collection": up to 8 RANDOM
+  published products (never the open one), reshuffled on every open. No
+  category/price/similarity logic and never "Recommended for you" - there is
+  no personalisation. Tapping one swaps the modal content in place
+  (`openModal` while open): gallery back to image 1, size cleared, qty 1,
+  scroll to top, row reshuffled, bag untouched.
 * Filter (hero, under Browse Collection): "Available in size" (sizes a
   product is MADE in - never live stock), price buckets (only those with
   products), sort Newest (= catalogue order, no date field) / price. It

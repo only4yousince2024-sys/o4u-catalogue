@@ -1010,6 +1010,39 @@
     .size-hint { font-size: 0.72rem; color: var(--orange); font-weight: 600; margin: -12px 0 16px; display: none; }
     .size-hint.show { display: block; }
 
+    /* ══ MORE FROM THE COLLECTION (modal) ══ */
+    .modal-related { padding: 2px 22px 24px; border-top: 1px solid var(--light); }
+    .modal-related[hidden] { display: none; }
+    .rel-title { font-family: 'Playfair Display', serif; font-style: italic; font-size: 1.05rem; font-weight: 600; color: var(--black); margin: 16px 0 12px; }
+    .rel-strip {
+      display: flex; gap: 12px; overflow-x: auto; padding: 2px 2px 8px;
+      scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; scrollbar-width: thin;
+    }
+    .rel-card {
+      flex: 0 0 132px; scroll-snap-align: start; display: flex; flex-direction: column;
+      text-align: left; padding: 0; border: none; border-radius: 14px; overflow: hidden; cursor: pointer;
+      background: var(--card); color: var(--black); box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+      font-family: 'Nunito', sans-serif; transition: transform 0.2s;
+    }
+    .rel-card:hover { transform: translateY(-3px); }
+    .rel-img { display: block; position: relative; aspect-ratio: 3 / 4; overflow: hidden; background: var(--light); }
+    .rel-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .rel-ph {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(160deg, #C9C4CF 0%, #A9A4B5 100%); color: rgba(255,255,255,0.7);
+    }
+    .rel-ph svg { width: 26px; height: 26px; opacity: 0.6; }
+    .rel-name {
+      font-family: 'Playfair Display', serif; font-style: italic; font-size: 0.8rem; font-weight: 600; line-height: 1.25;
+      padding: 8px 10px 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .rel-price { font-size: 0.78rem; font-weight: 600; padding: 0 10px 10px; }
+    .rel-off .rel-img img, .rel-off .rel-ph { filter: grayscale(0.6); opacity: 0.75; }
+    @media (max-width: 640px) {
+      .modal-related { padding: 2px 18px calc(24px + env(safe-area-inset-bottom)); }
+      .rel-card { flex-basis: 118px; }
+    }
+
     /* ══ CART ══ */
     .nav-cart {
       position: relative; display: flex; align-items: center; gap: 7px;
@@ -1893,6 +1926,12 @@
       <div class="modal-note" id="modalNote">Stock is confirmed by us on WhatsApp before you pay.</div>
       <div class="modal-note" id="modalUnavail" hidden>Currently unavailable — <button type="button" class="cart-copy" onclick="openHelp()">Ask us on WhatsApp</button> if you'd like to know when it's back.</div>
     </div>
+    <!-- Random picks from the published catalogue - exploration, not "similar to".
+         No personalisation exists, so the heading must never imply any. -->
+    <section class="modal-related" id="modalRelated" aria-labelledby="relTitle" hidden>
+      <h4 class="rel-title" id="relTitle">More from the collection</h4>
+      <div class="rel-strip" id="relStrip"></div>
+    </section>
   </div>
 </div>
 
@@ -2192,8 +2231,13 @@
   function openModal(id) {
     const p = allProducts.find(x => x.id === id);
     if (!p) return;
+    // Already open = a tap on "More from the collection": swap the content in place
+    // (no second modal) and keep the focus-return target of the ORIGINAL opener.
+    const swapping = document.getElementById('modalOverlay').classList.contains('open');
+    document.getElementById('modal').scrollTop = 0;
+    document.getElementById('galFull').classList.remove('open');
     modalProduct = p;
-    selectedSize = null;
+    selectedSize = null;                     // never carried across products
     qty = 1;
 
     // Fill modal
@@ -2228,13 +2272,35 @@
       csel.innerHTML = p.colors.map(c => `<option value="${c}">${c}</option>`).join('');
     } else { cs.style.display = 'none'; }
 
+    renderRelated(p);
     document.getElementById('modal').scrollTop = 0;   // a re-opened sheet starts at the image, not where it was left
-    modalReturnFocus = document.activeElement;
+    if (!swapping) modalReturnFocus = document.activeElement;
     document.getElementById('modalOverlay').classList.add('open');
     document.body.style.overflow = 'hidden';
     setTimeout(() => { const c = document.querySelector('#modal .modal-close'); if (c) c.focus({ preventScroll: true }); }, 30);
   }
   let modalReturnFocus = null, cartReturnFocus = null;
+
+  // Up to 8 random PUBLISHED products, never the open one; reshuffled on every open/swap.
+  function renderRelated(current) {
+    const pool = allProducts.filter(x => x.id !== current.id);
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    const pick = pool.slice(0, 8);
+    const strip = document.getElementById('relStrip');
+    document.getElementById('modalRelated').hidden = !pick.length;
+    strip.innerHTML = pick.map(x => {
+      const img = (x.images && x.images[0]) || '';
+      return `<button type="button" class="rel-card${isAvailable(x) ? '' : ' rel-off'}" onclick="openModal('${esc(x.id)}')" aria-label="${esc(x.name)}, ${esc(priceLabel(x))}${isAvailable(x) ? '' : ', currently unavailable'}">
+        <span class="rel-img">
+          ${img ? `<img src="${esc(img)}" alt="" loading="lazy" decoding="async" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>` : ''}
+          <span class="rel-ph" style="display:${img ? 'none' : 'flex'};">${PH_SVG}</span>
+        </span>
+        <span class="rel-name">${esc(x.name)}</span>
+        <span class="rel-price">${priceLabel(x)}</span>
+      </button>`;
+    }).join('');
+    strip.scrollLeft = 0;
+  }
   const restoreFocus = el => { if (el && el.focus && document.contains(el)) el.focus({ preventScroll: true }); };
 
   // ── GALLERY (vanilla: main image + thumbs, swipe, arrow keys) ──
