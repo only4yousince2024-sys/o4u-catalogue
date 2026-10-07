@@ -220,27 +220,37 @@ which is the opposite of the trust the section is meant to build.
   Flag: `sessionStorage` `o4u_bag_opened`, try/catch, in-memory fallback.
 * Order message: `ORDER REQUEST — ONLY 4 YOU`, `Ref: O4U-MMDD-XXX`, time,
   then per item `n. Name` / `Article: <article> · <colour>` /
-  `Size: X · Qty: n · ₹total`, then `Items total`, `Delivery: to be
-  confirmed`, the two confirmation lines and the signature. Article and
+  `Size: X · Qty: n · ₹total`, then `Items total`, the delivery line
+  (`Delivery: free (order of ₹2,000 or more)` / `Delivery: to be confirmed`
+  / `Delivery: ₹n (within Ludhiana)` once a flat rate is set), the
+  confirmation ask and the signature. No "prices subject to confirmation" -
+  the shown price is final (COPY.pricing). Article and
   colour are on EVERY line. If the wa.me URL would pass ~1,900 chars the
   builder switches to a one-line-per-item compact layout (10 items ≈ 1,740;
   15 long-named items can still exceed - the "Copy order details" fallback
   covers that).
 * Wording is always "order request". Never "confirmed", "paid", "guaranteed".
-  Delivery charge is not hardcoded anywhere (not decided).
+* Customer-facing policy text lives ONCE in `const COPY` in the `<head>`
+  config (positioning, delivery area, delivery charge, pricing, order request,
+  size exchange). Elements carry `data-copy="key"` and are filled at load;
+  never type these strings into markup. `COPY.deliveryFlatRate` is the
+  pending owner decision: null = "we'll confirm the delivery charge on
+  WhatsApp", a number = "Delivery ₹n within Ludhiana" everywhere. Never
+  write a refund, replacement guarantee, faulty-item outcome, category
+  exclusion or advance amount - none are decided. The exchange line about
+  wrong items covers TRANSPORT only.
 * Pre-order policy modal: opens on "Send order request" with a non-empty
-  cart, never on page load. Four points only (manual stock check, payment
-  after confirmation, delivery charges quoted on confirmation, 3-day
-  returns) - the same four sit in the footer. Acceptance is stored in
-  `localStorage` `o4u_policy_accepted_v1` (ISO timestamp, try/catch). Bump
-  to `_v2` if the text changes.
+  cart, never on page load. Four points, all from COPY: order request,
+  delivery area, delivery charge, pricing (the footer adds size exchange).
+  Acceptance is stored in `localStorage` `o4u_policy_accepted_v2` (ISO
+  timestamp, try/catch). Bump the suffix whenever the points change.
 * Order-value offer: `const OFFER = { enabled, kind, threshold, rate }` in
-  the `<head>` config, next to `WA`. Ships `enabled:false` - 20% over 2,000
-  is a PROPOSAL the owner has not confirmed (the Market Research Report
-  calls standing discounts the Discount Death Spiral; free delivery over
-  the threshold, `kind:'free-delivery'`, or 10% are the cheaper options).
-  Never type the threshold or rate anywhere else; markup and the WhatsApp
-  message read it from `orderTotals()`. Delivery is never in the threshold.
+  the `<head>` config, next to `WA`. Owner-confirmed: `enabled:true,
+  kind:'free-delivery', threshold:2000` - free delivery on orders of ₹2,000
+  or MORE (`>=`). The threshold is compared with the product total after
+  discounts (line prices are already offer prices); delivery is never in
+  the figure. Never type the threshold anywhere else; COPY uses
+  `{threshold}`, markup and the WhatsApp message read `orderTotals()`.
 * Support: `const SUPPORT = { heading, topics[{key,label,tag}], noteMax,
   signature }` in the `<head>` config. The Help control (header pill +
   floating button) opens a guided sheet that only ROUTES to WhatsApp with

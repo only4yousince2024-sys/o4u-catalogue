@@ -27,11 +27,12 @@
     const WA_DISPLAY = '+91 81465 97775';
 
     // ── ORDER-VALUE OFFER ── the ONLY place the threshold and reward live.
-    // enabled:false until the owner confirms the numbers (20% / ₹2,000 is a
-    // proposal, not a decision — see AGENTS.md). Nothing renders while off.
+    // Owner-confirmed: free delivery on orders of ₹2,000 or more. The threshold is
+    // compared with the PRODUCT total after discounts (line prices are already the
+    // offer prices); delivery is never part of the figure.
     //   kind: 'percent'       → rate off the subtotal once it reaches threshold
     //   kind: 'free-delivery' → no discount line; delivery is waived instead
-    const OFFER = { enabled: false, kind: 'percent', threshold: 2000, rate: 0.20 };
+    const OFFER = { enabled: true, kind: 'free-delivery', threshold: 2000, rate: 0 };
 
     // ── SUPPORT ── the guided Help flow. Topics and the message shape are
     // defined here and nowhere else. It only routes; it never answers
@@ -41,13 +42,38 @@
       topics: [
         { key: 'size',     label: 'Is this available in my size?', tag: 'Size availability' },
         { key: 'delivery', label: 'Delivery time and charges',     tag: 'Delivery' },
-        { key: 'returns',  label: 'Returns and exchanges',         tag: 'Returns' },
+        { key: 'exchange', label: 'Size exchange',                 tag: 'Size exchange' },
         { key: 'order',    label: 'Where is my order?',            tag: 'Order status' },
         { key: 'other',    label: 'Something else',                tag: 'Other' }
       ],
       noteMax: 200,
       notePlaceholder: 'Short note (optional)',
       signature: 'Sent from only4you website'
+    };
+
+    // ── WORDING ── every owner-confirmed customer-facing policy string lives HERE
+    // and only here. The page fills [data-copy="key"] elements from it at load
+    // (homepage About, bag, help sheet, footer, pre-send step) and the WhatsApp
+    // message reads the delivery rule from it. {threshold} comes from OFFER.
+    const COPY = {
+      positioning: "Only 4 You is a comfort wear shop on Pakhowal Road, Ludhiana. Browse from home, message us on WhatsApp, and we'll help you pick the right size before you pay anything. You're always welcome to come into the shop.",
+      deliveryArea: 'We deliver within Ludhiana only at the moment.',
+      deliveryFree: 'Free delivery on orders of ₹{threshold} or more.',
+      deliveryBelow: "Below ₹{threshold}, we'll confirm the delivery charge on WhatsApp before you pay.",
+      // TODO(owner): DECISION PENDING - flat delivery charge for orders under the
+      // threshold. Leave null to keep "we'll confirm the delivery charge on WhatsApp".
+      // Set a number (e.g. deliveryFlatRate: 80) and every place, the WhatsApp
+      // message included, switches to deliveryFlat below. One line, nothing else.
+      deliveryFlatRate: null,
+      deliveryFlat: 'Delivery ₹{rate} within Ludhiana.',
+      pricing: 'The price shown includes any current offer. That is the final price.',
+      orderRequest: "This sends an order request. We'll confirm what's in stock and the delivery charge on WhatsApp before any payment.",
+      exchange: [
+        'Size exchange within 3 days of delivery.',
+        'The item must be unworn apart from trying it on, unwashed, and still have its tags.',
+        "Bring it to the shop on Pakhowal Road and there's no transport cost. For a home exchange, transport is paid by you.",
+        'If we sent the wrong item, we cover the transport.'
+      ]
     };
   </script>
 
@@ -1254,6 +1280,12 @@
     .help-note:focus { outline: none; border-color: var(--orange); }
     .help-count { text-align: right; font-size: 0.66rem; color: var(--gray); margin-bottom: 12px; }
     .help .modal-wa-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+    .help { max-height: calc(100% - 16px); overflow-y: auto; overscroll-behavior: contain; }
+    .help-info { margin-bottom: 12px; border-top: 1px solid var(--light); }
+    .help-info details { border-bottom: 1px solid var(--light); }
+    .help-info summary { cursor: pointer; padding: 10px 2px; font-size: 0.8rem; font-weight: 700; color: var(--black); }
+    .help-info p, .help-info li { font-size: 0.78rem; line-height: 1.5; color: var(--gray); margin: 0 2px 8px; }
+    .help-info ul { padding-left: 18px; margin-bottom: 4px; }
     @media (max-width: 640px) {
       .help-overlay { align-items: flex-end; padding: 0; }
       .help { max-width: 100%; border-radius: 20px 20px 0 0; padding: 20px 18px calc(16px + env(safe-area-inset-bottom)); }
@@ -1317,6 +1349,7 @@
     .footer-policy { list-style: none; display: flex; flex-direction: column; gap: 8px; }
     .footer-policy li { font-size: 0.78rem; line-height: 1.55; color: rgba(255,255,255,0.5); font-weight: 300; }
     .footer-policy strong { color: rgba(255,255,255,0.8); font-weight: 600; }
+    .footer-col h5.footer-sub-h { margin-top: 22px; }
 
     /* ══ FLOAT WA ══ */
     .float-help {
@@ -1546,7 +1579,6 @@
     <span class="marquee-item">Night Wear <span class="dot"></span></span>
     <span class="marquee-item">Order on WhatsApp <span class="dot"></span></span>
     <span class="marquee-item">Free Size Help <span class="dot"></span></span>
-    <span class="marquee-item">Fast Delivery <span class="dot"></span></span>
     <span class="marquee-item">New Arrivals <span class="dot"></span></span>
     <span class="marquee-item">Kurta Sets <span class="dot"></span></span>
     <span class="marquee-item">Women's Comfort Sets <span class="dot"></span></span>
@@ -1554,7 +1586,6 @@
     <span class="marquee-item">Night Wear <span class="dot"></span></span>
     <span class="marquee-item">Order on WhatsApp <span class="dot"></span></span>
     <span class="marquee-item">Free Size Help <span class="dot"></span></span>
-    <span class="marquee-item">Fast Delivery <span class="dot"></span></span>
     <span class="marquee-item">New Arrivals <span class="dot"></span></span>
     <span class="marquee-item">Kurta Sets <span class="dot"></span></span>
   </div>
@@ -1567,8 +1598,8 @@
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>
     </div>
     <div>
-      <strong>3-Day Returns</strong>
-      <span>Wrong size? Tell us within 3 days.</span>
+      <strong data-copy="exchange" data-copy-line="0"></strong>
+      <span data-copy="exchange" data-copy-line="1"></span>
     </div>
   </div>
   <div class="trust-divider"></div>
@@ -1644,10 +1675,6 @@
           Store photo coming soon
         </div>
       </div>
-      <div class="about-float-card">
-        <div class="afc-num">100%</div>
-        <div class="afc-label">Personal service<br>every order</div>
-      </div>
     </div>
 
     <div class="about-content reveal">
@@ -1655,12 +1682,7 @@
         <div class="section-eyebrow">✦ Our Story</div>
         <h2 class="section-title">Built on comfort.<br>Made with care.</h2>
       </div>
-      <p class="about-text">
-        Only 4 You is a comfort wear store on Pakhowal Road, Ludhiana. We stock women's loungewear, night sets and kurta sets, chosen for fabric first.
-      </p>
-      <p class="about-text">
-        Ordering is simple. Send us the product on WhatsApp. We confirm what's in stock, help you pick the size, and arrange delivery. No accounts, no checkout queues, just a conversation with the people who run the shop.
-      </p>
+      <p class="about-text" data-copy="positioning"></p>
       <div class="about-pillars">
         <div class="pillar">
           <div class="pillar-icon" aria-hidden="true">
@@ -1702,7 +1724,7 @@
         <img class="logo-mark" src="images/logo-round.png" alt="Only 4 You" onerror="this.onerror=null;this.src='images/logo.png'"/>
         ONLY <span>4</span> YOU
       </a>
-      <p class="footer-tagline">Women's comfort wear you can order in minutes, right on WhatsApp.</p>
+      <p class="footer-tagline">A comfort wear shop on Pakhowal Road, Ludhiana.</p>
       <div class="footer-socials">
         <a href="https://instagram.com/only4yousince2024" target="_blank" class="fsoc" title="Instagram">
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
@@ -1725,11 +1747,13 @@
     <div class="footer-col">
       <h5>How ordering works</h5>
       <ul class="footer-policy">
-        <li><strong>Stock is confirmed manually.</strong> We check availability and reply on WhatsApp before anything is paid.</li>
-        <li><strong>Payment comes after confirmation.</strong> Once we confirm, we ask for delivery details and an advance that includes the delivery charge.</li>
-        <li><strong>Delivery charges apply</strong> and are quoted when we confirm your order.</li>
-        <li><strong>Returns within 3 days</strong> of delivery.</li>
+        <li data-copy="orderRequest"></li>
+        <li data-copy="deliveryArea"></li>
+        <li data-copy="deliveryCharge"></li>
+        <li data-copy="pricing"></li>
       </ul>
+      <h5 class="footer-sub-h">Size exchange</h5>
+      <ul class="footer-policy" data-copy="exchange"></ul>
     </div>
 
     <div class="footer-col">
@@ -1784,8 +1808,9 @@
       <div class="cart-offer" id="cartOffer" hidden></div>
       <div class="cart-sub-row" id="cartSubtotalRow" hidden><span>Subtotal</span><span id="cartSubtotal">₹0</span></div>
       <div class="cart-sub-row discount" id="cartDiscountRow" hidden><span id="cartDiscountLabel">Discount</span><span id="cartDiscount">−₹0</span></div>
-      <div class="cart-total-row"><span>Total</span><strong id="cartTotal">₹0</strong></div>
-      <div class="cart-fine">Delivery charges extra. We'll tell you the exact amount on WhatsApp.</div>
+      <div class="cart-total-row"><span>Items total</span><strong id="cartTotal">₹0</strong></div>
+      <div class="cart-fine"><span data-copy="deliveryCharge"></span> <span data-copy="deliveryArea"></span></div>
+      <div class="cart-fine" data-copy="pricing"></div>
       <button class="modal-wa-btn glass" id="cartSendBtn" onclick="sendWhatsApp()">
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
         Send order request on WhatsApp
@@ -1811,6 +1836,22 @@
     <button class="modal-close" onclick="closeHelp()" aria-label="Close">✕</button>
     <h3 id="helpTitle"></h3>
     <div class="help-context" id="helpContext"></div>
+    <div class="help-info">
+      <details>
+        <summary>Delivery</summary>
+        <p data-copy="deliveryArea"></p>
+        <p data-copy="deliveryCharge"></p>
+      </details>
+      <details>
+        <summary>Size exchange</summary>
+        <ul data-copy="exchange"></ul>
+      </details>
+      <details>
+        <summary>How ordering works</summary>
+        <p data-copy="orderRequest"></p>
+        <p data-copy="pricing"></p>
+      </details>
+    </div>
     <div class="help-topics" id="helpTopics"></div>
     <textarea class="help-note" id="helpNote" rows="2"></textarea>
     <div class="help-count" id="helpCount"></div>
@@ -1847,12 +1888,12 @@
 <div class="policy-overlay" id="policyOverlay" onclick="policyCancel(event)">
   <div class="policy" id="policyBox" role="dialog" aria-modal="true" aria-labelledby="policyTitle" tabindex="-1" onclick="event.stopPropagation()">
     <h3 id="policyTitle">Before you send</h3>
-    <div class="policy-sub">How ordering works at Only 4 You. It takes ten seconds to read.</div>
+    <div class="policy-sub">How ordering works at Only 4 You.</div>
     <ul class="policy-list">
-      <li><span><strong>Stock is confirmed manually.</strong> We check availability and reply on WhatsApp before anything is paid.</span></li>
-      <li><span><strong>Payment comes after confirmation.</strong> Once we confirm, we ask for delivery details and an advance that includes the delivery charge.</span></li>
-      <li><span><strong>Delivery charges apply</strong> and are quoted when we confirm your order.</span></li>
-      <li><span><strong>Returns within 3 days</strong> of delivery.</span></li>
+      <li><span data-copy="orderRequest"></span></li>
+      <li><span data-copy="deliveryArea"></span></li>
+      <li><span data-copy="deliveryCharge"></span></li>
+      <li><span data-copy="pricing"></span></li>
     </ul>
     <div class="policy-actions">
       <button class="modal-wa-btn glass" id="policyAccept" onclick="policyAccept()">Accept &amp; send order</button>
@@ -2017,6 +2058,28 @@
     bar.innerHTML = `<button class="filter-btn active" onclick="filter('all',this)">All</button>` +
       CATEGORY_LIST.filter(c => present.has(c.key))
         .map(c => `<button class="filter-btn" onclick="filter('${esc(c.key)}',this)">${esc(c.label)}</button>`).join('');
+  }
+
+  // ── WORDING: fill every [data-copy] element from COPY (head config) ──
+  const copyTpl = str => String(str).replace(/\{threshold\}/g, fmt(OFFER.threshold)).replace(/\{rate\}/g, fmt(COPY.deliveryFlatRate));
+  const deliveryFlat = () => Number(COPY.deliveryFlatRate) > 0;
+  function copyFor(key) {
+    if (key === 'deliveryCharge') {
+      const lines = [];
+      if (offerOn() && OFFER.kind === 'free-delivery') lines.push(copyTpl(COPY.deliveryFree));
+      lines.push(copyTpl(deliveryFlat() ? COPY.deliveryFlat : COPY.deliveryBelow));
+      return lines;
+    }
+    const v = COPY[key];
+    return Array.isArray(v) ? v.map(copyTpl) : copyTpl(v == null ? '' : v);
+  }
+  function applyCopy() {
+    document.querySelectorAll('[data-copy]').forEach(el => {
+      let v = copyFor(el.dataset.copy);
+      if (el.dataset.copyLine !== undefined && Array.isArray(v)) v = v[Number(el.dataset.copyLine)] || '';
+      if (Array.isArray(v)) el.innerHTML = el.tagName === 'UL' ? v.map(x => `<li>${esc(x)}</li>`).join('') : esc(v.join(' '));
+      else el.textContent = v;
+    });
   }
 
   // Fill every wa.me link from the single WA constant.
@@ -2708,10 +2771,18 @@
       out.push(`Discount (${Math.round(OFFER.rate * 100)}%): −₹${fmt(t.discount)}`);
     }
     out.push(`Items total: ₹${fmt(t.total)}`);
-    out.push(t.freeDelivery ? `Delivery: free (order over ₹${fmt(OFFER.threshold)})` : 'Delivery: to be confirmed');
-    if (compact) out.push('', 'Please confirm availability and delivery charge. Prices subject to confirmation by O4U.');
-    else out.push('', 'Please confirm availability and delivery charge.', 'Prices subject to confirmation by O4U.', SUPPORT.signature);
+    out.push(deliveryLine(t));
+    // "Prices subject to confirmation" contradicted COPY.pricing (the shown price is final)
+    const ask = (t.freeDelivery || deliveryFlat()) ? 'Please confirm availability.' : 'Please confirm availability and delivery charge.';
+    if (compact) out.push('', ask);
+    else out.push('', ask, SUPPORT.signature);
     return out.join('\n');
+  }
+  // Delivery is never added to the items total; this only states it.
+  function deliveryLine(t) {
+    if (t.freeDelivery) return `Delivery: free (order of ₹${fmt(OFFER.threshold)} or more)`;
+    if (deliveryFlat()) return `Delivery: ₹${fmt(COPY.deliveryFlatRate)} (within Ludhiana)`;
+    return 'Delivery: to be confirmed';
   }
   const WA_URL_LIMIT = 1900;
   function orderMessageFor(lines, orderId, when) {
@@ -2724,8 +2795,8 @@
   }
   // ── PRE-ORDER POLICY ──
   // Shown once per device, at the moment of sending (never on page load).
-  // Bump the key to _v2 if the four points ever change.
-  const POLICY_KEY = 'o4u_policy_accepted_v1';
+  // Bump the key (_v3, …) whenever the points change. v2 = the COPY wording.
+  const POLICY_KEY = 'o4u_policy_accepted_v2';
   let policyReturnFocus = null;
   function policyAccepted() {
     try { return !!localStorage.getItem(POLICY_KEY); } catch (e) { return false; }
@@ -2804,6 +2875,7 @@
       if (e.key === 'ArrowRight') galStep(1);
     }
   });
+  applyCopy();      // after the cart/offer helpers exist (offerOn is a const below init)
   renderCart();
 
   // ── SCROLL REVEAL ──
