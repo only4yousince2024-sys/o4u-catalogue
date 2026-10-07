@@ -1214,12 +1214,17 @@
       outline: none;
     }
     .policy-overlay.open .policy { transform: translateY(0); }
+    /* Never taller than the overlay: the text scrolls inside, the buttons stay pinned. */
+    .policy { display: flex; flex-direction: column; max-height: 100%; }
+    .policy-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+    .policy-actions { flex-shrink: 0; }
+    .policy.scrolls .policy-actions { border-top: 1px solid var(--light); padding-top: 12px; }
     .policy h3 {
       font-family: 'Playfair Display', serif; font-style: italic;
       font-size: 1.35rem; font-weight: 600; margin-bottom: 4px;
     }
     .policy-sub { font-size: 0.74rem; color: var(--gray); margin-bottom: 16px; }
-    .policy-list { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+    .policy-list { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
     .policy-list li {
       display: flex; gap: 10px; align-items: flex-start;
       font-size: 0.82rem; line-height: 1.5; color: var(--black);
@@ -1240,6 +1245,8 @@
     @media (max-width: 640px) {
       .policy-overlay { align-items: flex-end; padding: 0; }
       .policy { max-width: 100%; border-radius: 20px 20px 0 0; padding: 22px 20px calc(18px + env(safe-area-inset-bottom)); }
+      /* bottom sheet stops below the 60px header row instead of rising over it */
+      .policy { max-height: calc(100% - 72px); }
       .policy-list li { font-size: 0.8rem; }
     }
 
@@ -1887,14 +1894,16 @@
 <!-- ══ PRE-ORDER POLICY (shown once, when sending the order) ══ -->
 <div class="policy-overlay" id="policyOverlay" onclick="policyCancel(event)">
   <div class="policy" id="policyBox" role="dialog" aria-modal="true" aria-labelledby="policyTitle" tabindex="-1" onclick="event.stopPropagation()">
-    <h3 id="policyTitle">Before you send</h3>
-    <div class="policy-sub">How ordering works at Only 4 You.</div>
-    <ul class="policy-list">
-      <li><span data-copy="orderRequest"></span></li>
-      <li><span data-copy="deliveryArea"></span></li>
-      <li><span data-copy="deliveryCharge"></span></li>
-      <li><span data-copy="pricing"></span></li>
-    </ul>
+    <div class="policy-body" id="policyBody">
+      <h3 id="policyTitle">Before you send</h3>
+      <div class="policy-sub">How ordering works at Only 4 You.</div>
+      <ul class="policy-list">
+        <li><span data-copy="orderRequest"></span></li>
+        <li><span data-copy="deliveryArea"></span></li>
+        <li><span data-copy="deliveryCharge"></span></li>
+        <li><span data-copy="pricing"></span></li>
+      </ul>
+    </div>
     <div class="policy-actions">
       <button class="modal-wa-btn glass" id="policyAccept" onclick="policyAccept()">Accept &amp; send order</button>
       <button class="policy-cancel" id="policyCancelBtn" onclick="policyCancel()">Cancel</button>
@@ -2804,6 +2813,10 @@
   function policyOpen(returnTo) {
     policyReturnFocus = returnTo || document.activeElement;
     document.getElementById('policyOverlay').classList.add('open');
+    const body = document.getElementById('policyBody');
+    body.scrollTop = 0;
+    // a divider above the pinned buttons only when the text actually scrolls
+    document.getElementById('policyBox').classList.toggle('scrolls', body.scrollHeight > body.clientHeight + 1);
     document.body.style.overflow = 'hidden';
     setTimeout(() => document.getElementById('policyAccept').focus(), 30);
   }
