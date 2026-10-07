@@ -1143,6 +1143,13 @@
     .cart-head h3 { font-family: 'Playfair Display', serif; font-style: italic; font-size: 1.35rem; font-weight: 600; }
     .cart-head .modal-close { position: static; }
     .cart-lines { flex: 1; overflow-y: auto; padding: 8px 22px; }
+    /* Short screens: the delivery/pricing lines make the pinned footer tall enough to
+       squeeze the items out of view (16px at 320x454). There the whole bag scrolls as
+       one column instead - items first, then totals and Send. */
+    @media (max-height: 620px) {
+      .cart-drawer { overflow-y: auto; overscroll-behavior: contain; }
+      .cart-lines { flex: none; overflow: visible; }
+    }
     .cart-line {
       display: grid; grid-template-columns: 1fr auto; gap: 6px 12px;
       padding: 14px 0; border-bottom: 1px solid var(--light);
