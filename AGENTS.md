@@ -32,10 +32,16 @@ data; `admin.html` is a read-only preview.
 ```
 python scripts/build_catalogue.py            # root workbook → website/products.js
 python scripts/build_catalogue.py --workbook path/to/other.xlsx --out ... --images-dir ...
-python scripts/test_build_catalogue.py       # 24 self-checks, no pytest needed
+python scripts/test_build_catalogue.py       # 25 self-checks, no pytest needed
+python scripts/run_cart_tests.py             # 59 cart/threshold/WhatsApp-message checks, headless Chrome/Edge
 sync.bat                                     # owner's one step: build → commit → push (stops on a failed build)
-scripts/cart_tests.js                        # 19 cart checks: paste into the site's browser console (F12) and run
+scripts/cart_tests.js                        # the same 59 checks; can also be pasted into the browser console (F12)
 ```
+
+The cart checks never send anything: they BUILD the wa.me URL and decode it,
+`window.open` is stubbed, and the headless runner blocks every host except
+127.0.0.1. Threshold boundaries ₹1,999 / ₹2,000 / ₹2,001 are asserted on the
+product total after discounts; delivery is never in that figure.
 
 `sync.bat` is what the shop owner runs after unzipping a Stockroom export.
 It never pushes a failed build, skips the commit when nothing changed, and

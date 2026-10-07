@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<!-- Harness for scripts/run_cart_tests.py (headless). Loads the real site in an
+     iframe from the same local server, then runs scripts/cart_tests.js inside it.
+     window.open is stubbed before anything runs, so nothing can reach WhatsApp. -->
+<html lang="en">
+<head><meta charset="UTF-8"><title>O4U cart tests</title></head>
+<body>
+<pre id="out">PENDING</pre>
+<iframe id="site" src="/website/index.html" style="width:400px;height:800px;border:0"></iframe>
+<script>
+(async () => {
+  const out = document.getElementById('out');
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  try {
+    const f = document.getElementById('site');
+    for (let i = 0; i < 200 && !(f.contentDocument && f.contentDocument.readyState === 'complete'); i++) await sleep(50);
+    const w = f.contentWindow;
+    w.__blockedOpens = [];
+    w.open = u => { w.__blockedOpens.push(String(u)); return { focus() {} }; };
+    // wait for products.js to load and the page to finish its init
+    for (let i = 0; i < 200 && !w.eval('typeof allProducts !== "undefined" && allProducts.length > 0'); i++) await sleep(50);
+    const src = await (await fetch('/scripts/cart_tests.js', { cache: 'no-store' })).text();
+    const res = await w.eval(src);
+    res.blockedOpens = w.__blockedOpens.length;
+    res.products = w.eval('allProducts.length');
+    out.textContent = 'RESULT ' + JSON.stringify(res);
+  } catch (e) {
+    out.textContent = 'ERROR ' + ((e && e.stack) || e);
+  }
+})();
+</script>
+</body>
+</html>

@@ -2546,7 +2546,8 @@
   function renderOffer(t) {
     const box = document.getElementById('cartOffer');
     if (!t.offerOn || !cart.length) { box.hidden = true; box.innerHTML = ''; return; }
-    const pct = Math.min(100, Math.round(t.subtotal / OFFER.threshold * 100));
+    // floor, and never 100% until the threshold is actually reached (₹1,999 used to round to "100%")
+    const pct = t.reached ? 100 : Math.min(99, Math.floor(t.subtotal / OFFER.threshold * 100));
     box.hidden = false;
     box.innerHTML = t.reached
       ? `<div class="cart-offer-text done">✓ ${esc(offerLabel().replace(/^./, c => c.toUpperCase()))} ${OFFER.kind === 'percent' ? `applied. You saved ₹${fmt(t.discount)}` : 'unlocked'}</div>

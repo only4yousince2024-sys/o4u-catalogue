@@ -1,9 +1,11 @@
 /*
-  O4U cart self-checks — run in the browser on the live or local site:
-    1. open the site, press F12 → Console
-    2. paste this whole file and press Enter
-  Prints one line per check and a PASS/FAIL total. Nothing is sent to WhatsApp
-  (window.open is stubbed during the run) and the cart is restored afterwards.
+  O4U cart + order self-checks. Two ways to run:
+    • headless (no browser window):   python scripts/run_cart_tests.py
+    • by hand: open the site, F12 → Console, paste this whole file, Enter
+  Prints one line per check and a PASS/FAIL total. Nothing is ever sent to
+  WhatsApp: window.open is stubbed, and the order checks BUILD the wa.me URL
+  and decode it - they never navigate to it. Cart, OFFER and COPY are
+  restored afterwards.
 */
 (async function cartTests() {
   const out = []; let pass = 0, fail = 0;
@@ -12,6 +14,7 @@
   const A = P[0], B = P[1] || P[0];
   const savedCart = JSON.parse(JSON.stringify(cart)); const savedStorage = localStorage.getItem('o4u_cart_v1');
   const origOpen = window.open; let opened = null; window.open = u => { opened = u; return { focus() {} }; };
+  const saveOfferAll = { ...OFFER }, saveFlatAll = COPY.deliveryFlatRate;
   try {
     // 3a merge identical product+colour+size
     clearCart(); addToCart(A, A.colors[0] || '', A.sizes[0] || '', 1); addToCart(A, A.colors[0] || '', A.sizes[0] || '', 1);
@@ -71,12 +74,77 @@
     ok('3g discount = round(subtotal × rate) applied once', tt.discount === Math.round(tt.subtotal * 0.2) && tt.total === tt.subtotal - tt.discount, `subtotal ${tt.subtotal} discount ${tt.discount}`);
     ok('3g discount line in the message equals the cart', msg.includes(`Discount (20%): −₹${fmt(tt.discount)}`) && msg.includes(`Items total: ₹${fmt(tt.total)}`) && document.getElementById('cartDiscount').textContent === '−₹' + fmt(tt.discount));
     Object.assign(OFFER, saveOffer);
+
+    // ── 4. THRESHOLD, DISCOUNT ORDER, VARIANTS, MESSAGE INTEGRITY, ENCODING ──
+    // Synthetic products with known prices. `price` is the price after any offer
+    // (what the customer sees); `mrp` is the tag price and must never drive anything.
+    Object.assign(OFFER, { enabled: true, kind: 'free-delivery', threshold: 2000, rate: 0 }); COPY.deliveryFlatRate = null;
+    const mk = (id, price, mrp) => ({ id, article: id.toUpperCase(), name: 'Test Set ' + id, price, mrp, sizePrices: {}, sizes: ['M', 'L'], colors: ['Beige'], images: [], stockQty: 1, published: true });
+    const decode = url => { const m = String(url).match(/^https:\/\/wa\.me\/\d+\?text=(.*)$/); return m ? { enc: m[1], text: decodeURIComponent(m[1]) } : null; };
+    const IMPLIES_DONE = /\b(paid|payment (?:received|done|made)|order (?:is )?confirmed|confirmed order|guarantee)/i;
+    const boundaries = [{ total: 1999, free: false }, { total: 2000, free: true }, { total: 2001, free: true }];
+    window.__thresholdResults = [];
+    boundaries.forEach(({ total, free }) => {
+      clearCart();
+      const a = mk('tq-a', 600, 899);                   // offer ₹600 (MRP ₹899) × 2 = ₹1,200
+      const b = mk('tq-b', total - 1200, total - 1000);  // makes up the rest; accented colour below
+      addToCart(a, 'Beige', 'M', 2); addToCart(b, 'Café Beige', 'L', 1);
+      renderCart();
+      const t = orderTotals();
+      const shown = document.getElementById('cartTotal').textContent;
+      const offerTxt = document.getElementById('cartOffer').textContent.replace(/\s+/g, ' ').trim();
+      const u = decode(orderUrl(cart, 'O4U-TEST-' + total, new Date()));
+      const msg = u ? u.text : '';
+      const deliveryLine = (msg.match(/^Delivery: .*$/m) || [''])[0];
+      window.__thresholdResults.push({ productTotal: t.subtotal, discount: t.discount, itemsTotal: t.total, freeDelivery: t.freeDelivery, bagShows: shown, bagOfferLine: offerTxt, messageDeliveryLine: deliveryLine });
+      ok(`4a ₹${fmt(total)} → ${free ? 'FREE delivery' : 'delivery quoted, NOT free'}`, t.subtotal === total && t.freeDelivery === free && t.reached === free, `product total ${t.subtotal}, free=${t.freeDelivery}`);
+      ok(`4b ₹${fmt(total)}: bag shows the same figure the threshold used; no NaN, no negatives`, shown === '₹' + fmt(t.total) && t.total === t.subtotal - t.discount && Number.isFinite(t.total) && t.total >= 0 && !/NaN/.test(document.getElementById('cartFoot').textContent), `bag ${shown}`);
+      ok(`4b ₹${fmt(total)}: bag offer line agrees (progress never reads 100% below the threshold)`,
+         free ? /free delivery unlocked/i.test(offerTxt) : offerTxt.includes(`Add ₹${fmt(OFFER.threshold - total)} more`) && !/100%/.test(offerTxt), offerTxt.slice(0, 70));
+      ok(`4d ₹${fmt(total)}: wa.me URL builds and decodes`, !!u);
+      ok(`4d ₹${fmt(total)}: every line has name, article, colour, size, qty and the final price`,
+         cart.every(l => msg.includes(l.name) && msg.includes(`Article: ${l.article} · ${l.colour}`) && msg.includes(`Size: ${l.size}`) && msg.includes(`Qty: ${l.quantity}`) && msg.includes(`₹${fmt(l.price * l.quantity)}`)));
+      ok(`4d ₹${fmt(total)}: MRP never quoted`, !msg.includes('₹899') && !msg.includes('₹' + fmt(899 * 2)) && !msg.includes('₹' + fmt(b.mrp)));
+      ok(`4d ₹${fmt(total)}: items total matches the bag`, msg.includes(`Items total: ₹${fmt(t.total)}`));
+      ok(`4d ₹${fmt(total)}: delivery line is ${free ? 'free' : 'to be confirmed'}`,
+         free ? deliveryLine === 'Delivery: free (order of ₹2,000 or more)' : deliveryLine === 'Delivery: to be confirmed', deliveryLine);
+      ok(`4d ₹${fmt(total)}: order reference present`, msg.includes('Ref: O4U-TEST-' + total));
+      ok(`4d ₹${fmt(total)}: an order REQUEST - nothing implies payment or confirmation`, msg.startsWith('ORDER REQUEST') && !IMPLIES_DONE.test(msg) && !/subject to confirmation/i.test(msg));
+      ok(`4e ₹${fmt(total)}: ₹, newlines and accents survive the round-trip, no double-encoding`,
+         !!u && msg.includes('₹') && msg.includes('\n') && msg.includes('Café Beige') && u.enc.includes('%E2%82%B9') && u.enc.includes('%0A') &&
+         u.enc.includes('Caf%C3%A9') && !/%25[0-9A-F]{2}/i.test(u.enc) && encodeURIComponent(msg) === u.enc);
+    });
+    // discounts apply BEFORE the threshold test: MRP ₹2,100 would cross it, the offer price ₹1,999 must not
+    clearCart(); addToCart(mk('tq-c', 1999, 2100), 'Beige', 'M', 1);
+    ok('4b threshold compares the price AFTER discount, not the MRP', orderTotals().subtotal === 1999 && !orderTotals().freeDelivery);
+    // delivery is never inside the compared figure: ₹1,950 + a ₹80 flat charge must stay below
+    COPY.deliveryFlatRate = 80; clearCart(); addToCart(mk('tq-d', 1950, null), 'Beige', 'M', 1); renderCart();
+    const tf = orderTotals(), mf = decode(orderUrl(cart, 'O4U-TEST-FLAT', new Date())).text;
+    ok('4a delivery is never part of the threshold figure (₹1,950 + ₹80 flat stays "not free")',
+       !tf.freeDelivery && tf.total === 1950 && mf.includes('Items total: ₹1,950') && mf.includes('Delivery: ₹80 (within Ludhiana)'));
+    COPY.deliveryFlatRate = null;
+    // variants and quantities
+    clearCart(); const v = mk('tq-v', 700, null);
+    addToCart(v, 'Beige', 'M', 1); addToCart(v, 'Beige', 'M', 1);
+    ok('4c same product + size + colour merges to qty 2', cart.length === 1 && cart[0].quantity === 2);
+    addToCart(v, 'Beige', 'L', 1); addToCart(v, 'Café Beige', 'M', 1);
+    ok('4c a different size or colour stays a separate line', cart.length === 3);
+    const bad = [0, -2, 1.5, 'x', '', NaN, null, undefined, Infinity, -Infinity, 1e6];
+    clearCart(); bad.forEach((q, i) => addToCart(mk('tq-q' + i, 100, null), 'Beige', 'M', q));
+    const qs = cart.map(l => l.quantity);
+    ok('4c 0, negatives, decimals, non-numeric and huge inputs never become a quantity (always whole 1..99)', qs.length === bad.length && qs.every(n => Number.isInteger(n) && n >= 1 && n <= 99), JSON.stringify(qs));
+    clearCart(); addToCart(v, 'Beige', 'M', 1); addToCart(mk('tq-w', 450, null), 'Beige', 'L', 1);
+    const k0 = cart[0].key; updateLineQty(k0, 'abc'); updateLineQty(k0, 1.9);
+    ok('4c non-numeric / decimal steps never corrupt a quantity', cart[0].quantity === 2, `qty=${cart[0].quantity}`);
+    removeLine(cart[1].key);
+    ok('4c remove and quantity change recalculate the bag', orderTotals().total === 1400 && document.getElementById('cartTotal').textContent === '₹1,400');
   } finally {
     window.open = origOpen;
+    Object.assign(OFFER, saveOfferAll); COPY.deliveryFlatRate = saveFlatAll;
     cart = savedCart; if (savedStorage === null) localStorage.removeItem('o4u_cart_v1'); else localStorage.setItem('o4u_cart_v1', savedStorage);
     cart = loadCart(); renderCart();
   }
   out.push(`\n${pass} passed, ${fail} failed`);
   console.log(out.join('\n'));
-  return { pass, fail, lines: out };
+  return { pass, fail, lines: out, thresholds: window.__thresholdResults || [] };
 })();
