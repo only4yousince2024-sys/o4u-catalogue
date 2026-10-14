@@ -14,7 +14,7 @@
   const A = P[0], B = P[1] || P[0];
   const savedCart = JSON.parse(JSON.stringify(cart)); const savedStorage = localStorage.getItem('o4u_cart_v1');
   const origOpen = window.open; let opened = null; window.open = u => { opened = u; return { focus() {} }; };
-  const saveOfferAll = { ...OFFER }, saveFlatAll = COPY.deliveryFlatRate;
+  const saveOfferAll = { ...OFFER };
   try {
     // 3a merge identical product+colour+size
     clearCart(); addToCart(A, A.colors[0] || '', A.sizes[0] || '', 1); addToCart(A, A.colors[0] || '', A.sizes[0] || '', 1);
@@ -78,7 +78,7 @@
     // ── 4. THRESHOLD, DISCOUNT ORDER, VARIANTS, MESSAGE INTEGRITY, ENCODING ──
     // Synthetic products with known prices. `price` is the price after any offer
     // (what the customer sees); `mrp` is the tag price and must never drive anything.
-    Object.assign(OFFER, { enabled: true, kind: 'free-delivery', threshold: 2000, rate: 0 }); COPY.deliveryFlatRate = null;
+    Object.assign(OFFER, { enabled: true, kind: 'free-delivery', threshold: 2000, rate: 0 });
     const mk = (id, price, mrp) => ({ id, article: id.toUpperCase(), name: 'Test Set ' + id, price, mrp, sizePrices: {}, sizes: ['M', 'L'], colors: ['Beige'], images: [], stockQty: 1, published: true });
     const decode = url => { const m = String(url).match(/^https:\/\/wa\.me\/\d+\?text=(.*)$/); return m ? { enc: m[1], text: decodeURIComponent(m[1]) } : null; };
     const IMPLIES_DONE = /\b(paid|payment (?:received|done|made)|order (?:is )?confirmed|confirmed order|guarantee)/i;
@@ -117,12 +117,11 @@
     // discounts apply BEFORE the threshold test: MRP ₹2,100 would cross it, the offer price ₹1,999 must not
     clearCart(); addToCart(mk('tq-c', 1999, 2100), 'Beige', 'M', 1);
     ok('4b threshold compares the price AFTER discount, not the MRP', orderTotals().subtotal === 1999 && !orderTotals().freeDelivery);
-    // delivery is never inside the compared figure: ₹1,950 + a ₹80 flat charge must stay below
-    COPY.deliveryFlatRate = 80; clearCart(); addToCart(mk('tq-d', 1950, null), 'Beige', 'M', 1); renderCart();
-    const tf = orderTotals(), mf = decode(orderUrl(cart, 'O4U-TEST-FLAT', new Date())).text;
-    ok('4a delivery is never part of the threshold figure (₹1,950 + ₹80 flat stays "not free")',
-       !tf.freeDelivery && tf.total === 1950 && mf.includes('Items total: ₹1,950') && mf.includes('Delivery: ₹80 (within Ludhiana)'));
-    COPY.deliveryFlatRate = null;
+    // the site never calculates a delivery fee: ₹1,950 stays ₹1,950, delivery is only "to be confirmed"
+    clearCart(); addToCart(mk('tq-d', 1950, null), 'Beige', 'M', 1); renderCart();
+    const tf = orderTotals(), mf = decode(orderUrl(cart, 'O4U-TEST-FEE', new Date())).text;
+    ok('4a no delivery fee is ever calculated or added (₹1,950 stays ₹1,950, delivery to be confirmed)',
+       !tf.freeDelivery && tf.total === 1950 && mf.includes('Items total: ₹1,950') && mf.includes('Delivery: to be confirmed') && !/Delivery: ₹/.test(mf));
     // variants and quantities
     clearCart(); const v = mk('tq-v', 700, null);
     addToCart(v, 'Beige', 'M', 1); addToCart(v, 'Beige', 'M', 1);
@@ -140,7 +139,7 @@
     ok('4c remove and quantity change recalculate the bag', orderTotals().total === 1400 && document.getElementById('cartTotal').textContent === '₹1,400');
   } finally {
     window.open = origOpen;
-    Object.assign(OFFER, saveOfferAll); COPY.deliveryFlatRate = saveFlatAll;
+    Object.assign(OFFER, saveOfferAll);
     cart = savedCart; if (savedStorage === null) localStorage.removeItem('o4u_cart_v1'); else localStorage.setItem('o4u_cart_v1', savedStorage);
     cart = loadCart(); renderCart();
   }

@@ -231,8 +231,10 @@ which is the opposite of the trust the section is meant to build.
 
 ## Frontend notes (`website/index.html`)
 
-* The WhatsApp number lives once, in `WA` inside the `<head>` config script.
-  Static links carry `data-wa="message"` and are filled at load.
+* `website/config.js` is the ONE config file, loaded by `index.html` and
+  `policy.html`: `WA` (WhatsApp number), `OFFER`, `SUPPORT`, `COPY` and the
+  shared `applyCopy()` / `applyWhatsAppLinks()`. Static links carry
+  `data-wa="message"` and are filled at load.
 * Cart is client-side (`localStorage` key `o4u_cart_v1`, shape
   `{ lines, updatedAt, sentAt }`; every read/write is try/catch - no storage
   means an in-memory cart). A line is product + colour + size;
@@ -256,29 +258,32 @@ which is the opposite of the trust the section is meant to build.
   15 long-named items can still exceed - the "Copy order details" fallback
   covers that).
 * Wording is always "order request". Never "confirmed", "paid", "guaranteed".
-* Customer-facing policy text lives ONCE in `const COPY` in the `<head>`
-  config (positioning, delivery area, delivery charge, pricing, order request,
-  size exchange). Elements carry `data-copy="key"` and are filled at load;
-  never type these strings into markup. `COPY.deliveryFlatRate` is the
-  pending owner decision: null = "we'll confirm the delivery charge on
-  WhatsApp", a number = "Delivery ₹n within Ludhiana" everywhere. Never
-  write a refund, replacement guarantee, faulty-item outcome, category
-  exclusion or advance amount - none are decided. The exchange line about
-  wrong items covers TRANSPORT only.
+* Customer-facing policy text lives ONCE in `COPY` (config.js): positioning,
+  delivery area, free-delivery rule, delivery charge (Porter fare confirmed on
+  WhatsApp after the address), payment (UPI after confirmation, no COD),
+  pricing (website price incl. offer is final), order request, the "opening
+  WhatsApp doesn't send it" note, and the four exchange lines (approved
+  14 Oct 2026). Elements carry `data-copy="key"`; never type these strings
+  into markup. Short versions sit where they matter (delivery under the bag
+  total, price note in the product view, four points in the pre-send step);
+  full detail is on `policy.html`. The site NEVER calculates a delivery fee.
+  Never write a refund promise, replacement guarantee or faulty-item outcome:
+  wrong/faulty items are "handled separately" and only the transport is
+  promised.
 * Pre-order policy modal: opens on "Send order request" with a non-empty
-  cart, never on page load. Four points, all from COPY: order request,
-  delivery area, delivery charge, pricing (the footer adds size exchange).
-  Acceptance is stored in `localStorage` `o4u_policy_accepted_v2` (ISO
+  cart, never on page load. Four short points from COPY (order request,
+  delivery area, payment, WhatsApp-send note) plus a link to policy.html.
+  Acceptance is stored in `localStorage` `o4u_policy_accepted_v3` (ISO
   timestamp, try/catch). Bump the suffix whenever the points change.
 * Order-value offer: `const OFFER = { enabled, kind, threshold, rate }` in
-  the `<head>` config, next to `WA`. Owner-confirmed: `enabled:true,
+  config.js, next to `WA`. Owner-confirmed: `enabled:true,
   kind:'free-delivery', threshold:2000` - free delivery on orders of ₹2,000
   or MORE (`>=`). The threshold is compared with the product total after
   discounts (line prices are already offer prices); delivery is never in
   the figure. Never type the threshold anywhere else; COPY uses
   `{threshold}`, markup and the WhatsApp message read `orderTotals()`.
 * Support: `const SUPPORT = { heading, topics[{key,label,tag}], noteMax,
-  signature }` in the `<head>` config. The Help control (header pill +
+  signature }` in config.js. The Help control (header pill +
   floating button) opens a guided sheet that only ROUTES to WhatsApp with
   `O4U SUPPORT — <tag>` / `Ref: S-MMDD-XXX` / product context / note. No AI,
   no API keys in the page, no stock answers - a human confirms stock.

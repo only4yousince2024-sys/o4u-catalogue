@@ -20,62 +20,8 @@
   <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <script src="products.js"></script>
-  <script>
-    // ── SITE CONFIG ── the ONLY place the WhatsApp number lives.
-    // Every wa.me link on the page is filled from this at load time.
-    const WA = '918146597775';
-    const WA_DISPLAY = '+91 81465 97775';
-
-    // ── ORDER-VALUE OFFER ── the ONLY place the threshold and reward live.
-    // Owner-confirmed: free delivery on orders of ₹2,000 or more. The threshold is
-    // compared with the PRODUCT total after discounts (line prices are already the
-    // offer prices); delivery is never part of the figure.
-    //   kind: 'percent'       → rate off the subtotal once it reaches threshold
-    //   kind: 'free-delivery' → no discount line; delivery is waived instead
-    const OFFER = { enabled: true, kind: 'free-delivery', threshold: 2000, rate: 0 };
-
-    // ── SUPPORT ── the guided Help flow. Topics and the message shape are
-    // defined here and nowhere else. It only routes; it never answers
-    // stock questions (a human confirms availability before money moves).
-    const SUPPORT = {
-      heading: 'How can we help?',
-      topics: [
-        { key: 'size',     label: 'Is this available in my size?', tag: 'Size availability' },
-        { key: 'delivery', label: 'Delivery time and charges',     tag: 'Delivery' },
-        { key: 'exchange', label: 'Size exchange',                 tag: 'Size exchange' },
-        { key: 'order',    label: 'Where is my order?',            tag: 'Order status' },
-        { key: 'other',    label: 'Something else',                tag: 'Other' }
-      ],
-      noteMax: 200,
-      notePlaceholder: 'Short note (optional)',
-      signature: 'Sent from only4you website'
-    };
-
-    // ── WORDING ── every owner-confirmed customer-facing policy string lives HERE
-    // and only here. The page fills [data-copy="key"] elements from it at load
-    // (homepage About, bag, help sheet, footer, pre-send step) and the WhatsApp
-    // message reads the delivery rule from it. {threshold} comes from OFFER.
-    const COPY = {
-      positioning: "Only 4 You is a comfort wear shop on Pakhowal Road, Ludhiana. Browse from home, message us on WhatsApp, and we'll help you pick the right size before you pay anything. You're always welcome to come into the shop.",
-      deliveryArea: 'We deliver within Ludhiana only at the moment.',
-      deliveryFree: 'Free delivery on orders of ₹{threshold} or more.',
-      deliveryBelow: "Below ₹{threshold}, we'll confirm the delivery charge on WhatsApp before you pay.",
-      // TODO(owner): DECISION PENDING - flat delivery charge for orders under the
-      // threshold. Leave null to keep "we'll confirm the delivery charge on WhatsApp".
-      // Set a number (e.g. deliveryFlatRate: 80) and every place, the WhatsApp
-      // message included, switches to deliveryFlat below. One line, nothing else.
-      deliveryFlatRate: null,
-      deliveryFlat: 'Delivery ₹{rate} within Ludhiana.',
-      pricing: 'The price shown includes any current offer. That is the final price.',
-      orderRequest: "This sends an order request. We'll confirm what's in stock and the delivery charge on WhatsApp before any payment.",
-      exchange: [
-        'Size exchange within 3 days of delivery.',
-        'The item must be unworn apart from trying it on, unwashed, and still have its tags.',
-        "Bring it to the shop on Pakhowal Road and there's no transport cost. For a home exchange, transport is paid by you.",
-        'If we sent the wrong item, we cover the transport.'
-      ]
-    };
-  </script>
+  <!-- WhatsApp number, free-delivery threshold, help topics and ALL policy wording: config.js -->
+  <script src="config.js"></script>
 
   <!--
     Images live in website/images/. Product photos are named from the Product ID
@@ -938,6 +884,7 @@
     .modal-product-name { font-family: 'Playfair Display', serif; font-style: italic; font-size: 1.15rem; font-weight: 600; color: var(--black); margin-bottom: 6px; }
     .modal-price { font-size: 1rem; font-weight: 600; color: var(--black); }
     .modal-price s { font-size: 0.8rem; color: var(--gray); font-weight: 300; margin-left: 6px; }
+    .modal-price-note { font-size: 0.7rem; color: var(--gray); margin-top: 3px; }
     .modal-close {
       position: absolute; top: 12px; right: 12px; z-index: 10;
       width: 30px; height: 30px; border-radius: 50%;
@@ -1198,6 +1145,7 @@
     .cart-sub-row[hidden], .cart-offer[hidden] { display: none; }
     .cart-sent { font-size: 0.74rem; color: var(--brown); background: rgba(229,97,28,0.08); border-radius: 10px; padding: 10px 12px; margin-top: 10px; display: none; line-height: 1.5; }
     .cart-sent.show { display: block; }
+    .cart-policy-link { color: var(--brown); font-weight: 700; text-underline-offset: 2px; white-space: nowrap; }
     .cart-copy {
       background: none; border: 1.5px solid var(--brown); color: var(--brown); border-radius: 50px;
       padding: 6px 12px; margin: 4px 2px; cursor: pointer; min-height: 32px;
@@ -1241,6 +1189,7 @@
       background: var(--orange); margin-top: 7px;
     }
     .policy-list strong { font-weight: 700; }
+    .policy-full-link { display: inline-block; margin: -6px 0 14px; font-size: 0.76rem; font-weight: 700; color: var(--brown); }
     .policy-actions { display: flex; flex-direction: column; gap: 8px; }
     .policy-cancel {
       width: 100%; background: none; border: 1.5px solid var(--light); color: var(--gray);
@@ -1300,6 +1249,7 @@
     .help-info summary { cursor: pointer; padding: 10px 2px; font-size: 0.8rem; font-weight: 700; color: var(--black); }
     .help-info p, .help-info li { font-size: 0.78rem; line-height: 1.5; color: var(--gray); margin: 0 2px 8px; }
     .help-info ul { padding-left: 18px; margin-bottom: 4px; }
+    .help-policy-link { display: inline-block; margin: 10px 2px 2px; font-size: 0.76rem; font-weight: 700; color: var(--brown); }
     @media (max-width: 640px) {
       .help-overlay { align-items: flex-end; padding: 0; }
       .help { max-width: 100%; border-radius: 20px 20px 0 0; padding: 20px 18px calc(16px + env(safe-area-inset-bottom)); }
@@ -1364,6 +1314,8 @@
     .footer-policy li { font-size: 0.78rem; line-height: 1.55; color: rgba(255,255,255,0.5); font-weight: 300; }
     .footer-policy strong { color: rgba(255,255,255,0.8); font-weight: 600; }
     .footer-col h5.footer-sub-h { margin-top: 22px; }
+    .footer-policy-link { display: inline-block; margin-top: 14px; font-size: 0.78rem; font-weight: 600; color: rgba(255,255,255,0.85); text-underline-offset: 3px; }
+    .footer-policy-link:hover { color: #fff; }
 
     /* ══ FLOAT WA ══ */
     .float-help {
@@ -1612,8 +1564,8 @@
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>
     </div>
     <div>
-      <strong data-copy="exchange" data-copy-line="0"></strong>
-      <span data-copy="exchange" data-copy-line="1"></span>
+      <strong data-copy="exchangeTitle"></strong>
+      <span data-copy="exchange" data-copy-line="0"></span>
     </div>
   </div>
   <div class="trust-divider"></div>
@@ -1763,11 +1715,13 @@
       <ul class="footer-policy">
         <li data-copy="orderRequest"></li>
         <li data-copy="deliveryArea"></li>
-        <li data-copy="deliveryCharge"></li>
+        <li data-copy="delivery"></li>
+        <li data-copy="payment"></li>
         <li data-copy="pricing"></li>
       </ul>
-      <h5 class="footer-sub-h">Size exchange</h5>
+      <h5 class="footer-sub-h" data-copy="exchangeTitle"></h5>
       <ul class="footer-policy" data-copy="exchange"></ul>
+      <a class="footer-policy-link" href="policy.html">Full ordering, delivery &amp; exchange policy →</a>
     </div>
 
     <div class="footer-col">
@@ -1823,13 +1777,13 @@
       <div class="cart-sub-row" id="cartSubtotalRow" hidden><span>Subtotal</span><span id="cartSubtotal">₹0</span></div>
       <div class="cart-sub-row discount" id="cartDiscountRow" hidden><span id="cartDiscountLabel">Discount</span><span id="cartDiscount">−₹0</span></div>
       <div class="cart-total-row"><span>Items total</span><strong id="cartTotal">₹0</strong></div>
-      <div class="cart-fine"><span data-copy="deliveryCharge"></span> <span data-copy="deliveryArea"></span></div>
-      <div class="cart-fine" data-copy="pricing"></div>
+      <div class="cart-fine"><span data-copy="delivery"></span> <span data-copy="deliveryArea"></span></div>
+      <div class="cart-fine"><span data-copy="payment"></span> <a class="cart-policy-link" href="policy.html">Full policy</a></div>
       <button class="modal-wa-btn glass" id="cartSendBtn" onclick="sendWhatsApp()">
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
         Send order request on WhatsApp
       </button>
-      <div class="cart-sent" id="cartSent">WhatsApp should now be open with your order request. If nothing happened, tap the button again or <button type="button" class="cart-copy" onclick="copyOrderDetails(this)">Copy order details</button> and paste them to us on WhatsApp. We'll reply to confirm stock &amp; delivery charges.</div>
+      <div class="cart-sent" id="cartSent">WhatsApp should now be open with your order request. <strong data-copy="whatsappNote"></strong> If nothing opened, tap the button again or <button type="button" class="cart-copy" onclick="copyOrderDetails(this)">Copy order details</button> and paste them to us on WhatsApp. We'll reply to confirm stock &amp; delivery charges.</div>
       <button class="cart-clear" onclick="clearCart()">Clear bag</button>
     </div>
   </aside>
@@ -1854,17 +1808,19 @@
       <details>
         <summary>Delivery</summary>
         <p data-copy="deliveryArea"></p>
-        <p data-copy="deliveryCharge"></p>
+        <p data-copy="delivery"></p>
       </details>
       <details>
-        <summary>Size exchange</summary>
+        <summary>Exchanges</summary>
         <ul data-copy="exchange"></ul>
       </details>
       <details>
-        <summary>How ordering works</summary>
+        <summary>Ordering, payment &amp; prices</summary>
         <p data-copy="orderRequest"></p>
+        <p data-copy="payment"></p>
         <p data-copy="pricing"></p>
       </details>
+      <a class="help-policy-link" href="policy.html">Full policy page →</a>
     </div>
     <div class="help-topics" id="helpTopics"></div>
     <textarea class="help-note" id="helpNote" rows="2"></textarea>
@@ -1907,9 +1863,10 @@
       <ul class="policy-list">
         <li><span data-copy="orderRequest"></span></li>
         <li><span data-copy="deliveryArea"></span></li>
-        <li><span data-copy="deliveryCharge"></span></li>
-        <li><span data-copy="pricing"></span></li>
+        <li><span data-copy="payment"></span></li>
+        <li><span data-copy="whatsappNote"></span></li>
       </ul>
+      <a class="policy-full-link" href="policy.html" target="_blank" rel="noopener">Read the full policy</a>
     </div>
     <div class="policy-actions">
       <button class="modal-wa-btn glass" id="policyAccept" onclick="policyAccept()">Accept &amp; send order</button>
@@ -1936,6 +1893,7 @@
         <div class="modal-product-cat" id="modalCat"></div>
         <div class="modal-product-name" id="modalName"></div>
         <div class="modal-price" id="modalPrice"></div>
+        <div class="modal-price-note" data-copy="priceNote"></div>
       </div>
       <button class="modal-close" onclick="closeModal()" aria-label="Close">✕</button>
     </div>
@@ -2076,36 +2034,7 @@
         .map(c => `<button class="filter-btn" onclick="filter('${esc(c.key)}',this)">${esc(c.label)}</button>`).join('');
   }
 
-  // ── WORDING: fill every [data-copy] element from COPY (head config) ──
-  const copyTpl = str => String(str).replace(/\{threshold\}/g, fmt(OFFER.threshold)).replace(/\{rate\}/g, fmt(COPY.deliveryFlatRate));
-  const deliveryFlat = () => Number(COPY.deliveryFlatRate) > 0;
-  function copyFor(key) {
-    if (key === 'deliveryCharge') {
-      const lines = [];
-      if (offerOn() && OFFER.kind === 'free-delivery') lines.push(copyTpl(COPY.deliveryFree));
-      lines.push(copyTpl(deliveryFlat() ? COPY.deliveryFlat : COPY.deliveryBelow));
-      return lines;
-    }
-    const v = COPY[key];
-    return Array.isArray(v) ? v.map(copyTpl) : copyTpl(v == null ? '' : v);
-  }
-  function applyCopy() {
-    document.querySelectorAll('[data-copy]').forEach(el => {
-      let v = copyFor(el.dataset.copy);
-      if (el.dataset.copyLine !== undefined && Array.isArray(v)) v = v[Number(el.dataset.copyLine)] || '';
-      if (Array.isArray(v)) el.innerHTML = el.tagName === 'UL' ? v.map(x => `<li>${esc(x)}</li>`).join('') : esc(v.join(' '));
-      else el.textContent = v;
-    });
-  }
-
-  // Fill every wa.me link from the single WA constant.
-  function applyWhatsAppLinks() {
-    document.querySelectorAll('[data-wa]').forEach(a => {
-      const t = a.dataset.wa;
-      a.href = `https://wa.me/${WA}` + (t ? `?text=${encodeURIComponent(t)}` : '');
-      if (a.hasAttribute('data-wa-display')) a.textContent = WA_DISPLAY;
-    });
-  }
+  // applyCopy() and applyWhatsAppLinks() come from config.js.
 
   // ── LOAD PRODUCTS (Google Sheets or local fallback) ──
   async function loadProducts() {
@@ -2790,7 +2719,7 @@
     out.push(`Items total: ₹${fmt(t.total)}`);
     out.push(deliveryLine(t));
     // "Prices subject to confirmation" contradicted COPY.pricing (the shown price is final)
-    const ask = (t.freeDelivery || deliveryFlat()) ? 'Please confirm availability.' : 'Please confirm availability and delivery charge.';
+    const ask = t.freeDelivery ? 'Please confirm availability and my final bill.' : 'Please confirm availability, the delivery charge and my final bill.';
     if (compact) out.push('', ask);
     else out.push('', ask, SUPPORT.signature);
     return out.join('\n');
@@ -2798,7 +2727,6 @@
   // Delivery is never added to the items total; this only states it.
   function deliveryLine(t) {
     if (t.freeDelivery) return `Delivery: free (order of ₹${fmt(OFFER.threshold)} or more)`;
-    if (deliveryFlat()) return `Delivery: ₹${fmt(COPY.deliveryFlatRate)} (within Ludhiana)`;
     return 'Delivery: to be confirmed';
   }
   const WA_URL_LIMIT = 1900;
@@ -2812,8 +2740,8 @@
   }
   // ── PRE-ORDER POLICY ──
   // Shown once per device, at the moment of sending (never on page load).
-  // Bump the key (_v3, …) whenever the points change. v2 = the COPY wording.
-  const POLICY_KEY = 'o4u_policy_accepted_v2';
+  // Bump the key whenever the points change. v3 = approved rules of 14 Oct 2026.
+  const POLICY_KEY = 'o4u_policy_accepted_v3';
   let policyReturnFocus = null;
   function policyAccepted() {
     try { return !!localStorage.getItem(POLICY_KEY); } catch (e) { return false; }
