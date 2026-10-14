@@ -33,9 +33,9 @@ data; `admin.html` is a read-only preview.
 python scripts/build_catalogue.py            # root workbook → website/products.js
 python scripts/build_catalogue.py --workbook path/to/other.xlsx --out ... --images-dir ...
 python scripts/test_build_catalogue.py       # 28 self-checks, no pytest needed
-python scripts/run_cart_tests.py             # 59 cart/threshold/WhatsApp-message checks, headless Chrome/Edge
+python scripts/run_cart_tests.py             # 74 cart/threshold/WhatsApp-message/order-block checks, headless Chrome/Edge
 sync.bat                                     # owner's one step: build → commit → push (stops on a failed build)
-scripts/cart_tests.js                        # the same 59 checks; can also be pasted into the browser console (F12)
+scripts/cart_tests.js                        # the same 74 checks; can also be pasted into the browser console (F12)
 ```
 
 The cart checks never send anything: they BUILD the wa.me URL and decode it,
@@ -246,17 +246,26 @@ which is the opposite of the trust the section is meant to build.
   one toast ("Added to bag · n items" + View bag, 2.5 s, timer resets, never
   stacks, role=status) and pulses the badge (skipped under reduced motion).
   Flag: `sessionStorage` `o4u_bag_opened`, try/catch, in-memory fallback.
-* Order message: `ORDER REQUEST — ONLY 4 YOU`, `Ref: O4U-MMDD-XXX`, time,
-  then per item `n. Name` / `Article: <article> · <colour>` /
-  `Size: X · Qty: n · ₹total`, then `Items total`, the delivery line
-  (`Delivery: free (order of ₹2,000 or more)` / `Delivery: to be confirmed`
-  / `Delivery: ₹n (within Ludhiana)` once a flat rate is set), the
-  confirmation ask and the signature. No "prices subject to confirmation" -
-  the shown price is final (COPY.pricing). Article and
-  colour are on EVERY line. If the wa.me URL would pass ~1,900 chars the
-  builder switches to a one-line-per-item compact layout (10 items ≈ 1,740;
-  15 long-named items can still exceed - the "Copy order details" fallback
-  covers that).
+* Order message = readable text, then the shared **O4U ORDER block** that
+  Stockroom's "Paste order" box reads (format agreed 14 Oct 2026 - never
+  change it on one side only):
+  ```
+  ----- O4U ORDER · please don't edit below -----
+  CODE: W<DDMM>-<4 chars>-<2-char check>
+  ITEM: <stockroom product id> | <size exactly as in stockroom.json> | <qty>
+  NAME: … / PHONE: <10 digits> / ADDRESS: … / LANDMARK: … (line omitted when blank)
+  ITEMS TOTAL (without delivery): ₹<items total as shown in the bag>
+  ----- END O4U ORDER -----
+  ```
+  One ITEM per bag line, in bag order; random chars from
+  `23456789ABCDEFGHJKMNPQRSTUVWXYZ`; the check is `o4uCheck(base, items)`
+  (copied verbatim from the brief; test vector `ZP`) and covers code + items
+  only. No other prices in the block. The same code is the `Ref:` at the top.
+  Bag lines store `sizeCode` (from products.js `sizeCodes`). Name, phone (10
+  digits; +91/0 stripped) and address are required in the bag's "Your
+  details" (sessionStorage `o4u_details_v1`, this tab only); each is one line
+  with no `---` runs. Long orders step down full → compact → minimal readable
+  text (~1,900-char URL guard); the block is never shortened.
 * Wording is always "order request". Never "confirmed", "paid", "guaranteed".
 * Customer-facing policy text lives ONCE in `COPY` (config.js): positioning,
   delivery area, free-delivery rule, delivery charge (Porter fare confirmed on

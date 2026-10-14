@@ -15,6 +15,8 @@
   const savedCart = JSON.parse(JSON.stringify(cart)); const savedStorage = localStorage.getItem('o4u_cart_v1');
   const origOpen = window.open; let opened = null; window.open = u => { opened = u; return { focus() {} }; };
   const saveOfferAll = { ...OFFER };
+  const saveDetails = { ...details }, savePolicy = (() => { try { return localStorage.getItem(POLICY_KEY); } catch (e) { return null; } })();
+  const origClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
   try {
     // 3a merge identical product+colour+size
     clearCart(); addToCart(A, A.colors[0] || '', A.sizes[0] || '', 1); addToCart(A, A.colors[0] || '', A.sizes[0] || '', 1);
@@ -137,9 +139,85 @@
     ok('4c non-numeric / decimal steps never corrupt a quantity', cart[0].quantity === 2, `qty=${cart[0].quantity}`);
     removeLine(cart[1].key);
     ok('4c remove and quantity change recalculate the bag', orderTotals().total === 1400 && document.getElementById('cartTotal').textContent === '₹1,400');
+
+    // ── 5. O4U ORDER BLOCK (shared with Stockroom) - built and decoded, never sent ──
+    ok('5 o4uCheck matches the shared test vector ("ZP")',
+       o4uCheck('W1410-K7M3', [['14602b-purple-floral', 'M', 1], ['770221-jet-black', 'L', 2]]) === 'ZP');
+    const today = new Date(), ddmm = String(today.getDate()).padStart(2, '0') + String(today.getMonth() + 1).padStart(2, '0');
+    const bases = Array.from({ length: 50 }, () => makeOrderBase(today));
+    ok('5 code base is W<DDMM>-<4 chars from 23456789ABCDEFGHJKMNPQRSTUVWXYZ>',
+       bases.every(b => new RegExp(`^W${ddmm}-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$`).test(b)), bases[0]);
+    const mk5 = (id, price, codes) => ({ id, article: id.toUpperCase(), name: 'Test Set ' + id, price, mrp: null, sizePrices: {}, sizes: Object.keys(codes), sizeCodes: codes, colors: ['Beige'], images: [], stockQty: 1, published: true });
+    const pa = mk5('tq-x-beige', 1689, { '2XL': 'XXL' }), pb = mk5('tq-y-beige', 450, { 'Free Size': 'Free' });
+    clearCart(); addToCart(pa, 'Beige', '2XL', 1); addToCart(pb, 'Beige', 'Free Size', 2); renderCart();
+    const who = { name: '  Asha\nKaur ', phone: '+91 98765-43210', address: 'House 12,\nSector 3 ----- Pakhowal Road', landmark: 'Near the gurdwara' };
+    const base = 'W1410-K7M3';
+    const two = decode(orderUrl(cart, base, new Date(), who)).text;
+    const check = o4uCheck(base, [['tq-x-beige', 'XXL', 1], ['tq-y-beige', 'Free', 2]]);
+    const expectedBlock = [
+      "----- O4U ORDER · please don't edit below -----",
+      `CODE: ${base}-${check}`,
+      'ITEM: tq-x-beige | XXL | 1',
+      'ITEM: tq-y-beige | Free | 2',
+      'NAME: Asha Kaur',
+      'PHONE: 9876543210',
+      'ADDRESS: House 12, Sector 3 - Pakhowal Road',
+      'LANDMARK: Near the gurdwara',
+      'ITEMS TOTAL (without delivery): ₹2,589',
+      '----- END O4U ORDER -----'
+    ].join('\n');
+    ok('5 two-item order: message ENDS with the exact block (sizes as in stockroom.json, one ITEM per bag line, in bag order)', two.endsWith('\n' + expectedBlock), two.slice(-420));
+    ok('5 block check = o4uCheck(base, items) and the top Ref is the same code', two.includes(`Ref: ${base}-${check}`) && (two.match(/^CODE: /gm) || []).length === 1);
+    const blockText = two.slice(two.indexOf("----- O4U ORDER"));
+    ok('5 no other price or discount inside the block', (blockText.match(/₹/g) || []).length === 1 && !/discount/i.test(blockText));
+    ok('5 details are one line each, block markers cannot be injected', (two.match(/----- O4U ORDER/g) || []).length === 1 && (two.match(/----- END O4U ORDER/g) || []).length === 1);
+    ok('5 free text above the block still carries name, article, colour, size, qty, price', two.includes('Test Set tq-x-beige') && two.includes('Article: TQ-X-BEIGE · Beige') && two.includes('Size: 2XL · Qty: 1 · ₹1,689') && two.includes('Free Size · Qty: 2 · ₹900'));
+    ok('5 ₹2,589 ≥ ₹2,000 → delivery line is free', /^Delivery: free/m.test(two));
+    const noLm = decode(orderUrl(cart, base, new Date(), { ...who, landmark: '  ' })).text;
+    ok('5 LANDMARK line is left out when blank', !/^LANDMARK:/m.test(noLm) && /^ADDRESS: .*\nITEMS TOTAL/m.test(noLm));
+    // phone + required fields
+    const errs = d => Object.keys(detailsErrors(d)).sort().join(',');
+    ok('5 phone: +91 / 0 prefixes and spaces accepted; anything but 10 digits refused',
+       normPhone('+91 98765 43210') === '9876543210' && normPhone('098765 43210') === '9876543210' &&
+       errs({ name: 'Asha', phone: '98765', address: 'House 12, Sector 3' }) === 'phone' &&
+       errs({ name: 'Asha', phone: '98765432101', address: 'House 12, Sector 3' }) === 'phone' &&
+       errs({ name: '', phone: '', address: '', landmark: '' }) === 'address,name,phone' &&
+       errs({ name: 'Asha', phone: '9876543210', address: 'House 12, Sector 3', landmark: '' }) === '');
+    // long order: 15 long-named items → the block is never cut
+    clearCart();
+    for (let i = 0; i < 15; i++) addToCart(mk5(`tq-long-${i}-black-pink-geometric-satin`, 1589, { XL: 'XL' }), 'Beige', 'XL', 1 + (i % 3));
+    const longUrl = orderUrl(cart, base, new Date(), who), longMsg = decode(longUrl).text;
+    ok('5 long order (15 items): URL within the limit, block complete with 15 ITEM lines',
+       longUrl.length <= WA_URL_LIMIT + 60 && (longMsg.match(/^ITEM: /gm) || []).length === 15 && longMsg.endsWith('----- END O4U ORDER -----'), `url ${longUrl.length} chars`);
+    // copy fallback = the same text, same code until the bag changes
+    let copied = null;
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: async t => { copied = t; } }, configurable: true });
+    Object.assign(details, who);
+    lastOrder = null; await copyOrderDetails(null);
+    const firstCode = (copied || '').match(/^CODE: (.*)$/m);
+    await copyOrderDetails(null);
+    const sameCode = (copied || '').match(/^CODE: (.*)$/m);
+    ok('5 "Copy order details" copies the full message with the block, same code on repeat',
+       !!firstCode && copied === orderMessageFor(cart, lastOrder.base, lastOrder.when) && firstCode[1] === sameCode[1]);
+    addToCart(pa, 'Beige', '2XL', 1); await copyOrderDetails(null);
+    ok('5 a changed bag gets a new code', (copied.match(/^CODE: (.*)$/m) || [])[1] !== firstCode[1]);
+    // Send refuses to open WhatsApp until the details are complete
+    try { localStorage.setItem(POLICY_KEY, new Date().toISOString()); } catch (e) {}
+    Object.assign(details, { name: '', phone: '123', address: '', landmark: '' });
+    opened = null; sendWhatsApp();
+    ok('5 Send with missing details opens nothing and shows the field messages',
+       opened === null && document.getElementById('ePhone').textContent.length > 0 && document.getElementById('dName').getAttribute('aria-invalid') === 'true');
+    Object.assign(details, who); opened = null; sendWhatsApp();
+    const sent = opened ? decode(opened) : null;
+    ok('5 Send with complete details builds the wa.me URL with the block (stubbed - nothing is sent)',
+       !!sent && sent.text.includes('PHONE: 9876543210') && sent.text.endsWith('----- END O4U ORDER -----'));
+    document.getElementById('cartSent').classList.remove('show'); showDetailsErrors({});
   } finally {
     window.open = origOpen;
     Object.assign(OFFER, saveOfferAll);
+    Object.assign(details, saveDetails); lastOrder = null;
+    try { if (savePolicy === null) localStorage.removeItem(POLICY_KEY); else localStorage.setItem(POLICY_KEY, savePolicy); } catch (e) {}
+    if (origClipboard) Object.defineProperty(navigator, 'clipboard', origClipboard); else delete navigator.clipboard;
     cart = savedCart; if (savedStorage === null) localStorage.removeItem('o4u_cart_v1'); else localStorage.setItem('o4u_cart_v1', savedStorage);
     cart = loadCart(); renderCart();
   }
