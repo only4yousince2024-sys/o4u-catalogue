@@ -58,7 +58,7 @@ PREFERRED_SHEET = "Stock Inventory"
 REVIEWS_SHEET = "Reviews"          # optional; absent → REVIEWS = [] with a warning
 
 # ── Vocabulary ───────────────────────────────────────────────────────────────
-SIZE_ORDER = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL", "FREE"]
+SIZE_ORDER = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL", "6XL", "7XL", "8XL", "FREE"]
 SIZE_ALIASES = {
     "XXS": "XS",
     "XXL": "2XL",
@@ -74,56 +74,53 @@ SIZE_RANK = {s: i for i, s in enumerate(SIZE_ORDER)}
 SIZE_RANK.update({SIZE_LABEL[k]: SIZE_RANK[k] for k in SIZE_LABEL})   # labels sort like their token
 size_sort_key = SIZE_RANK.__getitem__
 
+# Stockroom v43 category keys → labels. The old six keys (front-button,
+# round-neck, collar-neck, salwar-set, tshirt-lower, tshirt-shorts) are NOT
+# categories any more - the cut/set details now travel as `tags`.
 CATEGORIES = OrderedDict([
-    ("front-button", "Front Button Set"),
-    ("round-neck", "Round Neck"),
-    ("collar-neck", "Collar Neck"),
-    ("salwar-set", "Salwar Set"),
-    ("tshirt-lower", "T-Shirt / Lower"),
-    ("tshirt-shorts", "T-Shirt / Shorts"),
+    ("tshirts", "T-Shirts"),
+    ("tops", "Tops"),
+    ("shirts", "Shirts"),
+    ("lowers", "Lowers"),
+    ("trousers", "Trousers"),
+    ("jeans", "Jeans"),
+    ("nightsuits", "Night Suits"),
+    ("capris", "Capris"),
+    ("accessories", "Accessories"),
 ])
+LEGACY_CATEGORY_KEYS = {"front-button", "round-neck", "collar-neck", "salwar-set", "tshirt-lower", "tshirt-shorts"}
+
+# Stockroom v43 tags (search only - no tag filter chips). Unknown tag = build error.
+TAGS = ["front-button", "round-neck", "collar-neck", "satin", "t-lower", "t-shorts", "t-capri", "long-short-t", "salwar"]
 
 # Normalised workbook Description → category key. Unknown = build error.
+# Only descriptions that clearly belong to a v43 category are mapped. The old
+# archive descriptions (co-ord sets, kurtis, kurta sets, gym wear...) are left
+# unmapped on purpose: if such a row is ever published again, the build stops
+# and asks for a decision instead of guessing a category.
 CATEGORY_MAP = {
-    # Front Button Set
-    "cord set": "front-button",
-    "co-ord set": "front-button",
-    "coord set": "front-button",
-    "co-ord set (embroidered)": "front-button",
-    "premium co-ord set": "front-button",
-    "premium co-ord set (cotton)": "front-button",
-    "cotton lycra premium co-ord set": "front-button",
-    "rayon co-ord set": "front-button",
-    "rayon co-ord set / capri suit": "front-button",
-    "premium lounge wear button-up combo": "front-button",
-    # Round Neck
-    "night suit": "round-neck",
-    "capri night suit": "round-neck",
-    "premium lounge wear": "round-neck",
-    # Collar Neck
-    "short kurti": "collar-neck",
-    "long kurti": "collar-neck",
-    "premium kurti": "collar-neck",
-    "denim short kurti": "collar-neck",
-    "denim long kurti": "collar-neck",
-    # Salwar Set
-    "kurta salwar": "salwar-set",
-    "kurta set": "salwar-set",
-    "long kurta set": "salwar-set",
-    "kurta plazzo": "salwar-set",
-    "kurta palazzo": "salwar-set",
-    "afgaan suit": "salwar-set",
-    "afgani suit": "salwar-set",
-    "affgani suit": "salwar-set",
-    "afghani suit": "salwar-set",
-    # T-Shirt / Lower
-    "premium lounge wear (t+pants)": "tshirt-lower",
-    "t-shirt / lower": "tshirt-lower",
-    "tshirt lower": "tshirt-lower",
-    # T-Shirt / Shorts
-    "gym wear": "tshirt-shorts",
-    "t-shirt / shorts": "tshirt-shorts",
-    "tshirt shorts": "tshirt-shorts",
+    "night suit": "nightsuits",
+    "night suits": "nightsuits",
+    "nightsuit": "nightsuits",
+    "satin nightsuit": "nightsuits",
+    "satin night suit": "nightsuits",
+    "t-shirt": "tshirts",
+    "t-shirts": "tshirts",
+    "tshirt": "tshirts",
+    "tshirts": "tshirts",
+    "top": "tops",
+    "tops": "tops",
+    "shirt": "shirts",
+    "shirts": "shirts",
+    "lower": "lowers",
+    "lowers": "lowers",
+    "trouser": "trousers",
+    "trousers": "trousers",
+    "jeans": "jeans",
+    "capri": "capris",
+    "capris": "capris",
+    "accessory": "accessories",
+    "accessories": "accessories",
 }
 
 BRAND_MAP = {
@@ -690,6 +687,8 @@ def build_products(rows: list[dict], colmap: dict[str, int], images_dir: Path, d
             "description": description,
             "colors": [colour] if colour else [],
             "sizes": sizes_list,
+            "sizeCodes": {},      # workbook rows have no Stockroom size codes; the site uses the label
+            "tags": [],
             "price": price,
             "mrp": mrp_out,
             "sizePrices": size_prices,
@@ -753,8 +752,33 @@ def read_stockroom(path: Path, images_dir: Path, diag: Diag) -> list[dict]:
         seen.add(pid)
 
         category = clean_str(it.get("category"))
+        if category in LEGACY_CATEGORY_KEYS:
+            diag.error(f"{where}: category {category!r} is a pre-v43 key - re-export from Stockroom v43 "
+                       f"(categories are now {', '.join(CATEGORIES)}; {category!r} travels as a tag)")
+            continue
         if category not in CATEGORIES:
             diag.error(f"{where}: unknown category {category!r} — must be one of {', '.join(CATEGORIES)}")
+            continue
+
+        # Tags: optional list (older exports have none). Search only. Unknown = error.
+        raw_tags = it.get("tags")
+        if raw_tags is None:
+            raw_tags = []
+        if not isinstance(raw_tags, list):
+            diag.error(f"{where}: tags must be a list, got {type(raw_tags).__name__}")
+            continue
+        tags = []
+        bad_tags = []
+        for t in raw_tags:
+            t = clean_str(t)
+            if not t:
+                continue
+            if t not in TAGS:
+                bad_tags.append(t)
+            elif t not in tags:
+                tags.append(t)
+        if bad_tags:
+            diag.error(f"{where}: unknown tag(s) {bad_tags} — must be from {', '.join(TAGS)}")
             continue
 
         ptype = clean_str(it.get("type")) or clean_str(it.get("description")) or ""
@@ -766,11 +790,14 @@ def read_stockroom(path: Path, images_dir: Path, diag: Diag) -> list[dict]:
         # Sizes + per-size MRP -------------------------------------------
         size_entries = it.get("sizes") or []
         size_mrp: dict[str, int] = {}
+        size_codes: dict[str, str] = {}     # display label → size EXACTLY as written in stockroom.json
         for se in size_entries:
             raw = se.get("size") if isinstance(se, dict) else se
             labels = parse_sizes(raw, f"{where} size", diag)
             mrp = _num(se.get("mrp")) if isinstance(se, dict) else None
             for lab in labels:
+                if len(labels) == 1:
+                    size_codes.setdefault(lab, str(raw).strip())
                 if mrp is not None and mrp > 0:
                     size_mrp.setdefault(lab, mrp)
                 else:
@@ -815,6 +842,10 @@ def read_stockroom(path: Path, images_dir: Path, diag: Diag) -> list[dict]:
             if not f:
                 continue
             f = f.replace("\\", "/").split("/")[-1]
+            # Public output: website photos only - never tag/raw shots or asset ids.
+            if re.search(r"__(tag|src)\b", f, re.I) or Path(f).suffix.lower() not in IMAGE_EXTS:
+                diag.warn(f"{where}: image {f!r} skipped - not a website photo (tag/raw shot or asset id)")
+                continue
             if images_dir.is_dir() and not (images_dir / f).is_file():
                 diag.warn(f"{where}: image file missing: images/{f}")
             images.append(f"images/{f}")
@@ -847,6 +878,8 @@ def read_stockroom(path: Path, images_dir: Path, diag: Diag) -> list[dict]:
             "description": description,
             "colors": [colour] if colour else [],
             "sizes": sizes_list,
+            "sizeCodes": {lab: size_codes.get(lab, lab) for lab in sizes_list},
+            "tags": tags,
             "price": price,
             "mrp": mrp_out,
             "sizePrices": size_prices,

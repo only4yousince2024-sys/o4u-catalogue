@@ -32,7 +32,7 @@ data; `admin.html` is a read-only preview.
 ```
 python scripts/build_catalogue.py            # root workbook → website/products.js
 python scripts/build_catalogue.py --workbook path/to/other.xlsx --out ... --images-dir ...
-python scripts/test_build_catalogue.py       # 25 self-checks, no pytest needed
+python scripts/test_build_catalogue.py       # 28 self-checks, no pytest needed
 python scripts/run_cart_tests.py             # 59 cart/threshold/WhatsApp-message checks, headless Chrome/Edge
 sync.bat                                     # owner's one step: build → commit → push (stops on a failed build)
 scripts/cart_tests.js                        # the same 59 checks; can also be pasted into the browser console (F12)
@@ -77,14 +77,26 @@ shop's own non-branded items: a blank brand is expected (no warning) and
 ## stockroom.json (optional, wins over the workbook)
 
 ```
-{ "exportedAt": "...", "products": [ { id, article, brand, category, type, colour,
+{ "exportedAt": "...", "products": [ { id, article, brand, category, tags, type, colour,
   features, sizes:[{size, mrp, barcode}], stock:{size: qty}, inStock, offerPrice,
   notes, images:[filenames] } ] }
 ```
 
+Stockroom **v43** format (14 Oct 2026): `category` is one of the nine keys
+below; the old six (`front-button` … `tshirt-shorts`) are a build ERROR
+("pre-v43 key - re-export"). `tags` is an optional list from `front-button,
+round-neck, collar-neck, satin, t-lower, t-shorts, t-capri, long-short-t,
+salwar` (unknown tag = error); tags feed search only, no tag chips. Sizes are
+`S M L XL XXL 3XL 4XL 5XL 6XL 7XL 8XL Free` (older `FREE`). `stock` omits
+0-piece sizes. Only `products` is read - never orders, customers or settings.
+Image names with `__tag` / `__src` or without a photo extension are skipped
+(warning): public output carries website photos only. Each product gets
+`sizeCodes` {label → size exactly as written in stockroom.json} for the
+WhatsApp ITEM lines.
+
 * Missing file → warning, build from the workbook alone. Never an error.
 * `id` must equal `slugify(article, colour)` — a mismatch is a build ERROR naming
-  both values. `category` must be one of the six KEYS (labels are an error here).
+  both values. `category` must be one of the nine KEYS (labels are an error here).
 * `sizes[].size` goes through `parse_sizes` (`Free` → `Free Size`); the lowest
   `mrp` is `price`, the rest go to `sizePrices` exactly like the workbook.
   `offerPrice` → `price = offerPrice, mrp = tag MRP`. `stockQty` = sum of
@@ -124,6 +136,8 @@ const PRODUCTS = [{
   description: "Cord Set in Min.Red by Melini.",
   colors: ["Min.Red"],                // [] when the colour is blank — never [""]
   sizes: ["M","L","XL","2XL"],        // canonical order, ranges expanded
+  sizeCodes: {"2XL": "XXL"},          // label → size exactly as in stockroom.json ({} for workbook rows)
+  tags: ["front-button", "satin"],    // Stockroom v43 tags, search only ([] when none)
   price: 1415, mrp: null,             // mrp only when an Offer Price exists (strike-through)
   sizePrices: {},                     // {"3XL": 649} when MRP differs by size; price = lowest
   images: ["images/cs250a-min-red.jpg", "images/cs250a-min-red-2.jpg"],
@@ -142,19 +156,25 @@ discount.
 
 | Key | Label |
 |---|---|
-| `front-button` | Front Button Set |
-| `round-neck` | Round Neck |
-| `collar-neck` | Collar Neck |
-| `salwar-set` | Salwar Set |
-| `tshirt-lower` | T-Shirt / Lower |
-| `tshirt-shorts` | T-Shirt / Shorts |
+| `tshirts` | T-Shirts |
+| `tops` | Tops |
+| `shirts` | Shirts |
+| `lowers` | Lowers |
+| `trousers` | Trousers |
+| `jeans` | Jeans |
+| `nightsuits` | Night Suits |
+| `capris` | Capris |
+| `accessories` | Accessories |
 
-Workbook `Description` → key lives in `CATEGORY_MAP` in the build script.
-An unmapped description is a build error — add the mapping, never a default.
+Stockroom v43 keys (owner decision, 14 Oct 2026). Workbook `Description` → key
+lives in `CATEGORY_MAP`; only descriptions that clearly fit a v43 category are
+mapped. Old archive descriptions (co-ord sets, kurtis, kurta sets, gym wear)
+are deliberately unmapped: an unmapped description is a build error — the
+owner decides the category, never a default.
 
 ## Sizes
 
-Vocabulary and order: `XS S M L XL 2XL 3XL 4XL 5XL Free Size`. `XXL` → `2XL`,
+Vocabulary and order: `XS S M L XL 2XL 3XL 4XL 5XL 6XL 7XL 8XL Free Size`. `XXL` → `2XL`,
 `XXXL` → `3XL`; `Free Size` / `FREESIZE` / `One Size` / `FREE` → `Free Size`
 (emitted with that exact label). **`FS` is NOT free size** - on Sweet Pini tags
 it means full sleeves - so it is an error, never an alias. The frontend writes
