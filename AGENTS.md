@@ -295,12 +295,18 @@ which is the opposite of the trust the section is meant to build.
   Collection, Add to bag, Filter, Help). WhatsApp green (`.glass`) = ONLY
   buttons that actually open WhatsApp. A green button that doesn't open
   WhatsApp, or an orange one that does, is a bug.
-* Product modal ends with "More from the collection": up to 8 RANDOM
-  published products (never the open one), reshuffled on every open. No
-  category/price/similarity logic and never "Recommended for you" - there is
-  no personalisation. Tapping one swaps the modal content in place
-  (`openModal` while open): gallery back to image 1, size cleared, qty 1,
-  scroll to top, row reshuffled, bag untouched.
+* Product modal ends with "More like this": products in the SAME CATEGORY
+  or by the SAME NAMED BRAND (a blank brand never matches), at most five,
+  available ones first, never the open one, no price rule. Never "Recommended
+  for you" - there is no personalisation. Tapping one swaps the modal content
+  in place (`openModal` while open): gallery back to image 1, size cleared,
+  qty 1, scroll to top, row rebuilt, bag untouched.
+* Search (catalogue, above the chips; never a `.reveal` element): name, brand,
+  category, colour, Stockroom tags and article, accent-insensitive, every word
+  must match. It combines with the chips and the Filter sheet; "Clear all"
+  and "Clear filters" also clear it. Memory only.
+* Brand label: small, under the product name on cards and in the product
+  view, from real brand data; a blank brand shows nothing.
 * Filter (hero, under Browse Collection): "Available in size" (sizes a
   product is MADE in - never live stock), price buckets (only those with
   products), sort Newest (= catalogue order, no date field) / price. It
