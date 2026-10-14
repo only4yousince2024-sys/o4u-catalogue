@@ -300,10 +300,16 @@ which is the opposite of the trust the section is meant to build.
   card "Add to bag" -> modal "Add to bag" -> bag "Send order request on WhatsApp".
 * Language: "bag" = the container the customer fills; "order" = the request
   sent to WhatsApp. The WhatsApp message itself still says ORDER REQUEST.
-* Colour rule: `--cta` (#EA580C, flat, no gradient) = O4U actions (Browse
-  Collection, Add to bag, Filter, Help). WhatsApp green (`.glass`) = ONLY
-  buttons that actually open WhatsApp. A green button that doesn't open
-  WhatsApp, or an orange one that does, is a bug.
+* Colour rule: orange = O4U actions (Browse Collection, Add to bag, Filter,
+  Help); WhatsApp green (`.glass`) = ONLY buttons that actually open
+  WhatsApp. A green button that doesn't open WhatsApp, or an orange one that
+  does, is a bug. Orange buttons are frosted glass (owner request 14 Oct):
+  tint `rgba(189,62,11,0.90)`, blur 10px, white edge + top highlight, white
+  text >= 4.6:1 over white/page/cream. Solid `#C2410C` without
+  backdrop-filter support, under prefers-reduced-transparency, and on
+  low-end phones (`.lite-fx`: deviceMemory <= 2 or <= 4 cores). Card buttons
+  blur only while `.in-view`. Don't lower the tint opacity without
+  re-measuring contrast.
 * Product modal ends with "More like this": products in the SAME CATEGORY
   or by the SAME NAMED BRAND (a blank brand never matches), at most five,
   available ones first, never the open one, no price rule. Never "Recommended

@@ -24,6 +24,11 @@
   <script src="products.js"></script>
   <!-- WhatsApp number, free-delivery threshold, help topics and ALL policy wording: config.js -->
   <script src="config.js"></script>
+  <script>
+    // Low-end phones: solid buttons instead of blur, so scrolling stays smooth.
+    try { if ((navigator.deviceMemory && navigator.deviceMemory <= 2) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4))
+      document.documentElement.classList.add('lite-fx'); } catch (e) { /* keep the glass */ }
+  </script>
 
   <!--
     Images live in website/images/. Product photos are named from the Product ID
@@ -44,7 +49,7 @@
       --gray:     #7A746C;
       --light:    #D8D4CC;
       --green:    #25D366;
-      --cta:        #EA580C;   /* primary fill: O4U actions (Browse, Add to bag, Filter) */
+      --cta:        #EA580C;   /* O4U orange accents (focus rings, badges, outline edge); buttons use the glass tint */
       --cta-hover:  #C2410C;   /* hover / active */
     }
 
@@ -964,30 +969,57 @@
     .modal-wa-btn svg { width: 18px; height: 18px; }
     .modal-wa-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
-    /* ══ CTA — flat saturated orange for O4U actions. WhatsApp green is ONLY for
-       buttons that actually open WhatsApp (.glass). No gradient on purpose. ══ */
+    /* ══ CTA — frosted orange glass for O4U actions. WhatsApp green (.glass) is ONLY for
+       buttons that actually open WhatsApp.
+       Tint rgba(189,62,11,0.90): white text stays >= 4.6:1 even over white, the page
+       colour or the cream photo backdrop (flat #EA580C was 3.56:1). Blur 10px, a thin
+       white edge and a top highlight line - no pale gradient wash.
+       Solid #C2410C (5.18:1) where blur is unsupported, transparency is reduced, or
+       the phone is low-end (.lite-fx, set in <head>). Card buttons blur only on screen. ══ */
     .btn-cta {
-      background: var(--cta); color: #fff; border: none;
-      box-shadow: 0 2px 8px rgba(234, 88, 12, 0.28);
+      background: rgba(189, 62, 11, 0.90); color: #fff;
+      -webkit-backdrop-filter: blur(10px) saturate(160%);
+      backdrop-filter: blur(10px) saturate(160%);
+      border: 1px solid rgba(255, 255, 255, 0.38);
+      box-shadow: 0 4px 14px rgba(189, 62, 11, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.42);
+      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.18);
       font-size: 15px; font-weight: 600;
       transition: background 0.15s, transform 0.15s;
     }
-    .btn-cta:hover, .btn-cta:active { background: var(--cta-hover); }
+    .btn-cta:hover, .btn-cta:active { background: rgba(160, 52, 9, 0.92); }
     .btn-cta:focus-visible { outline-color: var(--black); }
     .btn-cta svg { display: block; }   /* icon sits on the label's line box, not the baseline gap */
-    /* secondary: same orange family, outline — never competes with the primary */
+    /* secondary: frosted white with the orange edge — never competes with the primary */
     .btn-cta-outline {
-      background: var(--white); color: var(--cta-hover); border: 1.5px solid var(--cta);
+      background: rgba(255, 255, 255, 0.62); color: var(--cta-hover);
+      -webkit-backdrop-filter: blur(10px) saturate(140%);
+      backdrop-filter: blur(10px) saturate(140%);
+      border: 1.5px solid rgba(234, 88, 12, 0.75);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75), 0 2px 10px rgba(0, 0, 0, 0.05);
       transition: background 0.15s, color 0.15s;
     }
-    .btn-cta-outline:hover { background: var(--cta); color: #fff; }
+    .btn-cta-outline:hover { background: rgba(189, 62, 11, 0.90); color: #fff; }
+    /* card buttons: blur only while the card is on screen (keeps scrolling smooth) */
+    .pcard .btn-cta { -webkit-backdrop-filter: none; backdrop-filter: none; }
+    .pcard.in-view .btn-cta { -webkit-backdrop-filter: blur(10px) saturate(160%); backdrop-filter: blur(10px) saturate(160%); }
+    /* solid fallbacks */
+    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+      .btn-cta, .pcard.in-view .btn-cta { background: #C2410C; }
+      .btn-cta-outline { background: var(--white); }
+    }
+    @media (prefers-reduced-transparency: reduce) {
+      .btn-cta, .pcard.in-view .btn-cta { background: #C2410C; -webkit-backdrop-filter: none; backdrop-filter: none; }
+      .btn-cta-outline { background: var(--white); -webkit-backdrop-filter: none; backdrop-filter: none; }
+    }
+    .lite-fx .btn-cta, .lite-fx .pcard.in-view .btn-cta { background: #C2410C; -webkit-backdrop-filter: none; backdrop-filter: none; }
+    .lite-fx .btn-cta-outline { background: var(--white); -webkit-backdrop-filter: none; backdrop-filter: none; }
     .btn-hero {
       display: inline-flex; align-items: center; justify-content: center; gap: 8px;
       text-decoration: none; cursor: pointer; letter-spacing: 0.3px;
       padding: 14px 30px; border-radius: 50px; font-family: 'Nunito', sans-serif;
     }
     .btn-hero:hover { transform: translateY(-2px); }
-    .btn-hero.btn-cta { border: 1.5px solid transparent; }   /* same height as the outline button */
+    .btn-hero.btn-cta { border: 1.5px solid rgba(255, 255, 255, 0.38); }   /* same height as the outline button */
 
     .modal-note { text-align: center; font-size: 0.7rem; color: var(--gray); margin-top: 10px; }
     .size-hint { font-size: 0.72rem; color: var(--orange); font-weight: 600; margin: -12px 0 16px; display: none; }
