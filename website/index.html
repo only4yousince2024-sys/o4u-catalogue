@@ -1146,6 +1146,8 @@
     }
     .cart-head h3 { font-family: 'Playfair Display', serif; font-style: italic; font-size: 1.35rem; font-weight: 600; }
     .cart-head .modal-close { position: static; }
+    /* the bag scrolls as one column, so its title and ✕ stay pinned at the top */
+    .cart-head { position: sticky; top: 0; z-index: 2; background: var(--white); }
     .cart-lines { flex: 1; overflow-y: auto; padding: 8px 22px; }
     /* The bag scrolls as ONE column: items, totals, delivery note, your details, Send.
        (A pinned footer this tall would squeeze the items out of view on phones.) */

@@ -212,6 +212,31 @@
     ok('5 Send with complete details builds the wa.me URL with the block (stubbed - nothing is sent)',
        !!sent && sent.text.includes('PHONE: 9876543210') && sent.text.endsWith('----- END O4U ORDER -----'));
     document.getElementById('cartSent').classList.remove('show'); showDetailsErrors({});
+
+    // ── 6. REAL PRODUCT VIEW: choose a product and size, per-size prices, images ──
+    clearCart();
+    const sp = P.find(x => x.sizePrices && Object.keys(x.sizePrices).length && isAvailable(x));
+    if (sp) {
+      const [dearSize, dearPrice] = Object.entries(sp.sizePrices)[0];
+      openModal(sp.id);
+      addCurrentToCart();                                           // no size chosen yet
+      ok('6 Add to bag without a size adds nothing and shows the size hint', cart.length === 0 && document.getElementById('sizeHint').classList.contains('show'));
+      const btn = [...document.querySelectorAll('#sizeGrid .size-btn')].find(b => b.textContent === dearSize);
+      btn.click();
+      ok(`6 choosing ${dearSize} shows its own price ₹${fmt(dearPrice)} in the product view`, document.getElementById('modalPrice').textContent.includes('₹' + fmt(dearPrice)));
+      addCurrentToCart();
+      const line = cart[0];
+      ok(`6 the bag line carries the size price ₹${fmt(dearPrice)}, not the "From" price ₹${fmt(sp.price)}`, cart.length === 1 && line.size === dearSize && line.price === dearPrice && document.getElementById('cartTotal').textContent === '₹' + fmt(dearPrice));
+      const m6 = decode(orderUrl(cart, 'W1410-TEST', new Date(), who)).text;
+      ok('6 the message shows the same size price and the Stockroom size code', m6.includes(`Size: ${dearSize} · Qty: 1 · ₹${fmt(dearPrice)}`) && m6.includes(`ITEM: ${sp.id} | ${lineSizeCode(line)} | 1`) && m6.includes(`ITEMS TOTAL (without delivery): ₹${fmt(dearPrice)}`));
+      updateLineQty(line.key, 2);
+      ok('6 editing the bag (qty 1 → 3) recalculates the bag and the message', cart[0].quantity === 3 && document.getElementById('cartTotal').textContent === '₹' + fmt(dearPrice * 3) && decode(orderUrl(cart, 'W1410-TEST', new Date(), who)).text.includes(`ITEM: ${sp.id} | ${lineSizeCode(line)} | 3`));
+      closeModal(); closeCart();
+    } else ok('6 a product with per-size prices exists in the catalogue', false);
+    const imgs = [...new Set(P.flatMap(x => x.images || []))];
+    const badImgs = [];
+    await Promise.all(imgs.map(src => new Promise(res => { const im = new Image(); im.onload = () => { if (!im.naturalWidth) badImgs.push(src); res(); }; im.onerror = () => { badImgs.push(src); res(); }; im.src = src; })));
+    ok(`6 every product image loads (${imgs.length} files)`, imgs.length > 0 && badImgs.length === 0, badImgs.slice(0, 5).join(', '));
   } finally {
     window.open = origOpen;
     Object.assign(OFFER, saveOfferAll);
