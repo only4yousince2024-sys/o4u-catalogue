@@ -181,7 +181,7 @@
       align-items: center;
       justify-content: flex-end;
       padding: 120px 60px 80px;
-      background: url('images/hero-main.jpg') left center / cover no-repeat;
+      background: url('images/hero-desktop.jpg') left center / cover no-repeat;
       position: relative;
       overflow: hidden;
     }
@@ -1718,7 +1718,7 @@
       #hero { position: relative; min-height: 100svh; padding: 0; justify-content: flex-end; }
       .hero-mob-img {
         position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
-        object-fit: cover; object-position: 52% 30%;
+        object-fit: cover; object-position: 57% 18%;
         -webkit-mask-image: none; mask-image: none;
         filter: brightness(1.07) saturate(1.04);
       }
@@ -1899,6 +1899,10 @@
       .cart-head h3, .help h3, .policy h3 { font-family: Georgia, "Times New Roman", serif; font-style: normal; font-weight: 400; }
       .cart-line-name { font-family: inherit; font-style: normal; font-size: 15px; font-weight: 600; }
     }
+    /* tablets held upright: slide the hero photo so she sits left of the text */
+    @media (min-width: 641px) and (max-width: 1100px) and (orientation: portrait) {
+      #hero { background-position: 46% center; }
+    }
 </style>
 </head>
 <body>
@@ -1937,7 +1941,7 @@
   <!-- Mobile-only image block — shows image at top, face visible, no zoom issues -->
   <!-- Two owner-supplied crops (hero-desktop.jpg 16:9, hero-mobile.jpg 3:4) will replace this
        via <picture> once they exist in website/images/ - never a generated substitute. -->
-  <img class="hero-mob-img" src="images/hero-main.jpg" alt="Woman in a navy floral satin night suit, sitting on a cream sofa at home" fetchpriority="high"/>
+  <img class="hero-mob-img" src="images/hero-mobile.jpg" alt="Woman in a lavender floral cotton night suit, smiling with eyes closed, sitting on a bed in a sunlit room" fetchpriority="high"/>
 
   <div class="hero-content reveal">
     <div class="hero-tag">Pakhowal Road · Ludhiana</div>
@@ -1961,7 +1965,7 @@
   <!-- Hero images -->
   <div class="hero-visual">
     <div class="hero-main-card">
-      <img src="images/hero-main.jpg" alt="Woman in a navy floral satin night suit, sitting on a cream sofa at home"/>
+      <img src="images/hero-mobile.jpg" alt="Woman in a lavender floral cotton night suit, smiling with eyes closed, sitting on a bed in a sunlit room"/>
     </div>
   </div>
 
