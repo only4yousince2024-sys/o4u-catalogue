@@ -25,8 +25,8 @@
   <!-- WhatsApp number, free-delivery threshold, help topics and ALL policy wording: config.js -->
   <script src="config.js"></script>
   <script>
-    // Low-end phones: solid buttons instead of blur, so scrolling stays smooth.
-    try { if ((navigator.deviceMemory && navigator.deviceMemory <= 2) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4))
+    // Low-end phones (2 GB or less): glass keeps its look but drops the live blur, so scrolling stays smooth.
+    try { if (navigator.deviceMemory && navigator.deviceMemory <= 2)
       document.documentElement.classList.add('lite-fx'); } catch (e) { /* keep the glass */ }
   </script>
 
@@ -1541,7 +1541,99 @@
       .pcard-ph { font-size: 0.58rem; letter-spacing: 1px; gap: 6px; }
       .pcard-ph svg { width: 28px; height: 28px; }
     }
-  </style>
+  
+    /* ══ LIQUID GLASS v2 — the look every O4U control shares ══════════════════
+       Glass = a tinted body + a specular sheen on the top half + a bright rim +
+       live blur of whatever is behind. The sheen sits ABOVE the label line, so
+       the label always reads on the deeper tint (white on orange >= 4.5:1).
+       Only the blur costs performance; .lite-fx keeps the look without it. */
+    .btn-hero, .modal-add-btn { position: relative; }
+    .btn-cta, .btn-cta-outline, .filter-btn, .hero-tag { isolation: isolate; }
+    .btn-cta::before, .btn-cta-outline::before, .filter-btn::before, .hero-tag::before {
+      content: ''; position: absolute; left: 1px; right: 1px; top: 1px; height: 46%;
+      border-radius: inherit; border-bottom-left-radius: 40% 60%; border-bottom-right-radius: 40% 60%;
+      background: linear-gradient(to bottom, rgba(255,255,255,0.46), rgba(255,255,255,0.06));
+      pointer-events: none; z-index: -1;
+    }
+    /* primary: orange glass */
+    .btn-cta, .pcard .btn-cta, .pcard.in-view .btn-cta {
+      background: linear-gradient(to bottom, rgba(205, 74, 16, 0.86), rgba(158, 47, 6, 0.92));
+      -webkit-backdrop-filter: blur(18px) saturate(180%);
+      backdrop-filter: blur(18px) saturate(180%);
+      border: 1px solid rgba(255, 214, 190, 0.70);
+      box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.70),
+        inset 0 -3px 8px rgba(90, 25, 0, 0.30),
+        0 10px 26px rgba(158, 47, 6, 0.30),
+        0 1px 2px rgba(0, 0, 0, 0.10);
+      color: #fff; text-shadow: 0 1px 1px rgba(60, 16, 0, 0.35);
+    }
+    .pcard .btn-cta { -webkit-backdrop-filter: none; backdrop-filter: none; }   /* cards blur only on screen */
+    .btn-cta:hover, .btn-cta:active { background: linear-gradient(to bottom, rgba(186, 64, 12, 0.90), rgba(140, 40, 4, 0.94)); }
+    .btn-cta:active { transform: scale(0.98); }
+    /* secondary: clear glass with an orange label */
+    .btn-cta-outline {
+      background: linear-gradient(to bottom, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.38));
+      -webkit-backdrop-filter: blur(18px) saturate(180%);
+      backdrop-filter: blur(18px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.85);
+      box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.95),
+        inset 0 0 0 1px rgba(194, 65, 12, 0.28),
+        0 8px 22px rgba(60, 40, 20, 0.10);
+      color: #B23A0A;
+    }
+    .btn-cta-outline:hover { background: linear-gradient(to bottom, rgba(205, 74, 16, 0.86), rgba(158, 47, 6, 0.92)); color: #fff; }
+    /* category chips: clear glass; the chosen one is dark glass */
+    .filter-btn {
+      background: linear-gradient(to bottom, rgba(255, 255, 255, 0.70), rgba(255, 255, 255, 0.40));
+      -webkit-backdrop-filter: blur(14px) saturate(170%);
+      backdrop-filter: blur(14px) saturate(170%);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.95), 0 4px 14px rgba(60, 40, 20, 0.08);
+      color: #4A453F;
+    }
+    .filter-btn.active, .filter-btn:hover {
+      background: linear-gradient(to bottom, rgba(40, 38, 35, 0.86), rgba(12, 12, 11, 0.92));
+      border-color: rgba(255, 255, 255, 0.35); color: #fff;
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35), 0 6px 16px rgba(0, 0, 0, 0.18);
+    }
+    .filter-btn.active::before, .filter-btn:hover::before { background: linear-gradient(to bottom, rgba(255,255,255,0.22), rgba(255,255,255,0)); }
+    /* label over the photo */
+    .hero-tag {
+      position: relative;
+      background: linear-gradient(to bottom, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.30));
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      backdrop-filter: blur(16px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.85);
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 6px 18px rgba(60, 40, 20, 0.12);
+    }
+    /* top bar: content blurs behind it as you scroll */
+    nav {
+      background: linear-gradient(to bottom, rgba(244, 241, 235, 0.72), rgba(237, 234, 227, 0.58));
+      -webkit-backdrop-filter: blur(22px) saturate(180%);
+      backdrop-filter: blur(22px) saturate(180%);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.65);
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06), 0 8px 24px rgba(60, 40, 20, 0.06);
+    }
+    /* low-end phones: same look, no live blur */
+    .lite-fx .btn-cta, .lite-fx .pcard.in-view .btn-cta, .lite-fx .btn-cta-outline, .lite-fx .filter-btn, .lite-fx .hero-tag {
+      -webkit-backdrop-filter: none; backdrop-filter: none; }
+    .lite-fx nav { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(240, 237, 231, 0.97); }
+    /* browsers without blur: keep the bar opaque enough to read */
+    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+      nav { background: rgba(240, 237, 231, 0.97); }
+      .btn-cta-outline, .filter-btn { background: rgba(255, 255, 255, 0.92); }
+    }
+    /* "Reduce transparency" switched on in the phone settings: solid, no glass */
+    @media (prefers-reduced-transparency: reduce) {
+      .btn-cta, .pcard .btn-cta, .pcard.in-view .btn-cta { background: #A8360A; -webkit-backdrop-filter: none; backdrop-filter: none; }
+      .btn-cta-outline, .filter-btn, .hero-tag { background: #fff; -webkit-backdrop-filter: none; backdrop-filter: none; }
+      .filter-btn.active { background: #111110; }
+      nav { background: #F0EDE7; -webkit-backdrop-filter: none; backdrop-filter: none; }
+      .btn-cta::before, .btn-cta-outline::before, .filter-btn::before, .hero-tag::before { display: none; }
+    }
+</style>
 </head>
 <body>
 
