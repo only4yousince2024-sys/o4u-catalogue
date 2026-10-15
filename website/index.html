@@ -1633,6 +1633,272 @@
       nav { background: #F0EDE7; -webkit-backdrop-filter: none; backdrop-filter: none; }
       .btn-cta::before, .btn-cta-outline::before, .filter-btn::before, .hero-tag::before { display: none; }
     }
+
+    /* ══ FROSTED v3 (15 Oct 2026, approved by Khush) — Samsung One UI style ══════════
+       Smooth frosted glass: heavy blur, thin light edge, no shine band.
+       Orange = the main action (lighter orange). Cream glass = secondary.
+       Overrides LIQUID GLASS v2 above; delete this block to go back. */
+    .btn-cta::before, .btn-cta-outline::before, .filter-btn::before, .hero-tag::before { display: none; }
+    .btn-hero, .modal-wa-btn, .filter-apply { border-radius: 18px; }
+    .wa-btn.btn-cta { border-radius: 14px; }
+    /* primary: lighter orange frosted glass */
+    .btn-cta, .pcard .btn-cta, .pcard.in-view .btn-cta {
+      background: linear-gradient(to bottom, rgba(242, 124, 48, 0.72), rgba(220, 96, 24, 0.84));
+      -webkit-backdrop-filter: blur(24px) saturate(140%);
+      backdrop-filter: blur(24px) saturate(140%);
+      border: none;
+      box-shadow: 0 10px 22px -12px rgba(226, 98, 28, 0.90);
+      color: #fff; text-shadow: 0 1px 2px rgba(90, 30, 0, 0.35);
+    }
+    .pcard .btn-cta { -webkit-backdrop-filter: none; backdrop-filter: none; }   /* cards blur only on screen */
+    .btn-cta:hover, .btn-cta:active { background: linear-gradient(to bottom, rgba(230, 110, 36, 0.80), rgba(204, 86, 18, 0.90)); }
+    /* secondary: cream frosted glass, dark text */
+    .btn-cta-outline {
+      background: rgba(255, 248, 240, 0.48);
+      -webkit-backdrop-filter: blur(24px) saturate(140%);
+      backdrop-filter: blur(24px) saturate(140%);
+      border: none;
+      box-shadow: 0 10px 22px -14px rgba(90, 50, 20, 0.40);
+      color: #3A2414;
+    }
+    .btn-cta-outline:hover { background: rgba(255, 248, 240, 0.70); color: #3A2414; }
+    /* category chips: cream glass; chosen = warm brown glass */
+    .filter-btn {
+      background: rgba(255, 248, 240, 0.45);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
+      backdrop-filter: blur(20px) saturate(140%);
+      border: none;
+      box-shadow: 0 6px 16px -10px rgba(90, 50, 20, 0.35);
+      color: #5E4A3B;
+    }
+    .filter-btn.active, .filter-btn:hover {
+      background: rgba(110, 60, 30, 0.62); color: #fff;
+      box-shadow: 0 6px 16px -8px rgba(110, 60, 30, 0.55);
+    }
+    .hero-tag {
+      background: rgba(255, 248, 240, 0.50);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
+      backdrop-filter: blur(20px) saturate(140%);
+      border: none;
+      box-shadow: 0 6px 18px -10px rgba(90, 50, 20, 0.30);
+    }
+    /* low-end phones / no blur / reduce transparency: same colours, solid */
+    .lite-fx .btn-cta, .lite-fx .pcard.in-view .btn-cta { background: #E06A22; }
+    .lite-fx .btn-cta-outline, .lite-fx .filter-btn, .lite-fx .hero-tag { background: rgba(255, 248, 240, 0.94); }
+    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+      .btn-cta, .pcard.in-view .btn-cta { background: #E06A22; }
+      .btn-cta-outline, .filter-btn, .hero-tag { background: rgba(255, 248, 240, 0.94); }
+    }
+    @media (prefers-reduced-transparency: reduce) {
+      .btn-cta, .pcard .btn-cta, .pcard.in-view .btn-cta { background: #C2560F; }
+      .filter-btn.active { background: #6E3C1E; }
+    }
+
+    /* ══ REDESIGN 1 · HOME (15 Oct 2026, approved concept) ══════════════════════
+       Brighter page; frosted top bar; on phones the hero photo fills the first
+       screen and the text + buttons sit in one frosted panel at the bottom.
+       Delete this block to go back. */
+    :root { --bg: #F8F4EE; --card: #FFFCF8; }
+    body { background: var(--bg); }
+    nav {
+      background: linear-gradient(to bottom, rgba(255, 252, 248, 0.78), rgba(255, 252, 248, 0.58));
+      -webkit-backdrop-filter: blur(22px) saturate(150%); backdrop-filter: blur(22px) saturate(150%);
+      border-bottom: none; box-shadow: 0 8px 24px -18px rgba(70, 35, 10, 0.35);
+    }
+    .lite-fx nav { background: rgba(255, 252, 248, 0.97); }
+    .btn-cta, .pcard .btn-cta, .pcard.in-view .btn-cta {
+      background: linear-gradient(to bottom, rgba(250, 142, 64, 0.82), rgba(236, 112, 36, 0.90));
+    }
+    .btn-cta:hover, .btn-cta:active { background: linear-gradient(to bottom, rgba(240, 128, 50, 0.88), rgba(224, 100, 26, 0.94)); }
+    .btn-cta-outline { background: rgba(255, 255, 255, 0.72); }
+    .filter-btn { background: rgba(255, 255, 255, 0.78); }
+    .filter-btn.active, .filter-btn:hover { background: #2A1C12; color: #fff; }
+    @media (max-width: 640px) {
+      nav { background: linear-gradient(to bottom, rgba(255, 252, 248, 0.72), rgba(255, 252, 248, 0.40)); box-shadow: none; }
+      #hero { position: relative; min-height: 100svh; padding: 0; justify-content: flex-end; }
+      .hero-mob-img {
+        position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
+        object-fit: cover; object-position: 52% 30%;
+        -webkit-mask-image: none; mask-image: none;
+        filter: brightness(1.07) saturate(1.04);
+      }
+      .hero-content {
+        position: relative; z-index: 1; margin: auto 12px 14px; padding: 20px 20px 18px; border-radius: 26px;
+        background: rgba(255, 252, 248, 0.66);
+        -webkit-backdrop-filter: blur(24px) saturate(140%); backdrop-filter: blur(24px) saturate(140%);
+        box-shadow: 0 14px 30px -18px rgba(70, 35, 10, 0.55);
+      }
+      .hero-tag {
+        background: none; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border: none;
+        padding: 0; margin: 0 0 8px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.2em; color: #B4521A;
+      }
+      .hero-title { font-size: clamp(2rem, 9.5vw, 2.5rem); line-height: 1.05; margin: 0 0 8px; }
+      .hero-sub { font-size: 0.92rem; line-height: 1.45; margin: 0 0 16px; color: #5D4C40; }
+      .hero-btns { flex-direction: row; gap: 10px; }
+      .hero-btns > * { flex: 1; min-width: 0; height: 52px; padding: 0 10px; font-size: 15px; white-space: nowrap; letter-spacing: 0; }
+      .hero-btns > .btn-cta { flex: 1.35; }
+      /* Help is already in the top bar on phones; the floating bubble would cover the hero buttons */
+      .float-help { display: none; }
+      .hero-btns .btn-cta-outline { background: rgba(255, 255, 255, 0.72); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+      .lite-fx .hero-content { background: rgba(255, 252, 248, 0.94); }
+    }
+    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+      @media (max-width: 640px) { .hero-content { background: rgba(255, 252, 248, 0.94); } }
+    }
+
+    /* ══ REDESIGN 2 · PRODUCT LIST + BAG BAR · REDESIGN 3 · PRODUCT VIEW (15 Oct 2026) ══
+       Phones only. Glass only where content scrolls under it. Delete this block to go back. */
+    .bag-bar { display: none; }
+    .glass, .modal-wa-btn.glass {
+      background: linear-gradient(to bottom, rgba(45, 205, 100, 0.86), rgba(28, 165, 78, 0.94));
+      color: #fff; border: none; box-shadow: 0 12px 24px -12px rgba(22, 150, 70, 0.85);
+    }
+    @media (max-width: 640px) {
+      /* list: search + chips stay pinned under the top bar; products blur behind them */
+      .search-wrap, .filter-bar {
+        position: sticky; z-index: 60; margin-left: -18px; margin-right: -18px; padding-left: 18px; padding-right: 18px;
+        background: rgba(255, 252, 248, 0.74);
+        -webkit-backdrop-filter: blur(22px) saturate(150%); backdrop-filter: blur(22px) saturate(150%);
+      }
+      .search-wrap { top: 60px; padding-top: 10px; padding-bottom: 4px; margin-bottom: 0; }
+      .search-label { display: none; }
+      .search-status:empty { display: none; }
+      .search-box { background: rgba(255, 255, 255, 0.85); border: none; box-shadow: none; border-radius: 14px; }
+      .filter-bar { top: 122px; padding-top: 8px; padding-bottom: 10px; margin-bottom: 14px; box-shadow: 0 10px 18px -16px rgba(70, 35, 10, 0.45); }
+      .filter-bar.reveal { opacity: 1; transform: none; }
+      .lite-fx .search-wrap, .lite-fx .filter-bar { background: rgba(255, 252, 248, 0.97); }
+      /* photo-first cards */
+      .pcard { background: none; box-shadow: none; border: none; border-radius: 0; overflow: visible; }
+      .pcard-img { border-radius: 18px; overflow: hidden; }
+      .pcard-body { padding: 9px 2px 0; }
+      .pcard-cat, .pcard-desc { display: none; }
+      .pcard-name { font-size: 0.92rem; line-height: 1.25; }
+      .wa-btn.btn-cta { right: 8px; bottom: 8px; left: auto; height: 36px; padding: 0 12px; font-size: 13px; border-radius: 12px; }
+      /* the bag bar replaces the round bag button on phones */
+      .float-cart, .float-cart.has-items { display: none; }
+      .bag-bar.show {
+        display: flex; position: fixed; z-index: 150; left: 12px; right: 12px; bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+        align-items: center; justify-content: space-between; gap: 10px; padding: 8px 8px 8px 16px; border-radius: 22px;
+        background: rgba(255, 252, 248, 0.74);
+        -webkit-backdrop-filter: blur(24px) saturate(150%); backdrop-filter: blur(24px) saturate(150%);
+        box-shadow: 0 14px 30px -16px rgba(70, 35, 10, 0.55);
+      }
+      .lite-fx .bag-bar.show { background: rgba(255, 252, 248, 0.97); }
+      body:has(.cart-overlay.open, .modal-overlay.open, .help-overlay.open, .policy-overlay.open, .filter-overlay.open, .gal-full.open) .bag-bar { display: none; }
+      .bag-bar-sum { min-width: 0; font-size: 12.5px; color: #5D4C40; line-height: 1.25; background: none; border: none; text-align: left; padding: 0; }
+      .bag-bar-sum b { display: block; font-size: 15px; color: #2A1C12; white-space: nowrap; }
+      .bag-bar-send { flex: none; display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 14px; border-radius: 15px; font-size: 14.5px; font-weight: 600; white-space: nowrap; }
+      .bag-bar-send svg { width: 18px; height: 18px; }
+      #catalogue { padding-bottom: 120px; }
+      .bag-toast { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+
+      /* product view: full photo, details in a frosted sheet that rises over it */
+      .modal { max-height: 100svh; height: 100svh; border-radius: 0; background: var(--bg); }
+      .modal-gallery { background: var(--cream); }
+      .gal-main { height: 60svh; }
+      .gal-main img { width: 100%; height: 100%; object-fit: cover; }
+      .gal-thumbs { display: none; }
+      .modal-info, .modal-body { position: relative; z-index: 2; background: rgba(255, 252, 248, 0.86);
+        -webkit-backdrop-filter: blur(24px) saturate(150%); backdrop-filter: blur(24px) saturate(150%); }
+      .modal-info { margin-top: -30px; border-radius: 28px 28px 0 0; padding: 26px 20px 10px; box-shadow: 0 -12px 28px -20px rgba(70, 35, 10, 0.5); }
+      .modal-info::before { content: ''; position: absolute; left: 50%; top: 10px; width: 40px; height: 4px; margin-left: -20px; border-radius: 3px; background: rgba(42, 28, 18, 0.18); }
+      .modal-body { padding: 6px 20px 28px; }
+      .modal-product-name { font-family: Georgia, 'Times New Roman', serif; font-weight: 400; font-size: 1.45rem; }
+      .modal-close { width: 40px; height: 40px; border-radius: 50%; border: none; background: rgba(255, 252, 248, 0.7);
+        -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); color: #2A1C12; box-shadow: 0 6px 16px -10px rgba(0,0,0,0.4); }
+      .modal-add-btn { height: 54px; border-radius: 17px; font-size: 16.5px; }
+      .lite-fx .modal-info, .lite-fx .modal-body { background: rgba(255, 252, 248, 0.98); }
+      .modal-top { border-bottom: none; }
+      .modal-info { border-bottom: none; }
+      /* Add to bag stays on screen while the sheet is read */
+      .modal-add-btn { position: sticky; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 3; }
+      .search-box { background: none; }
+      #productSearch { border: none; border-radius: 14px; background: rgba(255, 255, 255, 0.85); }
+      #productSearch:focus { box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.22); }
+    }
+    /* ══ FINAL FIXES (15 Oct 2026): small phones + photo counter ══ */
+    @media (max-width: 380px) {
+      .search-wrap, .filter-bar { margin-left: -12px; margin-right: -12px; padding-left: 12px; padding-right: 12px; }
+    }
+    @media (max-width: 640px) {
+      .modal-gallery .gal-count { bottom: 42px; }
+    }
+    /* ══ REDESIGN 4 · MATCH THE APPROVED CONCEPT (15 Oct 2026) — phones only ══ */
+    .nav-search, .modal-back, .modal-bag, .modal-perks { display: none; }
+    @media (max-width: 640px) {
+      body, button, input, select, textarea { font-family: -apple-system, "Segoe UI", Roboto, "Nunito", sans-serif; }
+      .btn-cta, .btn-cta-outline, .modal-wa-btn, .wa-btn, .bag-bar-send { text-shadow: none !important; letter-spacing: 0; }
+
+      /* top bar: wordmark only, round icon buttons */
+      nav { padding-left: 18px; padding-right: 18px; }
+      .nav-logo .logo-mark { display: none; }
+      .logo-wordmark { font-family: inherit; font-weight: 700; letter-spacing: .22em; font-size: 14px; }
+      .nav-right { gap: 8px; }
+      .nav-search, .nav-cart, .nav-help {
+        width: 40px; height: 40px; min-width: 40px; padding: 0; border-radius: 50%; border: none;
+        display: flex; align-items: center; justify-content: center; gap: 0; position: relative; font-size: 0; color: #2A1C12;
+        background: rgba(255, 255, 255, 0.45); box-shadow: none;
+        -webkit-backdrop-filter: none; backdrop-filter: none;
+      }
+      .nav-search svg, .nav-cart svg, .nav-help svg { width: 20px; height: 20px; }
+      .nav-cart-label { display: none; }
+      .nav-cart .cart-count { position: absolute; top: -2px; right: -2px; font-size: 10px; }
+      .nav-cart .cart-count[data-n="0"] { display: none; }
+      html:not(.past-hero) .nav-help { display: none; }
+      html.past-hero .nav-search, html.past-hero .nav-cart { display: none; }
+
+      /* home panel */
+      .hero-tag { font-size: 11px; font-weight: 700; letter-spacing: .2em; color: #B4521A; text-transform: uppercase; }
+      .hero-title { font-family: Georgia, "Times New Roman", serif; font-weight: 400; font-size: 38px; line-height: 1.05; }
+      .hero-title em { color: #C9561A; }
+      .hero-sub { font-size: 14.5px; line-height: 1.45; color: #5d4c40; }
+      .hero-btns { gap: 10px; }
+      .hero-btns .btn-hero { flex: 1 1 0 !important; height: 52px; padding: 0 10px; border-radius: 16px; font-size: 16px; font-weight: 600; text-transform: none; justify-content: center; }
+      .hero-btns .btn-hero svg { display: none; }
+
+      /* list: chips + cards */
+      .filter-btn { padding: 9px 14px; border-radius: 12px; font-size: 13.5px; font-weight: 500; letter-spacing: 0; text-transform: none; background: rgba(255, 255, 255, 0.78); color: #5E4A3B; border: none; }
+      .filter-btn.active { background: #2A1C12; color: #fff; }
+      #productSearch { font-size: 15px; }
+      .pcard-name { font-family: inherit !important; font-style: normal !important; font-size: 14px !important; font-weight: 600 !important; line-height: 1.25; margin: 9px 2px 1px !important; color: #2A1C12; }
+      .pcard-brand { font-size: 12px !important; font-weight: 400 !important; color: #7A6A5D !important; letter-spacing: 0 !important; text-transform: none !important; margin: 0 2px; }
+      .pcard-price { font-family: inherit !important; font-size: 14.5px !important; font-weight: 700 !important; margin: 4px 2px 0; color: #2A1C12; }
+      .pcard .wa-btn { right: 8px; bottom: 8px; left: auto; width: auto; height: 36px; min-height: 36px; padding: 0 12px; border-radius: 12px; font-size: 13px; font-weight: 600; gap: 6px; }
+      .pcard .wa-btn svg { width: 15px; height: 15px; }
+
+      /* product view */
+      .modal-top > .modal-close, .gal-nav, .gal-count, .modal-product-cat, .modal-price-note, #modalNote { display: none !important; }
+      .modal-back, .modal-bag {
+        display: grid; place-items: center; position: absolute; top: 14px; z-index: 5;
+        width: 40px; height: 40px; border-radius: 50%; border: none; padding: 0; color: #2A1C12;
+        background: rgba(255, 252, 248, 0.66);
+        -webkit-backdrop-filter: blur(20px) saturate(150%); backdrop-filter: blur(20px) saturate(150%);
+      }
+      .modal-back { left: 14px; } .modal-bag { right: 14px; }
+      .modal-back svg, .modal-bag svg { width: 20px; height: 20px; }
+      .modal-gallery { position: relative; }
+      .gal-thumbs {
+        display: flex !important; position: absolute; left: 0; right: 0; bottom: 44px; z-index: 3;
+        justify-content: center; gap: 6px; padding: 0; background: none; overflow: visible;
+      }
+      .gal-thumb { width: 6px; height: 6px; min-width: 0; flex: none; padding: 0; border: none !important; border-radius: 50%; background: rgba(255, 255, 255, 0.6); opacity: 1; overflow: hidden; }
+      .gal-thumb img { display: none; }
+      .gal-thumb.active { width: 18px; border-radius: 4px; background: #fff; }
+      .modal-product-name { font-family: Georgia, "Times New Roman", serif !important; font-style: normal !important; font-weight: 400 !important; font-size: 26px !important; line-height: 1.15; color: #2A1C12; }
+      .modal-product-brand { font-size: 13px !important; font-weight: 400 !important; color: #7A6A5D !important; margin-top: 4px; letter-spacing: 0 !important; text-transform: none !important; }
+      .modal-price { font-family: inherit !important; font-size: 22px !important; font-weight: 700 !important; margin: 12px 0 0; color: #2A1C12; }
+      .modal-label { font-size: 11px; letter-spacing: .16em; font-weight: 700; color: #7A6A5D; margin-bottom: 8px; }
+      .size-grid { gap: 8px; }
+      .size-btn, .size-grid button { min-width: 52px; height: 42px; padding: 0 12px; border-radius: 12px; border: none; background: rgba(255, 255, 255, 0.85); font-weight: 500; font-size: 15px; color: #2A1C12; box-shadow: none; }
+      .size-btn.selected, .size-btn.active, .size-grid button.selected, .size-grid button.active, .size-grid button[aria-pressed="true"] { background: #2A1C12; color: #fff; }
+      .qty-label, .qty-row { display: none !important; }
+      .modal-perks { display: block; font-size: 12.5px; color: #7A6A5D; margin: 12px 0 14px; }
+      .modal-add-btn { height: 54px; border-radius: 17px; font-size: 16.5px; font-weight: 600; }
+      .modal-add-btn svg { display: none; }
+      /* bag drawer + other headings: same upright serif / clean sans as the concept */
+      .cart-head h3, .help h3, .policy h3 { font-family: Georgia, "Times New Roman", serif; font-style: normal; font-weight: 400; }
+      .cart-line-name { font-family: inherit; font-style: normal; font-size: 15px; font-weight: 600; }
+    }
 </style>
 </head>
 <body>
@@ -1651,6 +1917,9 @@
   </ul>
 
   <div class="nav-right">
+  <button class="nav-search" type="button" onclick="navSearch()" aria-label="Search products">
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+  </button>
   <button class="nav-cart" type="button" onclick="openCart()" aria-label="Open your bag">
     <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
     <span class="nav-cart-label">Your bag</span>
@@ -1671,16 +1940,16 @@
   <img class="hero-mob-img" src="images/hero-main.jpg" alt="Woman in a navy floral satin night suit, sitting on a cream sofa at home" fetchpriority="high"/>
 
   <div class="hero-content reveal">
-    <div class="hero-tag">✦ Pakhowal Road, Ludhiana</div>
+    <div class="hero-tag">Pakhowal Road · Ludhiana</div>
     <h1 class="hero-title">
       Comfort you<br>can <em>live in.</em>
     </h1>
     <p class="hero-sub">
-      Everyday comfort wear and night sets. Browse the collection, then
-      order on WhatsApp.
+      Everyday comfort wear and night sets. Browse, add to your bag,
+      and order on WhatsApp.
     </p>
     <div class="hero-btns">
-      <a href="#catalogue" class="btn-hero btn-cta">Browse Collection</a>
+      <a href="#catalogue" class="btn-hero btn-cta">Browse collection</a>
       <button type="button" class="btn-hero btn-cta-outline hero-filter" id="filterOpenBtn" onclick="openFilter()" aria-haspopup="dialog" aria-label="Filter products">
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8.5V19l-4 2v-7.5z"/></svg>
         Filter
@@ -1929,6 +2198,15 @@
   <span class="cart-count" data-n="0">0</span>
 </button>
 
+
+<!-- ══ BAG BAR (phones): appears once the bag has something; content scrolls under it ══ -->
+<div class="bag-bar" id="bagBar" role="region" aria-label="Your bag">
+  <button type="button" class="bag-bar-sum" onclick="openCart()" aria-label="Open your bag"><span id="bagBarCount">Your bag</span><b id="bagBarTotal">₹0</b></button>
+  <button type="button" class="bag-bar-send glass" onclick="openCart()">
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.6-3.9-4.7-4.1-.1-.2-1.1-1.5-1.1-2.9s.7-2.1 1-2.4c.3-.3.6-.3.8-.3h.6c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.4.6-.4.4c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.1 1 2.1 1.3 2.4 1.5.3.1.5.1.6-.1l.9-1.1c.2-.3.4-.2.7-.1l1.9.9c.3.1.5.2.5.3.1.2.1.7-.1 1.2z"/></svg>
+    Send on WhatsApp
+  </button>
+</div>
 <!-- ══ BAG TOAST — quiet confirmation for every add after the first of a session ══ -->
 <div class="bag-toast" id="bagToast" role="status" aria-live="polite">
   <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -2092,10 +2370,12 @@
         <div class="modal-price-note" data-copy="priceNote"></div>
       </div>
       <button class="modal-close" onclick="closeModal()" aria-label="Close">✕</button>
+      <button class="modal-back" type="button" onclick="closeModal()" aria-label="Back"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <button class="modal-bag" type="button" onclick="closeModal(); openCart()" aria-label="Open your bag"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6 8h12l-1 12H7z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg></button>
     </div>
     <div class="modal-body">
       <div id="sizeSection">
-        <div class="modal-label">Choose Size</div>
+        <div class="modal-label">Size</div>
         <div class="size-grid" id="sizeGrid"></div>
         <div class="size-hint" id="sizeHint">Please choose a size first</div>
       </div>
@@ -2103,12 +2383,13 @@
         <div class="modal-label">Choose Colour / Design</div>
         <select class="color-select" id="colorSelect"></select>
       </div>
-      <div class="modal-label">Quantity</div>
+      <div class="modal-label qty-label">Quantity</div>
       <div class="qty-row">
         <button class="qty-btn" onclick="changeQty(-1)">−</button>
         <span class="qty-num" id="qtyNum">1</span>
         <button class="qty-btn" onclick="changeQty(1)">+</button>
       </div>
+      <div class="modal-perks" id="modalPerks"></div>
       <button class="modal-wa-btn modal-add-btn btn-cta" id="modalAddBtn" onclick="addCurrentToCart()">
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
         Add to bag
@@ -2180,8 +2461,8 @@
           ${!avail ? `<span class="pcard-badge b-dark">Currently unavailable</span>`
             : p.badge ? `<span class="pcard-badge ${badgeClass[p.badgeStyle] || 'b-orange'}">${esc(p.badge)}</span>` : ''}
           <button class="wa-btn btn-cta" onclick="event.stopPropagation(); openModal('${esc(p.id)}')" aria-label="${avail ? 'Add to bag' : 'View'}: ${esc(p.name)}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
-            ${avail ? 'Add to bag' : 'View'}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            ${avail ? 'Add' : 'View'}
           </button>
         </div>
         <div class="pcard-body">
@@ -2455,7 +2736,11 @@
     document.getElementById('modalUnavail').hidden = avail;
     document.getElementById('modalName').textContent = p.name;
     const brandEl = document.getElementById('modalBrand');
-    brandEl.textContent = p.brand || ''; brandEl.hidden = !p.brand;
+    { const feat = String(p.description || '').split('. ').slice(1).join('. ').replace(/\.\s*$/, '');
+      const sub = [p.brand, feat].filter(Boolean).join(' · ');
+      brandEl.textContent = sub; brandEl.hidden = !sub; }
+    { const th = (typeof OFFER !== 'undefined' && OFFER.enabled && OFFER.kind === 'free-delivery') ? OFFER.threshold : 0;
+      document.getElementById('modalPerks').textContent = (th ? `Free delivery on ₹${fmt(th)} or more · ` : '') + 'Exchange within 3 days'; }
     updateModalPrice();
     document.getElementById('qtyNum').textContent = '1';
 
@@ -2595,6 +2880,15 @@
     });
   })();
 
+  function navSearch() {
+    const cat = document.getElementById('catalogue'); if (cat) cat.scrollIntoView({ behavior: 'smooth' });
+    setTimeout(() => { const s = document.getElementById('productSearch'); if (s) s.focus({ preventScroll: true }); }, 450);
+  }
+  (function () {
+    const hero = document.getElementById('hero');
+    if (!hero || !('IntersectionObserver' in window)) return;
+    new IntersectionObserver(([en]) => document.documentElement.classList.toggle('past-hero', !en.isIntersecting), { rootMargin: '-80px 0px 0px 0px' }).observe(hero);
+  })();
   function closeModal(e) {
     if (e && e.target !== document.getElementById('modalOverlay') && e.type !== 'click') return;
     if (e && e.currentTarget === document.getElementById('modalOverlay') && e.target !== e.currentTarget) return;
@@ -2731,6 +3025,10 @@
     if (lastBadgeCount !== null && n !== lastBadgeCount) pulseBadges();
     lastBadgeCount = n;
     document.getElementById('floatCart').classList.toggle('has-items', n > 0);
+    { const bb = document.getElementById('bagBar');
+      if (bb) { const t = orderTotals(); bb.classList.toggle('show', n > 0);
+        document.getElementById('bagBarCount').textContent = `Your bag · ${n} item${n === 1 ? '' : 's'}`;
+        document.getElementById('bagBarTotal').textContent = `₹${fmt(t.total)}${t.freeDelivery ? ' · Free delivery' : ''}`; } }
     const lines = document.getElementById('cartLines');
     const foot = document.getElementById('cartFoot');
     document.getElementById('cartSendBtn').disabled = !cart.length;
