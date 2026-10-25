@@ -18,7 +18,8 @@ import uuid
 from pathlib import Path
 
 import psycopg
-import pgserver
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pgcluster
 
 HERE = Path(__file__).resolve().parent
 import os
@@ -755,9 +756,8 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except AttributeError:
         pass
-    tmp = tempfile.mkdtemp(prefix="o4u-pg-")
-    ENV.server = pgserver.get_server(tmp, cleanup_mode="stop")
-    ENV.uri = ENV.server.get_uri()
+    ENV.server = pgcluster.make_cluster(preload_cron=True)
+    ENV.uri = ENV.server.uri
     v = psycopg.connect(ENV.uri, autocommit=True).execute("select version()").fetchone()[0].split(",")[0]
     print(f"Throwaway database: {v}  (temp folder, invented data only)")
     boot = psycopg.connect(ENV.uri, autocommit=True)
