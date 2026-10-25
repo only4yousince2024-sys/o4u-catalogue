@@ -10,12 +10,21 @@
 -- Jobs: 'o4u-expire-holds' every minute; 'o4u-cron-cleanup' daily, trims pg_cron's own run history to 7 days.
 -- Remove:  select cron.unschedule('o4u-expire-holds');  select cron.unschedule('o4u-cron-cleanup');
 do $$
+declare preload text;
 begin
   if not exists (select 1 from pg_available_extensions where name = 'pg_cron') then
     raise notice 'o4u: pg_cron is not available on this server - expire_holds() is NOT scheduled here; use the Edge Function fallback';
     return;
   end if;
-  if coalesce(current_setting('shared_preload_libraries', true), '') not like '%pg_cron%' then
+  -- shared_preload_libraries is readable only by superusers (and members of pg_read_all_settings). A hosted project's owner role may
+  -- not be either, and reading it would then abort this whole migration. If it cannot be read, carry on: the scheduling attempt below
+  -- is inside its own exception block and only warns when pg_cron is not really loaded.
+  begin
+    preload := coalesce(current_setting('shared_preload_libraries', true), '');
+  exception when insufficient_privilege then
+    preload := null;
+  end;
+  if preload is not null and preload not like '%pg_cron%' then
     raise notice 'o4u: pg_cron is installed but not loaded (shared_preload_libraries) - expire_holds() is NOT scheduled here';
     return;
   end if;

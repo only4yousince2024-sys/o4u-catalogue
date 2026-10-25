@@ -13,6 +13,8 @@ migrations/0005_public_hardening_and_trust_flag.sql   order-ref check digits, pe
 migrations/0006_shared_barcodes_opening_balance.sql   shared barcodes (scan never guesses), opening-balance import, count-pending flag, FREE=Free
 importer/stockroom_import.py                   plan/apply a Stockroom backup into a DEV database (dry run by default; counts only)
 seed/onboard_staff.sql                         how the owner puts real people on the staff list (placeholders only)
+seed/preflight_hosted.sql                      READ-ONLY look at a hosted project (roles, default grants, event triggers, cron) before running 0001
+tests/hosted_like_check.py                     migrations + seed + smoke as a NON-superuser with restricted default grants and auto-RLS
 seed/dev_seed_synthetic.sql                    INVENTED catalogue + opening stock for a hosted DEV project (refuses non-dev data)
 seed/dev_smoke_test.sql                        plays website/staff/manager/owner on the dev project; last grid = PASS/FAIL per check
 functions/expire-holds/index.ts                fallback scheduler (Supabase Edge Function), code only, not deployed
