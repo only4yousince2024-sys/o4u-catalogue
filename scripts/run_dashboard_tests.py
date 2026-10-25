@@ -1,6 +1,7 @@
 """Run the Stockroom dashboard checks headless - no browser window, no real data.
 
-    python scripts/run_dashboard_tests.py
+    python scripts/run_dashboard_tests.py          # v1 dashboard (stockroom-dev.html)
+    python scripts/run_dashboard_tests.py --v2     # v2 dashboard (stockroom-dev-v2.html)
 
 Serves ONLY stockroom/ on 127.0.0.1 (random port), opens stockroom/dev/dashboard_test_runner.html in headless
 Chrome/Edge with a throwaway profile and every non-local host blocked. The page under test talks to an in-memory
@@ -42,7 +43,9 @@ def main() -> int:
         return 2
     server = ThreadingHTTPServer(("127.0.0.1", 0), partial(Handler, directory=str(ROOT)))
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    url = f"http://127.0.0.1:{server.server_address[1]}/dev/dashboard_test_runner.html"
+    v2 = "--v2" in sys.argv
+    query = "?page=v2&tests=dashboard_v2_tests.js" if v2 else ""
+    url = f"http://127.0.0.1:{server.server_address[1]}/dev/dashboard_test_runner.html{query}"
     profile = tempfile.mkdtemp(prefix="o4u-dash-tests-")
     try:
         cmd = [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",

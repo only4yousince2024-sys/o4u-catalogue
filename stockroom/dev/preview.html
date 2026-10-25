@@ -3,13 +3,17 @@
      database filled with SYNTHETIC records. Nothing here is real business data and nothing is saved anywhere. -->
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Stockroom dev preview (DEMO DATA)</title>
 <style>html,body{margin:0;height:100%}#banner{position:fixed;z-index:99999;left:0;right:0;top:0;height:22px;background:#B3261E;color:#fff;font:600 12px/22px system-ui;text-align:center;letter-spacing:.04em}iframe{position:fixed;top:22px;left:0;width:100%;height:calc(100% - 22px);border:0}</style></head>
-<body><div id="banner">DEMO DATA · synthetic records · not your business numbers</div><iframe id="f"></iframe>
+<body><div id="banner">DEMO DATA · synthetic records</div><iframe id="f"></iframe>
 <script src="mock-claude.js"></script><script src="demo-data.js"></script>
 <script>
 (async () => {
+  // ?v=1 = the first dashboard, default = v2.  ?who=Khush|Dad|Staff  ?view=owner|ops  ?tab=dashboard|orders|...
   const q = new URLSearchParams(location.search), tab = q.get("tab") || "dashboard";
-  const html = await (await fetch("../stockroom-dev.html", {cache: "no-store"})).text();
-  const inject = `<script>localStorage.setItem("o4u_tab", ${JSON.stringify(tab)});<\/script><script src="${new URL("mock-claude.js", location.href)}"><\/script><script src="${new URL("demo-data.js", location.href)}"><\/script><script>window.__installMock(window.__demoDataset(Date.now()));<\/script>`;
+  const html = await (await fetch(q.get("v") === "1" ? "../stockroom-dev.html" : "../stockroom-dev-v2.html", {cache: "no-store"})).text();
+  const theme = q.get("theme");
+  const inject = `<script>${theme ? `document.documentElement.setAttribute("data-theme", ${JSON.stringify(theme)});` : ""}localStorage.setItem("o4u_tab", ${JSON.stringify(tab)});localStorage.setItem("o4u_who", ${JSON.stringify(q.get("who") || "Khush")});localStorage.setItem("o4u_view", ${JSON.stringify(q.get("view") || "owner")});<\/script><script src="${new URL("mock-claude.js", location.href)}"><\/script><script src="${new URL("demo-data.js", location.href)}"><\/script><script>window.__installMock(window.__demoDataset(Date.now()));<\/script>`;
+  // ?w=390 shows the app in a phone-width frame (its media queries then behave exactly as on a phone)
+  if (q.get("w")) { const f = document.getElementById("f"); f.style.cssText += `;left:50%;right:auto;width:${+q.get("w")}px;margin-left:-${+q.get("w") / 2}px;border-left:1px solid #bbb;border-right:1px solid #bbb;box-sizing:content-box`; }
   document.getElementById("f").srcdoc = html.replace("<body>", "<body>" + inject);
 })();
 </script></body></html>

@@ -9,19 +9,22 @@
   const out = document.getElementById("out");
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   try {
-    const html = await (await fetch("../stockroom-dev.html", {cache: "no-store"})).text();
+    const q = new URLSearchParams(location.search), v2 = q.get("page") === "v2";
+    const html = await (await fetch(v2 ? "../stockroom-dev-v2.html" : "../stockroom-dev.html", {cache: "no-store"})).text();
+    window.devHtmlV1 = await (await fetch("../stockroom-dev.html", {cache: "no-store"})).text();
     // open the dev copy on the dashboard with a given synthetic dataset; resolves to the iframe window
-    window.openDev = async (datasetJs, width = 1100) => {
+    window.openDev = async (datasetJs, width = 1100, ls = {}) => {
       const f = document.createElement("iframe"); f.style.cssText = `width:${width}px;height:900px;border:0`;
       document.getElementById("frames").appendChild(f);
-      const inject = `<script>localStorage.setItem("o4u_tab","dashboard");<\/script><script src="${new URL("mock-claude.js", location.href)}"><\/script><script src="${new URL("demo-data.js", location.href)}"><\/script><script>window.__installMock(${datasetJs});<\/script>`;
+      const lsJs = Object.entries(Object.assign({o4u_tab: "dashboard"}, ls)).map(([k, v]) => `localStorage.setItem(${JSON.stringify(k)},${JSON.stringify(v)});`).join("");
+      const inject = `<script>${lsJs}<\/script><script src="${new URL("mock-claude.js", location.href)}"><\/script><script src="${new URL("demo-data.js", location.href)}"><\/script><script>window.__installMock(${datasetJs});<\/script>`;
       f.srcdoc = html.replace("<body>", "<body>" + inject);
       for (let i = 0; i < 200 && !(f.contentWindow && f.contentWindow.O4U_metrics && f.contentWindow.__dashState); i++) await sleep(50);
       await sleep(150);
       return f.contentWindow;
     };
     window.devHtml = html;
-    const src = await (await fetch("dashboard_tests.js", {cache: "no-store"})).text();
+    const src = await (await fetch(q.get("tests") || "dashboard_tests.js", {cache: "no-store"})).text();
     const res = await (0, eval)(src);
     out.textContent = "RESULT " + JSON.stringify(res);
   } catch (e) { out.textContent = "ERROR " + ((e && e.stack) || e); }
