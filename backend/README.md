@@ -15,7 +15,7 @@ functions/expire-holds/index.ts                fallback scheduler (Supabase Edge
 tests/supabase_shim.sql                        TEST ONLY: Supabase roles, auth.uid(), auth.users, default privileges
 tests/pgcluster.py                             starts throwaway PostgreSQL clusters (OS PostgreSQL, optional pg_cron)
 tests/run_db_tests.py                          the checks (54 at the time of writing; the run prints the real count)
-tests/run_mutations.py                         breaks the SQL on purpose, 28 ways, and confirms the checks notice
+tests/run_mutations.py                         breaks the SQL on purpose, 27 ways, and confirms the checks notice
 ```
 
 Migrations are applied in file order. 0002-0005 are idempotent (safe to run again); 0001 is not (it creates tables) and
@@ -30,7 +30,7 @@ sudo apt-get install postgresql-16 postgresql-16-cron        # server + pg_cron 
 python3 -m venv /tmp/venv && /tmp/venv/bin/pip install "psycopg[binary]"
 /tmp/venv/bin/python backend/tests/run_db_tests.py           # ~30 s; one check waits for pg_cron's next minute
 O4U_SKIP_SLOW=1 /tmp/venv/bin/python backend/tests/run_db_tests.py   # skips that wait
-/tmp/venv/bin/python backend/tests/run_mutations.py          # ~10 min: 28 deliberate breakages
+/tmp/venv/bin/python backend/tests/run_mutations.py          # ~10 min: 27 deliberate breakages
 ```
 
 As root the runner starts PostgreSQL as the `postgres` OS user. `O4U_PG_BIN=/path/to/bin` picks another install.
