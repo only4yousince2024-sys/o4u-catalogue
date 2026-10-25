@@ -10,15 +10,17 @@ migrations/0002_real_auth.sql                  staff keyed by Supabase auth user
 migrations/0003_expire_holds_hardening.sql     expire_holds safe for 2 schedulers / one bad order / a stuck lock
 migrations/0004_expire_holds_schedule.sql      pg_cron every minute; harmless no-op where pg_cron cannot run
 migrations/0005_public_hardening_and_trust_flag.sql   order-ref check digits, per-phone rate limit, stock-trust flag
+migrations/0006_shared_barcodes_opening_balance.sql   shared barcodes (scan never guesses), opening-balance import, count-pending flag, FREE=Free
+importer/stockroom_import.py                   plan/apply a Stockroom backup into a DEV database (dry run by default; counts only)
 seed/onboard_staff.sql                         how the owner puts real people on the staff list (placeholders only)
 functions/expire-holds/index.ts                fallback scheduler (Supabase Edge Function), code only, not deployed
 tests/supabase_shim.sql                        TEST ONLY: Supabase roles, auth.uid(), auth.users, default privileges
 tests/pgcluster.py                             starts throwaway PostgreSQL clusters (OS PostgreSQL, optional pg_cron)
-tests/run_db_tests.py                          the checks (54 at the time of writing; the run prints the real count)
+tests/run_db_tests.py                          the checks (60 on Linux with pg_cron and node; 57 + 3 skips on Windows; the run prints the real count)
 tests/run_mutations.py                         breaks the SQL on purpose, 27 ways, and confirms the checks notice
 ```
 
-Migrations are applied in file order. 0002-0005 are idempotent (safe to run again); 0001 is not (it creates tables) and
+Migrations are applied in file order. 0002-0006 are idempotent (safe to run again); 0001 is not (it creates tables) and
 refuses a second run. 0002+ need Supabase's `auth` schema.
 
 ## Run the checks
@@ -77,3 +79,16 @@ Watching it: `overdue_holds()` (manager) lists holds past their time; `stock_tru
 
 Rules this code must keep: stock changes only through `apply_stock_event`; every mutating function takes an
 idempotency key; money is integer paise; nothing here is applied to a real project without the owner's approval.
+
+## Real-backup constraints (migration 0006 and the importer)
+
+Found by checking the live Stockroom's backup (25 Oct 2026); the backup itself is private and never in git.
+- One printed barcode can belong to several colours. `variant_barcodes` holds every owner; `lookup_barcode()` lists them; `complete_sale` sells by
+  `variant_id` and refuses an ambiguous barcode ("choose the colour"). Nothing is ever merged.
+- Opening stock is one `opening_balance` ledger row per size (`import_opening_balance`, service role only, all-or-nothing, idempotent). No sale, receipt
+  or movement is invented, and a variant that already has history is refused.
+- Quantities come from the live `stock` map only. Sizes whose old size-row quantity disagrees (and every size of a product whose `inStock` flag disagrees)
+  are imported with `count_pending`: the website reads "Check availability", no website hold can be placed, and a manager's `recount_stock` clears it.
+  Counter sales of such items warn (`app_settings.pending_blocks_counter_sales = 1` makes them refuse).
+- `FREE` and `Free` are one size (case-insensitive match; unique per product).
+- Dry run on a backup: `python backend/importer/stockroom_import.py <backup.zip>` prints counts only and writes nothing.

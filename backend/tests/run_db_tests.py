@@ -9,6 +9,7 @@ and prints PASS/FAIL per check. Exit 0 only if all passed. Results are never cla
 """
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import threading
@@ -795,10 +796,11 @@ EXPECTED_ANON_FUNCS = {"get_availability", "place_order_request", "report_paymen
 EXPECTED_AUTH_FUNCS = EXPECTED_ANON_FUNCS | {
     "confirm_and_reserve", "verify_payment", "release_hold", "cancel_order", "pack_order", "dispatch_order", "mark_failed", "mark_delivered",
     "request_refund", "mark_refund_sent", "receive_stock", "recount_stock", "return_to_stock", "complete_sale", "get_receipt", "store_ping",
-    "set_offline_switch", "owner_sales_summary", "current_role_rank", "overdue_holds", "stock_trust_status", "reconcile_outages"}
-EXPECTED_SERVICE_ONLY = {"expire_holds", "onboard_staff", "onboard_staff_by_email", "deactivate_staff"}
+    "set_offline_switch", "owner_sales_summary", "current_role_rank", "overdue_holds", "stock_trust_status", "reconcile_outages",
+    "lookup_barcode", "set_count_pending", "pending_counts"}
+EXPECTED_SERVICE_ONLY = {"expire_holds", "onboard_staff", "onboard_staff_by_email", "deactivate_staff", "import_opening_balance"}
 EXPECTED_AUTH_SELECT = {"products", "variants", "stock_levels", "stock_events", "orders", "order_lines", "order_events", "order_transitions",
-                        "payment_reports", "refunds", "payments", "sales", "sale_lines", "staff", "store_status", "expiry_failures", "store_outages"}
+                        "payment_reports", "refunds", "payments", "sales", "sale_lines", "staff", "store_status", "expiry_failures", "store_outages", "variant_barcodes"}
 
 
 def pgrst(sub, sql, *args, role="authenticated", extra_claims=None):
@@ -1206,7 +1208,7 @@ def fingerprint(c):
 
 @test
 def migrations_apply_cleanly_in_order_on_a_fresh_database_and_match_the_main_one():
-    check([m.name[:4] for m in MIGRATIONS] == ["0001", "0002", "0003", "0004", "0005"], f"migration files: {[m.name for m in MIGRATIONS]}")
+    check([m.name[:4] for m in MIGRATIONS] == ["0001", "0002", "0003", "0004", "0005", "0006"], f"migration files: {[m.name for m in MIGRATIONS]}")
     uri = build_db(ENV.uri, "o4ufresh")
     fresh = psycopg.connect(uri, autocommit=True)
     main = fingerprint(conn())
@@ -1215,7 +1217,7 @@ def migrations_apply_cleanly_in_order_on_a_fresh_database_and_match_the_main_one
 
 
 @test
-def migrations_0002_to_0005_can_be_re_applied_over_live_data_without_change():
+def migrations_0002_to_0006_can_be_re_applied_over_live_data_without_change():
     uri = dburi("o4ufresh")
     c = psycopg.connect(uri, autocommit=True)
     c.execute("select set_config('request.jwt.claims', %s, false)", (jwt_claims(OWNER),))
@@ -1227,7 +1229,7 @@ def migrations_0002_to_0005_can_be_re_applied_over_live_data_without_change():
     for rnd in range(2):
         for m in MIGRATIONS[1:]:
             c.execute(m.read_text(encoding="utf-8"))
-    check(fingerprint(c) == before_fp and counts() == before_n, "re-applying 0002-0005 changed the schema or the data")
+    check(fingerprint(c) == before_fp and counts() == before_n, "re-applying 0002-0006 changed the schema or the data")
     try:
         c.execute(MIGRATIONS[0].read_text(encoding="utf-8"))
         check(False, "0001 is not idempotent by design and should refuse a second run")
@@ -1400,6 +1402,175 @@ def build_db(uri_base, dbname, notices=None, migrations=None):
         c.execute(m.read_text(encoding="utf-8"))
     c.close()
     return uri
+
+
+# ═════════════════════════ migration 0006: shared barcodes, opening balance, count-pending (from the real-backup review) ═════════════════════════
+sys.path.insert(0, str(HERE.parent / "importer"))
+import stockroom_import as imp      # noqa: E402
+
+
+def synth_backup():
+    """INVENTED records with the SHAPES found in the real backup (nothing copied from it): three colours of one article sharing
+    a barcode, size rows whose old qty differs from the live stock map, FREE vs Free, a size row without barcode, a wrong inStock."""
+    def sz(size, qty, barcode=None, mrp=500):
+        d = {"size": size, "qty": qty, "mrp": mrp}
+        if barcode:
+            d["barcode"] = barcode
+        return d
+    P = {}
+    for col in ("red", "green", "blue"):                                           # shared barcode on size L; qty 1 on file vs 2 live
+        P[f"imp-art1-{col}"] = {"article": "ART1", "colour": col.title(), "type": "Test Lower", "brand": "Testbrand", "category": "lowers", "published": True, "inStock": True,
+                                "sizes": [sz("L", 1, "SHARED0001"), sz("XL", 1)], "stock": {"L": 2, "XL": 1}}
+    P["imp-free-one"] = {"article": "FR1", "colour": "Plain", "type": "Test Scarf", "category": "tshirts", "published": True, "inStock": True,
+                         "sizes": [sz("FREE", 1)], "stock": {"Free": 1}}                    # FREE in sizes, Free in stock: ONE variant
+    P["imp-flag-wrong"] = {"article": "FL1", "colour": "Grey", "type": "Test Top", "category": "tshirts", "published": True, "inStock": False,
+                           "sizes": [sz("M", 1, "UNIQUE0002"), sz("L", 1)], "stock": {"M": 1, "L": 1}}                       # flag says out, stock says 2
+    P["imp-clean"] = {"article": "CL1", "colour": "White", "type": "Test Tee", "category": "tshirts", "published": True, "inStock": True,
+                      "sizes": [sz("M", 3, "UNIQUE0001"), sz("L", 3)], "stock": {"M": 3, "L": 3}}
+    return {"collections": {"products": P}}
+
+
+def put_synth():
+    pl = imp.plan(synth_backup(), "synthetic-backup-0001")
+    imp.apply(conn(), pl)
+    return pl
+
+
+PAY1 = '[{"method":"cash","amount_paise":50000}]'
+
+
+@test
+def a_barcode_may_belong_to_several_colours_and_scanning_never_guesses():
+    reset()
+    put_synth()
+    check(q1("select count(*) from variants where product_id like 'imp-art1-%%' and size = 'L'") == 3, "three colours, three distinct variants")
+    check(q1("select count(*) from variant_barcodes where barcode = 'SHARED0001'") == 3, "the shared barcode is kept for every colour, nothing merged")
+    rows = q("select product_id, colour, size, free from lookup_barcode(' SHARED0001 ')", who=CLERK)
+    check([r[0] for r in rows] == ["imp-art1-blue", "imp-art1-green", "imp-art1-red"] and [r[1] for r in rows] == ["Blue", "Green", "Red"], f"scan lists every colour: {rows}")
+    err("anon", "select * from lookup_barcode('SHARED0001')", contains="permission denied")
+    err(STRANGER, "select * from lookup_barcode('SHARED0001')", contains="not allowed")
+    err(CLERK, "select complete_sale(%s,%s::jsonb,%s::jsonb,0)", key(), '[{"barcode":"SHARED0001","qty":1}]', PAY1, contains="ambiguous barcode")
+    check(q1("select count(*) from sales") == 0 and stock("imp-art1-red", "L")[0] == 2, "an ambiguous scan sells nothing and changes no stock")
+    green = vid_of("imp-art1-green", "L")
+    ok(DAD, "select recount_stock(%s,%s,2,'counted')", key(), green)      # clears the count-pending flag so this sale is a clean one
+    ok(CLERK, "select complete_sale(%s,%s::jsonb,%s::jsonb,0)", key(), f'[{{"barcode":"SHARED0001","variant_id":"{green}","qty":1}}]', PAY1)
+    check(stock("imp-art1-green", "L") == (1, 0) and stock("imp-art1-red", "L") == (2, 0) and stock("imp-art1-blue", "L") == (2, 0), "only the chosen colour was sold")
+    err(CLERK, "select complete_sale(%s,%s::jsonb,%s::jsonb,0)", key(), f'[{{"barcode":"UNIQUE0001","variant_id":"{green}","qty":1}}]', PAY1, contains="does not carry")
+    ok(CLERK, "select complete_sale(%s,%s::jsonb,%s::jsonb,0)", key(), '[{"barcode":"UNIQUE0001","qty":1}]', PAY1)               # unique barcode: one step
+    check(stock("imp-clean", "M")[0] == 2, "a barcode with one owner still scans in one step")
+    ok(CLERK, "select complete_sale(%s,%s::jsonb,%s::jsonb,0)", key(), '[{"product_id":"imp-clean","size":"L","qty":1}]', PAY1)    # size row with no barcode at all
+    check(stock("imp-clean", "L")[0] == 2, "a size without any barcode sells by product + size")
+    err(CLERK, "select complete_sale(%s,%s::jsonb,%s::jsonb,0)", key(), '[{"barcode":"NOSUCH999","qty":1}]', PAY1, contains="unknown barcode")
+    oid, _ = place(("imp-free-one", "FREE", 1))                                              # the website spells it FREE; the stock map says Free
+    check(order(oid)["status"] == "request", "a FREE order line matches the Free variant")
+    ok(CLERK, "select complete_sale(%s,%s::jsonb,%s::jsonb,0)", key(), '[{"product_id":"imp-free-one","size":"FREE","qty":1}]', PAY1)
+    check(stock("imp-free-one", "Free") == (0, 0), "and a counter sale by FREE takes the same piece")
+    err(None, "insert into variants (product_id, size) values ('imp-free-one','FREE')", contains="variants_product_size_ci")
+    check(q1("select count(*) from products where id like 'imp-art1-%%'") == 3, "three products still exist: none were merged")
+    invariants()
+
+
+@test
+def the_old_unique_barcode_rule_is_gone_but_legacy_inserts_still_register_their_barcode():
+    reset()
+    c = conn()
+    v1 = c.execute("insert into variants (product_id, size, barcode) values ('tst-a-pink','XL','LEGACY0001') returning id").fetchone()[0]
+    c.execute("insert into stock_levels (variant_id) values (%s)", (v1,))
+    v2 = c.execute("insert into variants (product_id, size, barcode) values ('tst-b-blue','XL','LEGACY0001') returning id").fetchone()[0]     # used to fail: variants_barcode_key
+    c.execute("insert into stock_levels (variant_id) values (%s)", (v2,))
+    check(q1("select count(*) from variant_barcodes where barcode='LEGACY0001'") == 2, "the legacy column feeds the barcode table")
+    check(q1("select count(*) from pg_constraint where conname = 'variants_barcode_key'") == 0, "the unique constraint is gone")
+    check(q1("select count(*) from variant_barcodes where barcode = '8900000000011'") == 1, "seeded single barcodes were registered once")
+
+
+@test
+def importer_plan_follows_the_rules_of_the_real_backup():
+    pl = imp.plan(synth_backup(), "synthetic-backup-0001")
+    op = {(r["product_id"], r["size"]): r for r in pl["opening"]}
+    check(len(pl["products"]) == 6 and len(pl["variants"]) == 11 and len(op) == 11, f"counts {len(pl['products'])}/{len(pl['variants'])}/{len(op)}")
+    check(op[("imp-art1-red", "L")]["qty"] == 2 and op[("imp-art1-red", "XL")]["qty"] == 1, "quantity comes from the live stock map, never from sizes[].qty")
+    pend = {k for k, r in op.items() if r["pending"]}
+    expect = {("imp-art1-red", "L"), ("imp-art1-green", "L"), ("imp-art1-blue", "L"), ("imp-flag-wrong", "M"), ("imp-flag-wrong", "L")}
+    check(pend == expect, f"flagged for a count: {sorted(pend ^ expect)} differ")
+    check(("imp-clean", "M") not in pend and ("imp-free-one", "Free") not in pend, "agreeing quantities are not flagged")
+    check([k for k in op if k[0] == "imp-free-one"] == [("imp-free-one", "Free")], "FREE and Free are one variant, labelled as the stock map writes it")
+    check(pl["findings"]["shared barcodes"] == ["SHARED0001"] and len(pl["barcodes"]) == 5, f"one shared barcode group, every owner kept ({len(pl['barcodes'])} rows)")
+    check(pl["findings"]["inStock flag disagrees with stock"] == ["imp-flag-wrong"], "the wrong inStock flag is reported")
+    check(all("qty" not in v and "inStock" not in v for v in pl["variants"]) and not any("inStock" in p for p in pl["products"]), "neither sizes[].qty nor inStock is imported")
+
+
+@test
+def opening_balance_is_one_ledger_row_per_size_and_invents_no_history():
+    reset()
+    pl = put_synth()
+    ev = q("select kind, count(*) from stock_events where variant_id in (select id from variants where product_id like 'imp-%%') group by kind")
+    check(ev == [("opening_balance", 11)], f"only opening_balance rows exist for imported variants: {ev}")
+    check(q1("select count(*) from sales") == 0 and q1("select count(*) from orders") == 0 and q1("select count(*) from payments") == 0
+          and q1("select count(*) from stock_events where order_id is not null or sale_id is not null") == 0, "no sale, order, payment or movement was invented")
+    check(q1("select coalesce(sum(on_hand),0) from stock_levels where variant_id in (select id from variants where product_id like 'imp-%%')") == sum(r["qty"] for r in pl["opening"]), "shelf = opening quantities")
+    check(q1("select count(*) from stock_events where kind='opening_balance' and reason not like 'opening balance from Stockroom backup %%'") == 0, "every row says where it came from")
+    rows = {r[0]: r[1:] for r in q("select channel, verified_paise, net_paise, documents from owner_sales_summary(now() - interval '1 day', now() + interval '1 day')", who=OWNER)}
+    check(rows["website"] == (0, 0, 0) and rows["counter"] == (0, 0, 0), "opening stock adds nothing to owner revenue")
+    invariants()
+
+
+@test
+def importing_twice_changes_nothing_and_stacking_on_history_is_refused():
+    reset()
+    pl = put_synth()
+    snap = lambda: (q1("select count(*) from stock_events"), q1("select coalesce(sum(on_hand),0) from stock_levels"))      # noqa: E731
+    before = snap()
+    imp.apply(conn(), pl)                                                                    # same plan again: same key, rows on conflict do nothing
+    check(snap() == before, "a replay added nothing")
+    rpc_ = "select import_opening_balance(%s,%s,%s::jsonb)"
+    err("service_role", rpc_, key(), "synthetic-backup-0002", json.dumps(pl["opening"]), contains="already has stock history")
+    check(snap() == before, "a second import under a new key was refused whole")
+    fresh = conn().execute("insert into variants (product_id, size) values ('tst-b-blue','S') returning id").fetchone()[0]
+    conn().execute("insert into stock_levels (variant_id) values (%s)", (fresh,))
+    before = snap()
+    mixed = [{"product_id": "tst-b-blue", "size": "S", "qty": 4}, {"product_id": "imp-clean", "size": "XXL", "qty": 1}]
+    err("service_role", rpc_, key(), "synthetic-backup-0004", json.dumps(mixed), contains="unknown variant")
+    check(snap() == before and q1("select count(*) from stock_events where variant_id=%s", fresh) == 0, "one bad row rolls the whole import back (the good row before it was not kept)")
+    err(OWNER, rpc_, key(), "synthetic-backup-0005", json.dumps(pl["opening"]), contains="permission denied")
+    err("anon", rpc_, key(), "synthetic-backup-0005", json.dumps(pl["opening"]), contains="permission denied")
+    err("service_role", rpc_, key(), "short", json.dumps(pl["opening"]), contains="which backup")
+
+
+@test
+def disputed_quantities_stay_off_the_website_until_a_person_counts_them():
+    reset()
+    pl = put_synth()
+    n_pend = len({(r["product_id"], r["size"]) for r in pl["opening"] if r["pending"]})
+    av = {(r[0], r[1]): r[2:4] for r in q("select product_id, size, state, n from get_availability(array['imp-art1-red','imp-clean','imp-flag-wrong'])", who="anon")}
+    check(av[("imp-art1-red", "L")] == ("check", None) and av[("imp-flag-wrong", "M")] == ("check", None), "an uncounted size reads Check availability, never Available")
+    check(av[("imp-art1-red", "XL")] == ("low", 1) and av[("imp-clean", "M")] == ("available", None), "counted sizes are unaffected")
+    check(len(q("select * from pending_counts()", who=DAD)) == n_pend == 5, "the manager's list has exactly the flagged variants")
+    err(CLERK, "select * from pending_counts()", contains="manager")
+    oid, _ = place(("imp-art1-red", "L", 1), ("imp-clean", "M", 1))                           # a request can still arrive; it is just a request
+    err(CLERK, "select confirm_and_reserve(%s,%s,%s,0)", key(), oid, DELIVERY, contains="count pending")
+    check(order(oid)["status"] == "request" and stock("imp-clean", "M") == (3, 0), "refused whole: nothing was held, not even the counted line")
+    oid2, _ = place(("imp-clean", "M", 1), phone="9000000002")
+    reserve(oid2)
+    check(order(oid2)["status"] == "awaiting_payment", "counted stock can still be held")
+    red = vid_of("imp-art1-red", "L")
+    s = ok(CLERK, "select complete_sale(%s,%s::jsonb,%s::jsonb,0)", key(), f'[{{"variant_id":"{red}","qty":1}}]', PAY1)
+    check(len(s["warnings"]) == 1 and "pending" in s["warnings"][0], f"counter sale of an uncounted item warns: {s['warnings']}")
+    check(q1("select count_pending from stock_levels where variant_id=%s", red) is True, "selling does not clear the flag: only a count does")
+    conn().execute("update app_settings set value = 1 where key = 'pending_blocks_counter_sales'")
+    err(CLERK, "select complete_sale(%s,%s::jsonb,%s::jsonb,0)", key(), f'[{{"variant_id":"{vid_of("imp-art1-green", "L")}","qty":1}}]', PAY1, contains="count pending")
+    conn().execute("update app_settings set value = 0 where key = 'pending_blocks_counter_sales'")
+    green = vid_of("imp-art1-green", "L")
+    err(CLERK, "select recount_stock(%s,%s,2,'x')", key(), green, contains="manager")
+    ok(DAD, "select recount_stock(%s,%s,2,'physical count 25 Oct')", key(), green)      # the count equals the stock on file: it still confirms it
+    av = {(r[0], r[1]): r[2] for r in q("select product_id, size, state from get_availability()", who="anon")}
+    check(av[("imp-art1-green", "L")] == "low", f"after a count the size is offered again (2 left): {av[('imp-art1-green', 'L')]}")
+    check(q1("select kind from stock_events where variant_id=%s order by id desc limit 1", green) == "recount", "the count is a recount event")
+    check(q1("select count(*) from stock_events where variant_id=%s and kind='opening_balance'", green) == 1, "the opening row is untouched")
+    ok(DAD, "select set_count_pending(%s,%s,'tag on the shelf looks different')", key(), vid_of("imp-clean", "L"))
+    check(q1("select count_pending from stock_levels where variant_id=%s", vid_of("imp-clean", "L")) is True, "a manager can ask for a count")
+    err(DAD, "select set_count_pending(%s,%s,'')", key(), vid_of("imp-clean", "L"), contains="say why")
+    err(CLERK, "select set_count_pending(%s,%s,'because')", key(), vid_of("imp-clean", "L"), contains="manager")
+    invariants()
 
 
 def main() -> int:

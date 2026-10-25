@@ -10,12 +10,16 @@ from __future__ import annotations
 
 import glob
 import os
-import pwd
 import shutil
 import socket
 import subprocess
 import tempfile
 from pathlib import Path
+
+try:
+    import pwd                      # Unix only; on Windows the pgserver fallback is used
+except ImportError:
+    pwd = None
 
 
 def find_bin() -> Path | None:
@@ -40,7 +44,7 @@ class SystemCluster:
         self.root = Path(tempfile.mkdtemp(prefix="o4u-pg-"))
         self.data = self.root / "data"
         self.port = _free_port()
-        self.as_root = os.geteuid() == 0
+        self.as_root = hasattr(os, "geteuid") and os.geteuid() == 0
         if self.as_root:
             pg = pwd.getpwnam("postgres")
             os.chmod(self.root, 0o755)
@@ -99,7 +103,7 @@ class PgserverCluster:
 
 
 def make_cluster(preload_cron: bool = False, cron_db: str | None = None):
-    b = find_bin()
+    b = find_bin() if pwd is not None else None
     c = SystemCluster(b, preload_cron, cron_db=cron_db) if b else PgserverCluster()
     c.start()
     return c
