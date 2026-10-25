@@ -99,14 +99,14 @@ def main() -> int:
         pub = su.execute("""select p.proname from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prokind = 'f'
                             and exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where a.grantee = 0 and a.privilege_type = 'EXECUTE')""").fetchall()
         check(not pub, "no function is executable by PUBLIC", str(pub))
-        t = su.execute("""select c.relname, has_table_privilege('anon', c.oid, 'select,insert,update,delete'),
-                                 has_table_privilege('authenticated', c.oid, 'insert,update,delete'), has_table_privilege('authenticated', c.oid, 'select'),
-                                 has_table_privilege('service_role', c.oid, 'select,insert,update,delete')
+        t = su.execute("""select c.relname, has_table_privilege('anon', c.oid, 'select,insert,update,delete,truncate,references,trigger'),
+                                 has_table_privilege('authenticated', c.oid, 'insert,update,delete,truncate,references,trigger'), has_table_privilege('authenticated', c.oid, 'select'),
+                                 has_table_privilege('service_role', c.oid, 'select,insert,update,delete,truncate,references,trigger')
                           from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r'""").fetchall()
         check(not [r[0] for r in t if r[1]], "anon has no table access", str([r[0] for r in t if r[1]]))
         check(not [r[0] for r in t if r[2]], "signed-in users cannot write any table", str([r[0] for r in t if r[2]]))
         check({r[0] for r in t if r[3]} == T.EXPECTED_AUTH_SELECT, "signed-in users can read exactly the documented tables", str({r[0] for r in t if r[3]} ^ T.EXPECTED_AUTH_SELECT))
-        check(not [r[0] for r in t if r[4]], "the service role has no direct table access (it works only through the functions)", str([r[0] for r in t if r[4]]))
+        check(not [r[0] for r in t if r[4]], "the service role has NO table privileges at all, not even TRUNCATE (it works only through the functions)", str([r[0] for r in t if r[4]]))
 
         # seed + smoke through the non-superuser session (what the SQL editor does)
         for role in ("owner", "manager", "staff"):

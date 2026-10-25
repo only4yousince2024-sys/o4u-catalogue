@@ -11,6 +11,7 @@ migrations/0003_expire_holds_hardening.sql     expire_holds safe for 2 scheduler
 migrations/0004_expire_holds_schedule.sql      pg_cron every minute; harmless no-op where pg_cron cannot run
 migrations/0005_public_hardening_and_trust_flag.sql   order-ref check digits, per-phone rate limit, stock-trust flag
 migrations/0006_shared_barcodes_opening_balance.sql   shared barcodes (scan never guesses), opening-balance import, count-pending flag, FREE=Free
+migrations/0007_service_role_no_table_access.sql   service role loses leftover TRUNCATE/REFERENCES/TRIGGER on every table (found on the real hosted project)
 importer/stockroom_import.py                   plan/apply a Stockroom backup into a DEV database (dry run by default; counts only)
 seed/onboard_staff.sql                         how the owner puts real people on the staff list (placeholders only)
 seed/preflight_hosted.sql                      READ-ONLY look at a hosted project (roles, default grants, event triggers, cron) before running 0001
@@ -24,7 +25,7 @@ tests/run_db_tests.py                          the checks (60 on Linux with pg_c
 tests/run_mutations.py                         breaks the SQL on purpose, 27 ways, and confirms the checks notice
 ```
 
-Migrations are applied in file order. 0002-0006 are idempotent (safe to run again); 0001 is not (it creates tables) and
+Migrations are applied in file order. 0002-0007 are idempotent (safe to run again); 0001 is not (it creates tables) and
 refuses a second run. 0002+ need Supabase's `auth` schema.
 
 ## Run the checks

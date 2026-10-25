@@ -43,4 +43,8 @@ begin
   end loop;
 end $$;
 create event trigger rls_auto_enable on ddl_command_end execute function supa_internal.rls_auto_enable();
--- (no `alter default privileges ... grant` lines: new objects are NOT exposed to the API roles automatically)
+-- Measured on the real hosted project (25 Oct 2026, preflight): with "automatically expose new tables" OFF, tables the editor's
+-- `postgres` role creates still get these DEFAULT grants for the API roles - NOT select/insert/update/delete, but TRUNCATE, REFERENCES,
+-- TRIGGER (and MAINTAIN on PG17). Functions get no default grant to the API roles. Mirror that so the migrations are tested against it.
+alter default privileges for role supa_owner in schema public grant truncate, references, trigger on tables to anon, authenticated, service_role;
+alter default privileges for role supa_owner in schema public revoke execute on functions from public;

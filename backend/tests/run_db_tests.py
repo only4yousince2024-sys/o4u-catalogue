@@ -1208,7 +1208,7 @@ def fingerprint(c):
 
 @test
 def migrations_apply_cleanly_in_order_on_a_fresh_database_and_match_the_main_one():
-    check([m.name[:4] for m in MIGRATIONS] == ["0001", "0002", "0003", "0004", "0005", "0006"], f"migration files: {[m.name for m in MIGRATIONS]}")
+    check([m.name[:4] for m in MIGRATIONS] == ["0001", "0002", "0003", "0004", "0005", "0006", "0007"], f"migration files: {[m.name for m in MIGRATIONS]}")
     uri = build_db(ENV.uri, "o4ufresh")
     fresh = psycopg.connect(uri, autocommit=True)
     main = fingerprint(conn())
@@ -1217,7 +1217,7 @@ def migrations_apply_cleanly_in_order_on_a_fresh_database_and_match_the_main_one
 
 
 @test
-def migrations_0002_to_0006_can_be_re_applied_over_live_data_without_change():
+def migrations_0002_to_0007_can_be_re_applied_over_live_data_without_change():
     uri = dburi("o4ufresh")
     c = psycopg.connect(uri, autocommit=True)
     c.execute("select set_config('request.jwt.claims', %s, false)", (jwt_claims(OWNER),))
@@ -1229,7 +1229,7 @@ def migrations_0002_to_0006_can_be_re_applied_over_live_data_without_change():
     for rnd in range(2):
         for m in MIGRATIONS[1:]:
             c.execute(m.read_text(encoding="utf-8"))
-    check(fingerprint(c) == before_fp and counts() == before_n, "re-applying 0002-0006 changed the schema or the data")
+    check(fingerprint(c) == before_fp and counts() == before_n, "re-applying 0002-0007 changed the schema or the data")
     try:
         c.execute(MIGRATIONS[0].read_text(encoding="utf-8"))
         check(False, "0001 is not idempotent by design and should refuse a second run")
@@ -1402,6 +1402,19 @@ def build_db(uri_base, dbname, notices=None, migrations=None):
         c.execute(m.read_text(encoding="utf-8"))
     c.close()
     return uri
+
+@test
+def the_service_role_has_no_table_privileges_not_even_truncate():
+    reset()
+    bad = q("""select c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r'
+               and has_table_privilege('service_role', c.oid, 'select,insert,update,delete,truncate,references,trigger')""")
+    check(not bad, f"service_role can still touch tables directly (TRUNCATE would skip the append-only triggers): {[r[0] for r in bad]}")
+    seq = q("""select c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'S'
+               and case when c.relkind = 'S' then has_sequence_privilege('service_role', c.oid, 'usage,select,update') end""")
+    check(not seq, f"service_role can use sequences: {[r[0] for r in seq]}")
+    st, _ = rpc("service_role", "truncate stock_events")
+    check(st == "err", "the service role cannot truncate the stock ledger")
+    ok("service_role", "select expire_holds()")          # and it still does its real job, through the function
 
 
 # ═════════════════════════ migration 0006: shared barcodes, opening balance, count-pending (from the real-backup review) ═════════════════════════
