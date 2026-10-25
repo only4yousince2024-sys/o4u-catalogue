@@ -237,6 +237,136 @@
     const badImgs = [];
     await Promise.all(imgs.map(src => new Promise(res => { const im = new Image(); im.onload = () => { if (!im.naturalWidth) badImgs.push(src); res(); }; im.onerror = () => { badImgs.push(src); res(); }; im.src = src; })));
     ok(`6 every product image loads (${imgs.length} files)`, imgs.length > 0 && badImgs.length === 0, badImgs.slice(0, 5).join(', '));
+
+    // ── 7. OWNER-APPROVED SHOPPING RULES (25 Oct 2026): availability labels (D3), first-add
+    //       sheet, [-] n [+] steppers kept in step across card / product view / bag ──
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const saveAvail = { d: availData, at: availAt };
+    const saveSeen = (() => { try { return sessionStorage.getItem('o4u_bag_opened'); } catch (e) { return null; } })();
+    const resetSeen = () => { bagSeenMem = false; try { sessionStorage.removeItem('o4u_bag_opened'); } catch (e) {} hideFirstAdd(); hideBagToast(); };
+    const M = P.find(x => (x.sizes || []).length >= 3 && isStaticAvailable(x));
+    const S1 = P.find(x => isSingleVariant(x) && isStaticAvailable(x));
+    const live = items => applyAvailability({ items }, Date.now());
+    const chip = sz => document.querySelector(`#sizeGrid .size-btn[data-size="${sz}"]`);
+    const [z0, z1, z2, z3] = M ? M.sizes : [];
+    if (M) {
+      // 7a labels: server decides, page only maps; unknown / stale / malformed → Check availability
+      live({ [M.id]: { [z0]: { s: 'available' }, [z1]: { s: 'low', n: 2 }, [z2]: { s: 'low', n: 1 }, ...(z3 ? { [z3]: { s: 'ask' } } : {}) } });
+      const L = sz => availLabel(availFor(M, sz));
+      ok('7a 3+ available → "Available" (no number)', L(z0) === 'Available');
+      ok('7a 2 left → "Only 2 left"', L(z1) === 'Only 2 left');
+      ok('7a 1 left → "Only 1 left"', L(z2) === 'Only 1 left');
+      if (z3) ok('7a 0 left → "Ask us"', L(z3) === 'Ask us');
+      ok('7a a size with no data → "Check availability"', availLabel(availFor(M, 'NOPE')) === 'Check availability');
+      live({ [M.id]: { [z0]: { s: 'low', n: 7 }, [z1]: { s: 'low' }, [z2]: { s: 'banana' } } });
+      ok('7a malformed data (n=7, missing n, unknown state) → "Check availability", never a number', [z0, z1, z2].every(z => availLabel(availFor(M, z)) === 'Check availability'));
+      live({ [M.id]: { [z0]: { s: 'available' } } }); availAt = Date.now() - 61000;
+      ok('7a data older than 60 s → "Check availability"', availLabel(availFor(M, z0)) === 'Check availability');
+      applyAvailability(null);
+      ok('7a no live data at all → "Check availability" (never "Available")', availLabel(availFor(M, z0)) === 'Check availability');
+
+      // 7b caps: a bag is not a reservation, but we never add more than we KNOW is left
+      live({ [M.id]: { [z0]: { s: 'available' }, [z1]: { s: 'low', n: 2 }, [z2]: { s: 'low', n: 1 } } });
+      clearCart(); resetSeen();
+      const colour = (M.colors && M.colors[0]) || '';
+      const got = setVariantQty(M, colour, z1, 5);
+      ok('7b asking for 5 when "Only 2 left" gives 2', got === 2 && cart[0].quantity === 2);
+      updateLineQty(cart[0].key, 1);
+      ok('7b the bag "+" cannot go above what is left, and is disabled', cart[0].quantity === 2 && document.querySelector('#cartLines .qty-btn[aria-label="Increase quantity"]').disabled);
+      if (z3) { live({ [M.id]: { [z3]: { s: 'ask' } } }); const n0 = cart.length; setVariantQty(M, colour, z3, 1); ok('7b an "Ask us" size cannot be added to the bag', cart.length === n0); }
+      live({ [M.id]: { [z0]: { s: 'available' }, [z1]: { s: 'low', n: 2 }, [z2]: { s: 'low', n: 1 } } });
+
+      // 7c product view: labels on chips and under the sizes
+      clearCart(); resetSeen();
+      openModal(M.id);
+      ok('7c chips show "Only 2 left" / "Only 1 left", plain size otherwise', chip(z1).textContent.includes('Only 2 left') && chip(z2).textContent.includes('Only 1 left') && chip(z0).textContent === z0);
+      chip(z1).click();
+      ok('7c choosing a low size prints its full label under the sizes', document.getElementById('sizeStatus').textContent === 'Only 2 left');
+      chip(z0).click();
+      ok('7c choosing an available size prints "Available"', document.getElementById('sizeStatus').textContent === 'Available');
+
+      // 7d first add of the session: compact sheet, once, not the full bag
+      document.documentElement.style.scrollBehavior = 'auto';       // the page scrolls smoothly: make the test position instant
+      closeModal(); window.scrollTo(0, 600); await sleep(80);
+      const y0 = window.scrollY;
+      ok('7d (precondition) the page is really scrolled down before the add', y0 > 100, `scrollY=${y0}`);
+      openModal(M.id); chip(z0).click();
+      addCurrentToCart();
+      const fa = document.getElementById('firstAdd');
+      ok('7d first add shows the compact "Added to your bag!" sheet', fa.classList.contains('show') && /Added to your bag/.test(fa.textContent));
+      ok('7d it offers View Bag / Checkout and Continue Shopping', !!document.getElementById('faView') && !!document.getElementById('faCont'));
+      ok('7d the full bag is NOT opened by the first add', !document.getElementById('cartOverlay').classList.contains('open'));
+      const shown = id => { const e = document.getElementById(id); return !!(e.offsetWidth || e.offsetHeight) && getComputedStyle(e).display !== 'none'; };
+      ok('7d the product view now shows [-] n [+] and really hides Add to bag (rendered, not just flagged)', shown('modalStep') && !shown('modalAddBtn') && document.getElementById('msQty').textContent === '1');
+      faContinue();
+      ok('7d Continue Shopping closes the sheet and the product view', !fa.classList.contains('show') && !document.getElementById('modalOverlay').classList.contains('open'));
+      await sleep(80);
+      ok('7d browsing position is unchanged', Math.abs(window.scrollY - y0) < 2, `${y0} → ${window.scrollY}`);
+      openModal(M.id); chip(z1).click(); addCurrentToCart();
+      ok('7d a later add does NOT show the sheet again (quiet toast instead)', !fa.classList.contains('show') && document.getElementById('bagToast').classList.contains('show') && cart.length === 2);
+      closeModal(); hideBagToast();
+
+      // 7e double-tap guard, stepper, variants kept separate
+      clearCart(); resetSeen(); openModal(M.id); chip(z0).click();
+      addCurrentToCart(); modalStep(1);
+      ok('7e a second tap straight after Add is the same gesture: still 1', cart[0].quantity === 1);
+      await sleep(STEP_LOCK_MS + 60);
+      modalStep(1); modalStep(1);
+      ok('7e deliberate taps afterwards all count (1 → 3)', cart[0].quantity === 3 && document.getElementById('msQty').textContent === '3');
+      chip(z1).click();
+      ok('7e another size is a separate variant: shows Add to bag, not the other size\'s count', shown('modalAddBtn') && !shown('modalStep'));
+      addCurrentToCart(); await sleep(STEP_LOCK_MS + 60); modalStep(1);
+      ok('7e two sizes = two bag lines with their own quantities', cart.length === 2 && cart.find(l => l.size === z0).quantity === 3 && cart.find(l => l.size === z1).quantity === 2);
+      ok('7e at the cap the "+" is disabled and says so', document.getElementById('msPlus').disabled && /Only 2 left/.test(document.getElementById('sizeStatus').textContent));
+      // bag edits flow back into the product view
+      updateLineQty(cart.find(l => l.size === z1).key, -1);
+      ok('7e editing in the bag updates the product view stepper', document.getElementById('msQty').textContent === '1' && !document.getElementById('msPlus').disabled);
+      modalStep(-1);
+      ok('7e stepping down to 0 removes the line and restores Add to bag', cart.length === 1 && shown('modalAddBtn') && !shown('modalStep'));
+      ok('7e cart badge matches the bag', document.querySelector('.cart-count').textContent === String(cartCount()));
+      closeModal();
+    } else ok('7 a product with 3+ sizes exists in the catalogue', false);
+
+    if (S1) {
+      // 7f cards: single-variant products add straight from the grid; the stepper follows the bag
+      clearCart(); resetSeen(); applyAvailability(null);
+      const card = document.querySelector(`#grid .pcard[data-id="${S1.id}"]`);
+      card.querySelector('.wa-btn').click();
+      ok('7f card "Add" on a single-variant product adds one and swaps to [-] n [+]', cart.length === 1 && card.classList.contains('has-step') && card.querySelector('.card-step output').textContent === '1');
+      ok('7f the first add from a card also shows the sheet once', document.getElementById('firstAdd').classList.contains('show')); faContinue();
+      await sleep(STEP_LOCK_MS + 60);
+      card.querySelector('.card-step button:last-child').click();
+      ok('7f card "+" → 2 in the bag, on the card, in the badge and in the bag drawer', cart[0].quantity === 2 && card.querySelector('.card-step output').textContent === '2' && document.querySelector('.cart-count').textContent === '2' && document.querySelector('#cartLines .qty-num').textContent === '2');
+      updateLineQty(cart[0].key, -1);
+      ok('7f editing in the bag moves the card stepper', card.querySelector('.card-step output').textContent === '1');
+      card.querySelector('.card-step button:first-child').click();
+      ok('7f card "−" at 1 removes it and brings back Add', cart.length === 0 && !card.classList.contains('has-step') && card.querySelector('.wa-lbl').textContent === 'Add');
+      // 7g rapid taps
+      card.querySelector('.wa-btn').click(); await sleep(STEP_LOCK_MS + 60);
+      for (let i = 0; i < 20; i++) card.querySelector('.card-step button:last-child').click();
+      for (let i = 0; i < 7; i++) card.querySelector('.card-step button:first-child').click();
+      ok('7g 20 rapid "+" and 7 "−" taps end at exactly 1 + 20 − 7 = 14', cart[0].quantity === 14 && card.querySelector('.card-step output').textContent === '14');
+      live({ [S1.id]: { [(S1.sizes && S1.sizes[0]) || '']: { s: 'low', n: 1 } } });
+      ok('7g when the live data says "Only 1 left" the card stepper shows the cap, does not exceed it', cart[0].quantity === 14 && card.querySelector('.card-step button:last-child').disabled);
+      ok('7g an order request above what is left is not sent; the bag says why', (opened = null, sendWhatsApp(true), opened === null) && !!document.querySelector('#cartLines .cart-line-note[data-issue="1"]'));
+      updateLineQty(cart[0].key, -13);
+      ok('7g after reducing to what is left (1) the warning goes and the order is no longer blocked', cart[0].quantity === 1 && !document.querySelector('#cartLines .cart-line-note[data-issue="1"]') && !cart.some(l => l.quantity > capFor(S1, l.size)));
+      // 7h persistence
+      clearCart(); applyAvailability(null); card.querySelector('.wa-btn').click(); await sleep(STEP_LOCK_MS + 60); card.querySelector('.card-step button:last-child').click();
+      const back = loadCart();
+      ok('7h the bag survives a reload with its quantity and the card stepper is rebuilt from it', back.length === 1 && back[0].quantity === 2 && (card.classList.remove('has-step'), syncAll(), card.classList.contains('has-step') && card.querySelector('.card-step output').textContent === '2'));
+    } else ok('7f a single-variant product exists in the catalogue', false);
+
+    // 7i whole-product "all sizes Ask us" reads as unavailable; stale data never does
+    if (M) {
+      live({ [M.id]: Object.fromEntries(M.sizes.map(s => [s, { s: 'ask' }])) });
+      ok('7i every size "Ask us" on fresh data → the product reads as unavailable', !isAvailable(M));
+      availAt = Date.now() - 61000;
+      ok('7i the same data once stale → not claimed unavailable either (Check availability)', isAvailable(M) && availLabel(availFor(M, M.sizes[0])) === 'Check availability');
+    }
+    availData = saveAvail.d; availAt = saveAvail.at; resetSeen();
+    if (saveSeen !== null) { try { sessionStorage.setItem('o4u_bag_opened', saveSeen); } catch (e) {} bagSeenMem = true; }
+    closeModal(); closeCart(); window.scrollTo(0, 0); document.documentElement.style.scrollBehavior = '';
   } finally {
     window.open = origOpen;
     Object.assign(OFFER, saveOfferAll);

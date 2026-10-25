@@ -1110,6 +1110,61 @@
         font-size: 0.8rem;
       }
     }
+    /* ══ QUANTITY STEPPERS, AVAILABILITY LABELS, FIRST-ADD SHEET ══
+       One state (the bag) drives every stepper: card, product view and bag. Solid
+       #C2410C (5.18:1 with white) - steppers are tapped repeatedly, so no blur effects. */
+    .card-step {
+      position: absolute; right: 12px; bottom: 12px; z-index: 2; display: none; align-items: center; gap: 2px;
+      height: 40px; padding: 0 4px; border-radius: 50px; color: #fff; background: #C2410C;
+      border: 1px solid rgba(255, 255, 255, 0.38); box-shadow: 0 4px 14px rgba(189, 62, 11, 0.28);
+    }
+    .card-step button { position: relative; width: 34px; height: 34px; border: 0; background: none; color: #fff; font-size: 20px; line-height: 1; cursor: pointer; border-radius: 50%; font-family: 'Nunito', sans-serif; }
+    .card-step button::after { content: ''; position: absolute; inset: -4px; }
+    .card-step button:disabled, .modal-step button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .card-step output, .modal-step output { min-width: 22px; text-align: center; font-weight: 700; font-size: 15px; }
+    .pcard.has-step .card-step { display: inline-flex; }
+    .pcard.has-step .wa-btn { display: none; }
+    .step-bump { animation: stepBump 220ms ease-out; }
+    @keyframes stepBump { 0% { transform: scale(1); } 45% { transform: scale(1.22); } 100% { transform: scale(1); } }
+    @media (prefers-reduced-motion: reduce) { .step-bump { animation: none; } }
+
+    .modal-wa-btn[hidden] { display: none; }          /* display:flex on the button would otherwise beat [hidden] */
+    .modal-step { display: none; align-items: center; justify-content: space-between; gap: 12px; border-radius: 50px; padding: 6px; background: #C2410C; color: #fff; }
+    .modal-step.show { display: flex; }
+    .modal-step button { width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.16); color: #fff; font-size: 22px; line-height: 1; cursor: pointer; font-family: 'Nunito', sans-serif; }
+    .modal-step .ms-mid { text-align: center; line-height: 1.15; }
+    .modal-step output { display: block; font-size: 1.15rem; }
+    .modal-step small { font-size: 0.7rem; opacity: 0.92; }
+
+    .size-btn .sz-sub { display: block; font-size: 0.58rem; font-weight: 700; color: var(--cta-hover); line-height: 1.15; }
+    .size-btn.selected .sz-sub { color: #fff; }
+    .size-btn.sz-ask { opacity: 0.6; }
+    .size-status { font-size: 0.78rem; margin: -10px 0 18px; min-height: 1.1em; color: var(--gray); }
+    .size-status.low { color: var(--cta-hover); font-weight: 700; }
+    .cart-line-note { font-size: 0.72rem; font-weight: 700; color: var(--cta-hover); margin-top: 2px; }
+
+    .first-add {
+      position: fixed; z-index: 1200; left: 12px; right: 12px; bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+      max-width: 420px; margin: 0 auto; background: #fff; border: 1px solid var(--light); border-radius: 18px;
+      padding: 14px 14px 12px; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.28);
+      opacity: 0; transform: translateY(16px); visibility: hidden; pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s, visibility 0s linear 0.2s;
+    }
+    .first-add.show { opacity: 1; transform: translateY(0); visibility: visible; pointer-events: auto; transition-delay: 0s; }
+    .fa-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.95rem; color: var(--black); }
+    .fa-title svg { width: 18px; height: 18px; color: #1a7f45; flex-shrink: 0; }
+    .fa-sub { font-size: 0.78rem; color: var(--gray); margin: 2px 0 12px 26px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fa-actions { display: flex; gap: 8px; }
+    .fa-actions button { flex: 1; border-radius: 50px; padding: 12px 8px; font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 0.85rem; cursor: pointer; }
+    .fa-view { background: #C2410C; color: #fff; border: 0; }
+    .fa-cont { background: #fff; color: var(--black); border: 1.5px solid var(--light); }
+    @media (min-width: 641px) { .first-add { left: auto; right: 24px; bottom: 24px; margin: 0; width: 340px; } }
+    @media (prefers-reduced-motion: reduce) { .first-add { transform: none; } }
+    body:has(.cart-overlay.open) .first-add { display: none; }
+    @media (max-width: 640px) {
+      .card-step { right: 8px; bottom: 8px; height: 36px; }
+      .card-step button { width: 30px; height: 30px; }
+    }
     .nav-right { display: flex; align-items: center; }
 
     :root { --fab-bottom: max(20px, env(safe-area-inset-bottom)); --fab-right: 20px; }
@@ -2221,6 +2276,15 @@
   <span id="bagToastText"></span>
   <button type="button" class="bag-toast-btn" onclick="toastViewBag()">View bag</button>
 </div>
+<!-- ══ FIRST ADD OF A SESSION — compact, not full-screen, shown once ══ -->
+<div class="first-add" id="firstAdd" role="dialog" aria-label="Added to your bag" aria-hidden="true">
+  <div class="fa-title"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-copy="firstAddTitle">Added to your bag!</span></div>
+  <div class="fa-sub" id="faSub"></div>
+  <div class="fa-actions">
+    <button type="button" class="fa-view" id="faView" onclick="faViewBag()">View Bag / Checkout</button>
+    <button type="button" class="fa-cont" id="faCont" onclick="faContinue()">Continue Shopping</button>
+  </div>
+</div>
 
 <!-- ══ CART DRAWER ══ -->
 <div class="cart-overlay" id="cartOverlay" onclick="closeCart(event)">
@@ -2386,22 +2450,22 @@
         <div class="modal-label">Size</div>
         <div class="size-grid" id="sizeGrid"></div>
         <div class="size-hint" id="sizeHint">Please choose a size first</div>
+        <div class="size-status" id="sizeStatus" role="status" aria-live="polite"></div>
       </div>
       <div id="colorSection">
         <div class="modal-label">Choose Colour / Design</div>
         <select class="color-select" id="colorSelect"></select>
-      </div>
-      <div class="modal-label qty-label">Quantity</div>
-      <div class="qty-row">
-        <button class="qty-btn" onclick="changeQty(-1)">−</button>
-        <span class="qty-num" id="qtyNum">1</span>
-        <button class="qty-btn" onclick="changeQty(1)">+</button>
       </div>
       <div class="modal-perks" id="modalPerks"></div>
       <button class="modal-wa-btn modal-add-btn btn-cta" id="modalAddBtn" onclick="addCurrentToCart()">
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
         Add to bag
       </button>
+      <div class="modal-step" id="modalStep">
+        <button type="button" id="msMinus" onclick="modalStep(-1)" aria-label="One less">−</button>
+        <div class="ms-mid"><output id="msQty" aria-live="polite">1</output><small>in your bag</small></div>
+        <button type="button" id="msPlus" onclick="modalStep(1)" aria-label="One more">+</button>
+      </div>
       <div class="modal-note" id="modalNote">Stock is confirmed by us on WhatsApp before you pay.</div>
       <div class="modal-note" id="modalUnavail" hidden>Currently unavailable. <button type="button" class="cart-copy" onclick="openHelp()">Ask us on WhatsApp</button> if you'd like to know when it's back.</div>
     </div>
@@ -2417,7 +2481,6 @@
 <script>
   let modalProduct = null;
   let selectedSize = null;
-  let qty = 1;
 
   // ── GOOGLE SHEETS CONFIG ──
   // After setup, paste your Apps Script URL here:
@@ -2436,7 +2499,8 @@
 
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
   const esc = str => String(str ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-  const isAvailable = p => Number(p.stockQty) > 0;
+  const isStaticAvailable = p => Number(p.stockQty) > 0;           // generated catalogue: a product with no stock at all
+  const isAvailable = p => isStaticAvailable(p) && !liveAllAsk(p);
   const hasSizePrices = p => p.sizePrices && Object.keys(p.sizePrices).length > 0;
   // Unit price for a chosen size — some articles are priced per size (sizePrices).
   const unitPrice = (p, size) => (size && p.sizePrices && p.sizePrices[size]) ? p.sizePrices[size] : p.price;
@@ -2468,10 +2532,15 @@
           </div>
           ${!avail ? `<span class="pcard-badge b-dark">Currently unavailable</span>`
             : p.badge ? `<span class="pcard-badge ${badgeClass[p.badgeStyle] || 'b-orange'}">${esc(p.badge)}</span>` : ''}
-          <button class="wa-btn btn-cta" onclick="event.stopPropagation(); openModal('${esc(p.id)}')" aria-label="${avail ? 'Add to bag' : 'View'}: ${esc(p.name)}">
+          <button class="wa-btn btn-cta" onclick="cardAdd(event, '${esc(p.id)}')" aria-label="${avail ? 'Add to bag' : 'View'}: ${esc(p.name)}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-            ${avail ? 'Add' : 'View'}
+            <span class="wa-lbl">${avail ? 'Add' : 'View'}</span>
           </button>
+          <div class="card-step" onclick="event.stopPropagation()" role="group" aria-label="Quantity: ${esc(p.name)}">
+            <button type="button" onclick="cardStep(event, '${esc(p.id)}', -1)" aria-label="One less">−</button>
+            <output aria-live="polite">1</output>
+            <button type="button" onclick="cardStep(event, '${esc(p.id)}', 1)" aria-label="One more">+</button>
+          </div>
         </div>
         <div class="pcard-body">
           <div class="pcard-cat">${esc(catLabel(p.category))}</div>
@@ -2568,6 +2637,7 @@
     if (allProducts.length) {
       grid.innerHTML = renderProducts(allProducts);
       watchCards();
+      syncAll();                       // a bag restored from storage shows its steppers on the cards
     } else {
       grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--gray);padding:40px">No products to show right now. Please check back soon, or tap Help to message us.</p>';
     }
@@ -2730,7 +2800,6 @@
     document.getElementById('galFull').classList.remove('open');
     modalProduct = p;
     selectedSize = null;                     // never carried across products
-    qty = 1;
 
     // Fill modal
     galInit(p);
@@ -2750,7 +2819,6 @@
     { const th = (typeof OFFER !== 'undefined' && OFFER.enabled && OFFER.kind === 'free-delivery') ? OFFER.threshold : 0;
       document.getElementById('modalPerks').textContent = (th ? `Free delivery on ₹${fmt(th)} or more · ` : '') + 'Exchange within 3 days'; }
     updateModalPrice();
-    document.getElementById('qtyNum').textContent = '1';
 
     // Sizes
     const sg = document.getElementById('sizeGrid');
@@ -2758,7 +2826,7 @@
     if (p.sizes && p.sizes.length) {
       ss.style.display = '';
       sg.innerHTML = p.sizes.map(s =>
-        `<button class="size-btn" onclick="selectSize(this,'${s}')">${s}</button>`
+        `<button class="size-btn" data-size="${esc(s)}" onclick="selectSize(this,'${s}')">${esc(s)}<span class="sz-sub"></span></button>`
       ).join('');
     } else { ss.style.display = 'none'; }
 
@@ -2771,6 +2839,8 @@
     } else { cs.style.display = 'none'; }
 
     renderRelated(p);
+    document.getElementById('colorSelect').onchange = syncModal;     // a colour is a different variant: stepper and labels follow it
+    syncModal();
     document.getElementById('modal').scrollTop = 0;   // a re-opened sheet starts at the image, not where it was left
     if (!swapping) modalReturnFocus = document.activeElement;
     document.getElementById('modalOverlay').classList.add('open');
@@ -2912,6 +2982,7 @@
     btn.classList.add('selected');
     selectedSize = size;
     updateModalPrice();
+    syncModal();
   }
 
   function updateModalPrice() {
@@ -2921,11 +2992,6 @@
     const label = (!selectedSize && hasSizePrices(p)) ? 'From ' : '';
     document.getElementById('modalPrice').innerHTML =
       `${label}₹${fmt(unit)}${p.mrp ? ` <s>₹${fmt(p.mrp)}</s>` : ''}`;
-  }
-
-  function changeQty(delta) {
-    qty = Math.max(1, Math.min(10, qty + delta));
-    document.getElementById('qtyNum').textContent = qty;
   }
 
   // ── CART (client-side only; kept in localStorage so it survives the
@@ -2983,7 +3049,13 @@
     const l = cart.find(x => x.key === key);
     if (!l) return;
     const d = Math.trunc(Number(delta)) || 0;
-    const next = l.quantity + d;
+    let next = l.quantity + d;
+    const prod = productById(l.productId);
+    if (d > 0 && prod) {                                          // never above what we know is left
+      const cap = capFor(prod, l.size);
+      if (l.quantity >= cap) { renderCart(); return; }
+      next = Math.min(next, cap);
+    }
     if (next <= 0) cart = cart.filter(x => x.key !== key);      // stepping below 1 removes the line
     else l.quantity = cleanQty(next);
     cartSentAt = null;
@@ -3044,23 +3116,32 @@
       lines.innerHTML = `<div class="cart-empty"><strong>Your bag is empty</strong>Tap "Add to bag" on any product. You can add several items and send them to us as one order.</div>`;
       foot.style.display = 'none';
       renderOffer(orderTotals());   // empty cart: no bar, no mention of the offer
+      syncAll();
       return;
     }
     foot.style.display = '';
-    lines.innerHTML = cart.map(l => `
+    lines.innerHTML = cart.map(l => {
+      const prod = productById(l.productId);
+      const a = prod ? availFor(prod, l.size) : { state: 'check' };
+      const cap = prod ? capFor(prod, l.size) : CART_MAX_QTY;
+      const note = a.state === 'ask' ? 'Ask us: please remove this or message us'
+        : (a.state === 'low' && l.quantity > cap) ? `Only ${cap} left: please reduce the quantity`
+        : a.state === 'low' ? availLabel(a) : '';
+      return `
       <div class="cart-line" data-key="${esc(l.key)}">
         <div>
           <div class="cart-line-name">${esc(l.name)}</div>
           <div class="cart-line-meta">${esc(l.article)}${l.colour ? ' · ' + esc(l.colour) : ''}${l.size ? ' · ' + esc(sizeLabel(l.size).replace(':', '')) : ''} · ₹${fmt(l.price)} each</div>
+          ${note ? `<div class="cart-line-note" data-issue="${l.quantity > cap ? '1' : '0'}">${esc(note)}</div>` : ''}
         </div>
         <div class="cart-line-price">₹${fmt(l.price * l.quantity)}</div>
         <div class="cart-line-ctl">
           <button class="qty-btn" onclick="updateLineQty('${esc(l.key)}', -1)" aria-label="Decrease quantity">−</button>
           <span class="qty-num">${l.quantity}</span>
-          <button class="qty-btn" onclick="updateLineQty('${esc(l.key)}', 1)" aria-label="Increase quantity">+</button>
+          <button class="qty-btn" onclick="updateLineQty('${esc(l.key)}', 1)" aria-label="Increase quantity" ${l.quantity >= cap ? 'disabled' : ''}>+</button>
           <button class="cart-remove" onclick="removeLine('${esc(l.key)}')">Remove</button>
         </div>
-      </div>`).join('');
+      </div>`; }).join('');
     const t = orderTotals();
     renderOffer(t);
     document.getElementById('cartSubtotalRow').hidden = !(t.discount > 0);
@@ -3071,6 +3152,7 @@
       document.getElementById('cartDiscount').textContent = '−₹' + fmt(t.discount);
     }
     document.getElementById('cartTotal').textContent = '₹' + fmt(t.total);
+    syncAll();
   }
 
   function openCart() {
@@ -3159,7 +3241,102 @@
     window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
   }
 
-  // Modal → cart
+  // ── AVAILABILITY LABELS (owner-approved D3) ──
+  // The SERVER decides the label for each size; the browser never receives a count of 3 or
+  // more. Payload: { items: { [productId]: { [size]: { s: 'available'|'low'|'ask', n: 1|2 } } } }
+  // Anything missing, malformed, older than AVAIL_MAX_AGE_MS or failed to load is shown as
+  // "Check availability" - never as a number, never as "Available".
+  // A bag is not a reservation: the cap below only stops adding more than we KNOW is left.
+  const AVAIL_MAX_AGE_MS = 60 * 1000;
+  let availData = null, availAt = 0;
+  function applyAvailability(payload, receivedAt) {
+    availData = (payload && typeof payload === 'object' && payload.items && typeof payload.items === 'object') ? payload.items : null;
+    availAt = availData ? (receivedAt || Date.now()) : 0;
+    if (cart.length) renderCart(); else syncAll();     // bag lines carry their own "Only n left" notes
+  }
+  function availFor(p, size) {
+    if (!p || !isStaticAvailable(p)) return { state: 'ask', n: 0 };
+    if (!availData || Date.now() - availAt > AVAIL_MAX_AGE_MS) return { state: 'check', n: null };
+    const e = availData[p.id] && availData[p.id][size || ''];
+    if (!e) return { state: 'check', n: null };
+    if (e.s === 'available') return { state: 'available', n: null };
+    if (e.s === 'ask') return { state: 'ask', n: 0 };
+    if (e.s === 'low' && (e.n === 1 || e.n === 2)) return { state: 'low', n: e.n };
+    return { state: 'check', n: null };
+  }
+  function availLabel(a) {
+    return a.state === 'available' ? 'Available' : a.state === 'low' ? `Only ${a.n} left` : a.state === 'ask' ? 'Ask us' : 'Check availability';
+  }
+  const capFor = (p, size) => { const a = availFor(p, size); return a.state === 'low' ? a.n : a.state === 'ask' ? 0 : CART_MAX_QTY; };
+  // every size of the product is "Ask us" on fresh live data: the product reads as unavailable
+  function liveAllAsk(p) {
+    if (!availData || Date.now() - availAt > AVAIL_MAX_AGE_MS) return false;
+    const sizes = (p.sizes && p.sizes.length) ? p.sizes : [''];
+    return sizes.every(s => { const e = availData[p.id] && availData[p.id][s]; return !!e && e.s === 'ask'; });
+  }
+  if (typeof AVAILABILITY !== 'undefined' && AVAILABILITY.url) {
+    const pull = async () => {
+      try {
+        const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 4000);
+        const r = await fetch(AVAILABILITY.url, { signal: ctl.signal, cache: 'no-store' }); clearTimeout(t);
+        if (r.ok) applyAvailability(await r.json(), Date.now());
+      } catch (e) { /* stale data ages out into "Check availability" by itself */ }
+    };
+    pull(); setInterval(pull, AVAILABILITY.refreshMs || 30000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) pull(); });
+  }
+  setInterval(() => { if (availData) syncAll(); }, 15000);          // re-evaluate staleness
+
+  // ── VARIANT HELPERS: a variant is product + colour + size, never merged ──
+  const pIndex = { n: -1, map: null };
+  function productById(id) {
+    if (pIndex.n !== allProducts.length) { pIndex.n = allProducts.length; pIndex.map = new Map(allProducts.map(x => [x.id, x])); }
+    return pIndex.map.get(id);
+  }
+  const colourOf = p => (p.colors && p.colors.length > 1) ? document.getElementById('colorSelect').value : (p.colors && p.colors[0]) || '';
+  const qtyInBag = (p, colour, size) => { const l = cart.find(x => x.key === lineKey(p.id, colour, size)); return l ? l.quantity : 0; };
+  // a product with one size and at most one colour needs no choosing: the card can add it directly
+  const isSingleVariant = p => (!p.sizes || p.sizes.length <= 1) && (!p.colors || p.colors.length <= 1);
+  // Idempotent: "set this variant to n". Capped by what is known to be left; 0 removes the line.
+  function setVariantQty(p, colour, size, next) {
+    const cap = capFor(p, size);
+    next = Math.min(Math.max(0, Math.trunc(Number(next)) || 0), cap, CART_MAX_QTY);
+    const key = lineKey(p.id, colour, size);
+    const l = cart.find(x => x.key === key);
+    if (next <= 0) cart = cart.filter(x => x.key !== key);
+    else if (l) l.quantity = next;
+    else cart.push({ key, productId: p.id, article: p.article || '', name: p.name, colour: colour || '', size: size || '',
+                     sizeCode: (size && p.sizeCodes && p.sizeCodes[size]) || '', quantity: next, price: Math.round(unitPrice(p, size)) });
+    cartSentAt = null; saveCart(); renderCart();
+    return next;
+  }
+  // Double-tap guard: a second tap on "+" within this window of the ADD that created the line is
+  // the same gesture, not a second piece. Deliberate taps afterwards are all counted.
+  const STEP_LOCK_MS = 350;
+  const stepLock = {};
+  let faLast = null;
+  function onNewLine(p, colour, size) {
+    stepLock[lineKey(p.id, colour, size)] = Date.now() + STEP_LOCK_MS;
+    // First add of a session: one compact confirmation. After that, quiet feedback only.
+    if (!bagSeen()) { markBagSeen(); showFirstAdd(p, size); }
+    else showBagToast();
+  }
+  function addVariantOne(p, colour, size) {
+    const before = qtyInBag(p, colour, size);
+    if (before >= capFor(p, size)) return before;
+    const now = setVariantQty(p, colour, size, before + 1);
+    if (before === 0 && now > 0) onNewLine(p, colour, size);
+    return now;
+  }
+  function stepVariant(p, colour, size, delta) {
+    const key = lineKey(p.id, colour, size);
+    if (Date.now() < (stepLock[key] || 0)) return;
+    const cur = qtyInBag(p, colour, size);
+    if (cur <= 0) return;
+    setVariantQty(p, colour, size, cur + delta);
+  }
+
+  // Modal → cart. Adds ONE of the chosen variant; the product view then shows [-] n [+].
   function addCurrentToCart() {
     const p = modalProduct;
     if (!p || !isAvailable(p)) return;                             // never add an unavailable item
@@ -3168,16 +3345,100 @@
       document.getElementById('sizeGrid').scrollIntoView({ block: 'nearest' });
       return;
     }
-    const colour = p.colors && p.colors.length > 1
-      ? document.getElementById('colorSelect').value
-      : (p.colors && p.colors[0]) || '';
-    addToCart(p, colour, selectedSize || '', qty);
-    closeModal();
-    // First add of a session opens the bag once (the customer sees how it works and
-    // the order-value offer). Every add after that confirms quietly: toast + badge pulse.
-    if (!bagSeen()) { markBagSeen(); openCart(); }
-    else showBagToast();
+    if (availFor(p, selectedSize || '').state === 'ask') { openHelp(); return; }
+    addVariantOne(p, colourOf(p), selectedSize || '');
+    const mm = document.getElementById('modalStep'); if (mm.classList.contains('show')) { const b = document.getElementById('msPlus'); if (b && !b.disabled) b.focus({ preventScroll: true }); }
   }
+  function modalStep(delta) {
+    const p = modalProduct; if (!p) return;
+    const colour = colourOf(p), size = selectedSize || '';
+    const before = qtyInBag(p, colour, size);
+    stepVariant(p, colour, size, delta);
+    if (qtyInBag(p, colour, size) === 0 && before > 0) { const a = document.getElementById('modalAddBtn'); if (a) a.focus({ preventScroll: true }); }
+    else bump(document.getElementById('msQty'));
+  }
+  function bump(el) { if (!el) return; el.classList.remove('step-bump'); void el.offsetWidth; el.classList.add('step-bump'); }
+
+  // Cards: a single-variant product is added straight from the grid; anything with a size or
+  // colour choice opens the product view. The grid is never re-rendered, so scroll never moves.
+  function cardAdd(ev, id) {
+    ev.stopPropagation();
+    const p = productById(id); if (!p) return;
+    if (!isAvailable(p) || !isSingleVariant(p)) { openModal(id); return; }
+    const size = (p.sizes && p.sizes[0]) || '', colour = (p.colors && p.colors[0]) || '';
+    if (availFor(p, size).state === 'ask') { openModal(id); return; }
+    addVariantOne(p, colour, size);
+  }
+  function cardStep(ev, id, delta) {
+    ev.stopPropagation();
+    const p = productById(id); if (!p) return;
+    const size = (p.sizes && p.sizes[0]) || '', colour = (p.colors && p.colors[0]) || '';
+    stepVariant(p, colour, size, delta);
+    bump(ev.currentTarget.parentElement.querySelector('output'));
+  }
+
+  // One function paints every control from the bag, so they cannot disagree.
+  function syncAll() {
+    if (typeof allProducts === 'undefined' || !allProducts.length) return;
+    document.querySelectorAll('#grid .pcard').forEach(card => {
+      const p = productById(card.dataset.id); if (!p) return;
+      const lines = cart.filter(l => l.productId === p.id);
+      const total = lines.reduce((n, l) => n + l.quantity, 0);
+      const single = isAvailable(p) && isSingleVariant(p);
+      const l0 = lines[0];
+      const showStep = single && lines.length === 1;
+      card.classList.toggle('has-step', showStep);
+      if (showStep) {
+        const out = card.querySelector('.card-step output'); if (out.textContent !== String(l0.quantity)) out.textContent = l0.quantity;
+        card.querySelector('.card-step button:last-child').disabled = l0.quantity >= capFor(p, l0.size);
+      }
+      const lbl = card.querySelector('.wa-lbl');
+      if (lbl) lbl.textContent = !isAvailable(p) ? 'View' : total > 0 ? `In bag · ${total}` : 'Add';
+      card.classList.toggle('pcard-off', !isAvailable(p));
+    });
+    syncModal();
+  }
+  function syncModal() {
+    const p = modalProduct;
+    if (!p || !document.getElementById('modalOverlay').classList.contains('open') && !document.getElementById('sizeGrid').children.length) return;
+    const size = selectedSize || '', colour = colourOf(p);
+    const sized = !!(p.sizes && p.sizes.length);
+    // size chips: only "Only n left" / "Ask us" are printed on a chip; the chosen size gets its full label below
+    document.querySelectorAll('#sizeGrid .size-btn').forEach(b => {
+      const a = availFor(p, b.dataset.size);
+      b.querySelector('.sz-sub').textContent = a.state === 'low' ? availLabel(a) : a.state === 'ask' ? 'Ask us' : '';
+      b.classList.toggle('sz-ask', a.state === 'ask');
+    });
+    const st = document.getElementById('sizeStatus');
+    if (sized && !selectedSize) { st.textContent = ''; st.className = 'size-status'; }
+    else { const a = availFor(p, size); st.textContent = availLabel(a); st.className = 'size-status' + (a.state === 'low' ? ' low' : ''); }
+    const q = (sized && !selectedSize) ? 0 : qtyInBag(p, colour, size);
+    const cap = capFor(p, size);
+    const addBtn = document.getElementById('modalAddBtn'), step = document.getElementById('modalStep');
+    const avail = isAvailable(p);
+    addBtn.hidden = q > 0;
+    step.classList.toggle('show', q > 0);
+    if (q > 0) {
+      document.getElementById('msQty').textContent = q;
+      document.getElementById('msPlus').disabled = q >= cap;
+      if (q >= cap && cap < CART_MAX_QTY) st.textContent = cap === 1 ? 'Only 1 left, and it is in your bag' : `Only ${cap} left, and they are in your bag`;
+    } else {
+      const ask = avail && (!sized || !!selectedSize) && availFor(p, size).state === 'ask';
+      addBtn.disabled = !avail;
+      addBtn.lastChild.textContent = !avail ? ' Currently unavailable' : ask ? ' Ask us about this size' : ' Add to bag';
+    }
+  }
+  function showFirstAdd(p, size) {
+    const el = document.getElementById('firstAdd');
+    document.getElementById('faSub').textContent = [p.name, size].filter(Boolean).join(' · ');
+    el.setAttribute('aria-hidden', 'false'); el.classList.add('show');
+    setTimeout(() => { const b = document.getElementById('faView'); if (b) b.focus({ preventScroll: true }); }, 30);
+  }
+  function hideFirstAdd() { const el = document.getElementById('firstAdd'); el.classList.remove('show'); el.setAttribute('aria-hidden', 'true'); }
+  function faViewBag() { hideFirstAdd(); closeModal(); openCart(); }
+  // Continue Shopping: back to the grid exactly where the customer was (nothing scrolls)
+  function faContinue() { hideFirstAdd(); closeModal(); }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('firstAdd').classList.contains('show')) { e.stopPropagation(); faContinue(); } }, true);
 
   // sessionStorage, not localStorage: a new visit gets one fresh look at the bag.
   // No storage (private mode, blocked) → an in-memory flag for the page lifetime.
@@ -3404,6 +3665,9 @@
   }
   function sendWhatsApp(accepted) {
     if (!cart.length) return;
+    // Revalidate against what we KNOW is left: a bag line above the cap, or a size that is now
+    // "Ask us", is sent back to the customer to fix instead of going out as an order request.
+    if (cart.some(l => { const pr = productById(l.productId); return pr && l.quantity > capFor(pr, l.size); })) { renderCart(); return; }
     if (!checkDetails()) return;                                   // name, 10-digit phone, address
     if (!accepted && !policyAccepted()) { policyOpen(document.getElementById('cartSendBtn')); return; }
     lastOrder = null;

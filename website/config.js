@@ -16,6 +16,12 @@ const WA_DISPLAY = '+91 81465 97775';
 //   kind: 'free-delivery' → no discount line; delivery is waived instead
 const OFFER = { enabled: true, kind: 'free-delivery', threshold: 2000, rate: 0 };
 
+// ── LIVE AVAILABILITY ── (owner-approved labels: Available / Only 2 left / Only 1 left / Ask us /
+// Check availability). `url` is empty until the backend exists; with no data every size honestly
+// reads "Check availability". The server decides each label - the page never receives a count of
+// 3 or more - and data older than 60 seconds is treated as unknown.
+const AVAILABILITY = { url: '', refreshMs: 30000 };
+
 // ── SUPPORT ── the guided Help flow. It only routes to WhatsApp; it never
 // answers stock questions (a human confirms availability before money moves).
 const SUPPORT = {
@@ -46,6 +52,7 @@ const COPY = {
   priceNote: 'Final price, including any current offer.',
   orderRequest: 'Sending is an order request, not a confirmed or paid order. We confirm stock and your final bill on WhatsApp before you pay.',
   whatsappNote: "Opening WhatsApp doesn't send the message. Tap send in WhatsApp to reach us.",
+  firstAddTitle: 'Added to your bag!',
   exchangeTitle: 'Exchange within 3 days',
   exchange: [
     'Contact us within 3 days of delivery. The item must be unworn, unwashed and have its tags intact.',

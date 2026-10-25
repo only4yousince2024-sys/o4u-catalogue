@@ -1,7 +1,8 @@
 # Only 4 You — catalogue website: rules for agents
 
-Static product catalogue with WhatsApp ordering. No backend, no payment, no
-accounts. Read this before touching anything.
+Static product catalogue with WhatsApp ordering. No payment, no accounts; a
+shared stock/order backend is approved in principle but not built yet (see
+non-negotiable 8). Read this before touching anything.
 
 ## Architecture
 
@@ -33,9 +34,9 @@ data; `admin.html` is a read-only preview.
 python scripts/build_catalogue.py            # root workbook → website/products.js
 python scripts/build_catalogue.py --workbook path/to/other.xlsx --out ... --images-dir ...
 python scripts/test_build_catalogue.py       # 28 self-checks, no pytest needed
-python scripts/run_cart_tests.py             # 80 cart/threshold/WhatsApp-message/order-block/product-view checks, headless Chrome/Edge
+python scripts/run_cart_tests.py             # 120 cart/threshold/WhatsApp-message/order-block/product-view/steppers/availability checks, headless Chrome/Edge
 sync.bat                                     # owner's one step: build → commit → push (stops on a failed build)
-scripts/cart_tests.js                        # the same 80 checks; can also be pasted into the browser console (F12)
+scripts/cart_tests.js                        # the same 120 checks; can also be pasted into the browser console (F12)
 ```
 
 The cart checks never send anything: they BUILD the wa.me URL and decode it,
@@ -241,11 +242,37 @@ which is the opposite of the trust the section is meant to build.
   `Product A / Pink / M` and `/ L` never merge. Quantities are whole numbers
   1..99. A cart expires after 7 days; a sent cart is kept 30 minutes (so
   "Copy order details" still works) then discarded on the next load.
-* Bag opening: the FIRST add of a session opens the drawer (so the customer
-  sees the bag and the offer once); every later add closes the modal, shows
-  one toast ("Added to bag · n items" + View bag, 2.5 s, timer resets, never
-  stacks, role=status) and pulses the badge (skipped under reduced motion).
-  Flag: `sessionStorage` `o4u_bag_opened`, try/catch, in-memory fallback.
+* First add (owner-approved 25 Oct 2026, replaces the old "first add opens the
+  drawer"): the FIRST add of a session shows ONE compact sheet (`#firstAdd`,
+  not full-screen): "Added to your bag!" with [View Bag / Checkout] and
+  [Continue Shopping]. Continue closes the sheet and the product view and
+  leaves the page exactly where it was; View Bag opens the drawer. Later adds
+  never reopen it: a quiet toast (new line only: "Added to bag · n items" +
+  View bag, 2.5 s, never stacks, role=status) and a badge pulse (skipped under
+  reduced motion). Flag: `sessionStorage` `o4u_bag_opened`, try/catch,
+  in-memory fallback.
+* Quantity controls (owner-approved 25 Oct 2026): `Add to bag` becomes
+  `[-] n [+]` once that variant (product + colour + size) is in the bag, on
+  the product card, in the product view and in the bag; `syncAll()` repaints
+  all of them from the bag, so they cannot disagree. Product view stays open
+  after Add and shows the stepper. A card whose product has one size and at
+  most one colour adds straight from the grid; otherwise the card opens the
+  product view (its label reads "In bag · n"). Stepping to 0 removes the line
+  and brings `Add to bag` back. A "+" within 350 ms of the Add that created
+  the line is ignored (double-tap guard); later taps all count. The grid is
+  never re-rendered, so the browsing position never moves.
+  Adding to the bag NEVER reserves stock. A bag is not an order.
+* Availability labels (owner-approved D3, 25 Oct 2026), per size, decided by
+  the SERVER and delivered via `AVAILABILITY.url` (config.js; empty until the
+  backend exists): 3+ sellable → "Available" (no number ever reaches the
+  browser); 2 → "Only 2 left"; 1 → "Only 1 left"; 0 → "Ask us"; unknown,
+  malformed, older than 60 s or a failed lookup → "Check availability".
+  Never print a number from static data, never invent scarcity. The stepper
+  and the bag "+" stop at the known quantity ("low") and refuse an "Ask us"
+  size; a bag line above what is left is flagged in the bag and the order
+  request is NOT sent until the customer fixes it. Full revalidation against
+  the server on submit arrives with the backend. With no live data every size
+  honestly reads "Check availability".
 * Order message = readable text, then the shared **O4U ORDER block** that
   Stockroom's "Paste order" box reads (format agreed 14 Oct 2026 - never
   change it on one side only):
@@ -354,6 +381,10 @@ which is the opposite of the trust the section is meant to build.
 7. Never commit `website/stock images/` (1.1 GB raw + 1.1 GB ZIP),
    `product-photos/`, `archive/`, or any API key (`polish_photos.py` reads
    `REMOVE_BG_API_KEY` from the environment).
-8. No backend, payment, accounts, real-time inventory, Porter/shipping or
-   WhatsApp Business APIs. Stop and explain before adding any.
+8. No payment, accounts, Porter/shipping or WhatsApp Business API. A shared
+   backend (Supabase, Mumbai) for catalogue, stock and order synchronisation
+   was APPROVED in principle on 25 Oct 2026 (roadmap:
+   `Claude outputs/O4U_Roadmap_For_Approval.md`); nothing in `website/` may
+   call it until it is built, tested and the owner approves each phase. Stop
+   and explain before adding any other backend or API.
 9. Commit per phase; Netlify (publish directory `website`) only after QA.

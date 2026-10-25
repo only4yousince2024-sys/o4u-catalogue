@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<!-- Harness for scripts/run_dashboard_tests.py (headless). Loads stockroom-dev.html in iframes whose database is an
+     in-memory stand-in filled with SYNTHETIC records, then runs dashboard_tests.js. Nothing real is read or written. -->
+<html lang="en"><head><meta charset="UTF-8"><title>Stockroom dashboard tests</title></head>
+<body><pre id="out">PENDING</pre><div id="frames"></div>
+<script src="mock-claude.js"></script><script src="demo-data.js"></script>
+<script>
+(async () => {
+  const out = document.getElementById("out");
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  try {
+    const html = await (await fetch("../stockroom-dev.html", {cache: "no-store"})).text();
+    // open the dev copy on the dashboard with a given synthetic dataset; resolves to the iframe window
+    window.openDev = async (datasetJs, width = 1100) => {
+      const f = document.createElement("iframe"); f.style.cssText = `width:${width}px;height:900px;border:0`;
+      document.getElementById("frames").appendChild(f);
+      const inject = `<script>localStorage.setItem("o4u_tab","dashboard");<\/script><script src="${new URL("mock-claude.js", location.href)}"><\/script><script src="${new URL("demo-data.js", location.href)}"><\/script><script>window.__installMock(${datasetJs});<\/script>`;
+      f.srcdoc = html.replace("<body>", "<body>" + inject);
+      for (let i = 0; i < 200 && !(f.contentWindow && f.contentWindow.O4U_metrics && f.contentWindow.__dashState); i++) await sleep(50);
+      await sleep(150);
+      return f.contentWindow;
+    };
+    window.devHtml = html;
+    const src = await (await fetch("dashboard_tests.js", {cache: "no-store"})).text();
+    const res = await (0, eval)(src);
+    out.textContent = "RESULT " + JSON.stringify(res);
+  } catch (e) { out.textContent = "ERROR " + ((e && e.stack) || e); }
+})();
+</script></body></html>
