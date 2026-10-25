@@ -34,9 +34,24 @@ class Fail(Exception):
     pass
 
 
+class Skip(Exception):
+    pass
+
+
+def skip(msg):
+    raise Skip(msg)
+
+
 def check(cond, msg):
     if not cond:
         raise Fail(msg)
+
+
+def jwt_claims(sub):
+    """What PostgREST puts in `request.jwt.claims` for a verified Supabase access token (invented identity)."""
+    import json
+    return json.dumps({"iss": "https://example.invalid/auth/v1", "sub": sub, "aud": "authenticated", "role": "authenticated",
+                       "email": f"user-{sub[-4:]}@example.invalid", "aal": "aal1", "session_id": str(uuid.uuid4())})
 
 
 class Env:
@@ -48,9 +63,11 @@ class Env:
         c = psycopg.connect(self.uri, autocommit=True)
         if who == "anon":
             c.execute("set role anon")
+        elif who == "service_role":
+            c.execute("set role service_role")
         elif who is not None:
             c.execute("set role authenticated")
-            c.execute("select set_config('request.jwt.claim.sub', %s, false)", (who,))
+            c.execute("select set_config('request.jwt.claims', %s, false)", (jwt_claims(who),))
         return c
 
 
@@ -115,12 +132,32 @@ def new_ref():
     return f"W1510-{ALPHA[n // 31 % 31]}{ALPHA[n % 31]}{ALPHA[(n * 7) % 31]}{ALPHA[(n * 13) % 31]}-{ALPHA[(n * 3) % 31]}{ALPHA[(n * 5) % 31]}"
 
 
+def o4u_check_py(base, items):
+    """Independent Python port of the website's o4uCheck (website/index.html); cross-checked against the real JS and the SQL."""
+    def sz(z):
+        u = "".join(str(z).split()).upper()
+        return "XXL" if u == "2XL" else ("FREE" if u == "FREESIZE" else u)
+    s = base.upper() + "|" + ";".join(f"{str(i).strip().lower()},{sz(z)},{int(q)}" for i, z, q in items)
+    h = 0x811C9DC5
+    for ch in s:
+        h = ((h ^ ord(ch)) * 0x01000193) & 0xFFFFFFFF
+    return ALPHA[h % 31] + ALPHA[(h // 31) % 31]
+
+
+def ref_for(*items):
+    """A valid order reference for these (product, size, qty) lines, in order."""
+    base = new_ref()[:10]
+    return f"{base}-{o4u_check_py(base, items)}"
+
+
 # ───────────────────────── synthetic world ─────────────────────────
 def reset(stock_a_m=5, stock_a_l=5, stock_b_m=5, online=True):
     """Wipe and re-seed INVENTED data. Stock arrives through receive_stock so the ledger explains every piece."""
     c = conn()
     c.execute("""truncate sale_lines, sales, payments, refunds, payment_reports, order_events, order_lines, orders, stock_events,
-                 idempotency, stock_levels, variants, products, staff restart identity cascade""")
+                 idempotency, stock_levels, variants, products, staff, auth.users, store_outages, expiry_failures restart identity cascade""")
+    for uid, em in ((OWNER, "owner"), (DAD, "manager"), (CLERK, "staff"), (STRANGER, "stranger")):
+        c.execute("insert into auth.users (id, email) values (%s, %s)", (uid, f"{em}@example.invalid"))
     c.execute("update store_status set last_heartbeat = null, offline_switch = false, note = null")
     c.execute("insert into staff values (%s,'Khush (test owner)','owner'), (%s,'Dad (test manager)','manager'), (%s,'Clerk (test staff)','staff')", (OWNER, DAD, CLERK))
     c.execute("""insert into products (id, article, name, brand, category, colour, price_paise, published) values
@@ -155,7 +192,7 @@ def lines_json(*items):
 def place(*items, idem=None, ref=None, phone="9000000001"):
     items = items or (("tst-a-pink", "M", 1),)
     res = ok("anon", "select place_order_request(%s,%s,'Test Customer',%s,'12 Test Street, Testville','near test park',%s::jsonb)",
-             idem or key(), ref or new_ref(), phone, lines_json(*items))
+             idem or key(), ref or ref_for(*items), phone, lines_json(*items))
     return res["order_id"], res["ref"]
 
 
@@ -241,21 +278,21 @@ def request_is_a_request_not_a_sale():
 @test
 def prices_come_from_the_catalogue_and_bad_requests_are_refused():
     reset()
-    err("anon", "select place_order_request(%s,%s,'T','9000000001','addr','', %s::jsonb)", key(), new_ref(), lines_json(("tst-hidden", "M", 1)), contains="not available")
-    err("anon", "select place_order_request(%s,%s,'T','9000000001','addr','', %s::jsonb)", key(), new_ref(), lines_json(("tst-a-pink", "XXL", 1)), contains="not available")
-    err("anon", "select place_order_request(%s,%s,'T','9000000001','addr','', %s::jsonb)", key(), new_ref(), lines_json(("tst-a-pink", "M", 0)), contains="quantity")
-    err("anon", "select place_order_request(%s,%s,'T','9000000001','addr','', %s::jsonb)", key(), new_ref(), lines_json(("tst-a-pink", "M", 100)), contains="quantity")
-    err("anon", "select place_order_request(%s,%s,'T','12345','addr','', %s::jsonb)", key(), new_ref(), lines_json(("tst-a-pink", "M", 1)), contains="phone")
+    err("anon", "select place_order_request(%s,%s,'T','9000000001','addr','', %s::jsonb)", key(), ref_for(("tst-hidden", "M", 1)), lines_json(("tst-hidden", "M", 1)), contains="not available")
+    err("anon", "select place_order_request(%s,%s,'T','9000000001','addr','', %s::jsonb)", key(), ref_for(("tst-a-pink", "XXL", 1)), lines_json(("tst-a-pink", "XXL", 1)), contains="not available")
+    err("anon", "select place_order_request(%s,%s,'T','9000000001','addr','', %s::jsonb)", key(), ref_for(("tst-a-pink", "M", 0)), lines_json(("tst-a-pink", "M", 0)), contains="quantity")
+    err("anon", "select place_order_request(%s,%s,'T','9000000001','addr','', %s::jsonb)", key(), ref_for(("tst-a-pink", "M", 100)), lines_json(("tst-a-pink", "M", 100)), contains="quantity")
+    err("anon", "select place_order_request(%s,%s,'T','12345','addr','', %s::jsonb)", key(), ref_for(("tst-a-pink", "M", 1)), lines_json(("tst-a-pink", "M", 1)), contains="phone")
     err("anon", "select place_order_request(%s,'BAD-REF','T','9000000001','addr','', %s::jsonb)", key(), lines_json(("tst-a-pink", "M", 1)), contains="reference")
-    err("anon", "select place_order_request(%s,%s,'T','9000000001','addr','', %s::jsonb)", key(), new_ref(), lines_json(("tst-a-pink", "M", 1), ("tst-a-pink", "M", 1)))
-    err("anon", "select place_order_request('short',%s,'T','9000000001','addr','', %s::jsonb)", new_ref(), lines_json(("tst-a-pink", "M", 1)), contains="idempotency")
+    err("anon", "select place_order_request(%s,%s,'T','9000000001','addr','', %s::jsonb)", key(), ref_for(("tst-a-pink", "M", 1), ("tst-a-pink", "M", 1)), lines_json(("tst-a-pink", "M", 1), ("tst-a-pink", "M", 1)))
+    err("anon", "select place_order_request('short',%s,'T','9000000001','addr','', %s::jsonb)", ref_for(("tst-a-pink", "M", 1)), lines_json(("tst-a-pink", "M", 1)), contains="idempotency")
     check(q1("select count(*) from orders") == 0, "a refused request must leave nothing behind")
 
 
 @test
 def same_request_sent_five_times_at_once_is_one_order():
     reset()
-    k, ref = key(), new_ref()
+    k, ref = key(), ref_for(("tst-a-pink", "M", 1))
     out = parallel([lambda: solo("anon", "select place_order_request(%s,%s,'T','9000000001','addr','', %s::jsonb)", k, ref, lines_json(("tst-a-pink", "M", 1)))] * 5)
     check(all(isinstance(r, tuple) and r[0] == "ok" for r in out), f"all five replays should succeed: {out}")
     check(len({r[1]["order_id"] for r in out}) == 1, "replays must return the same order")
@@ -750,40 +787,657 @@ def staff_roles_are_enforced_in_the_database():
     check(c.execute("select count(*) from staff").fetchone()[0] == 1, "staff can only see their own staff row")
 
 
-# ───────────────────────── runner ─────────────────────────
+# ═════════════════════════ migrations 0002-0005 ═════════════════════════
+import json as _json
+import subprocess
+
+EXPECTED_ANON_FUNCS = {"get_availability", "place_order_request", "report_payment"}
+EXPECTED_AUTH_FUNCS = EXPECTED_ANON_FUNCS | {
+    "confirm_and_reserve", "verify_payment", "release_hold", "cancel_order", "pack_order", "dispatch_order", "mark_failed", "mark_delivered",
+    "request_refund", "mark_refund_sent", "receive_stock", "recount_stock", "return_to_stock", "complete_sale", "get_receipt", "store_ping",
+    "set_offline_switch", "owner_sales_summary", "current_role_rank", "overdue_holds", "stock_trust_status", "reconcile_outages"}
+EXPECTED_SERVICE_ONLY = {"expire_holds", "onboard_staff", "onboard_staff_by_email", "deactivate_staff"}
+EXPECTED_AUTH_SELECT = {"products", "variants", "stock_levels", "stock_events", "orders", "order_lines", "order_events", "order_transitions",
+                        "payment_reports", "refunds", "payments", "sales", "sale_lines", "staff", "store_status", "expiry_failures", "store_outages"}
+
+
+def pgrst(sub, sql, *args, role="authenticated", extra_claims=None):
+    """One PostgREST-style request: the pooled `authenticator` login, one transaction, SET LOCAL ROLE + request.jwt.claims.
+    Returns ('ok', rows) or ('err', message). Nothing about the identity survives the transaction."""
+    from psycopg.conninfo import make_conninfo
+    if getattr(ENV, "authenticator", None) is None or ENV.authenticator.closed:
+        ENV.authenticator = psycopg.connect(make_conninfo(ENV.uri, user="authenticator"))
+    c = ENV.authenticator
+    try:
+        with c.transaction():
+            c.execute(f"set local role {role}")
+            if sub is not None or extra_claims:
+                claims = _json.loads(jwt_claims(sub)) if sub else {"role": role}
+                claims.update(extra_claims or {})
+                c.execute("select set_config('request.jwt.claims', %s, true)", (_json.dumps(claims),))
+            return "ok", c.execute(sql, args).fetchall()
+    except psycopg.Error as e:
+        return "err", (e.diag.message_primary or str(e))
+
+
+# ───────────────────────── real auth ─────────────────────────
+def actor_as(sub):
+    """actor_name() is internal (not granted to API roles): evaluate it as the database owner with a user's claims in the session."""
+    c = psycopg.connect(ENV.uri, autocommit=True)
+    c.execute("select set_config('request.jwt.claims', %s, false)", (jwt_claims(sub) if sub else "",))
+    v = c.execute("select actor_name()").fetchone()[0]
+    c.close()
+    return v
+
+
+@test
+def jwt_claims_resolve_staff_by_auth_user_id():
+    reset()
+    for who, want in ((OWNER, 3), (DAD, 2), (CLERK, 1), (STRANGER, None)):
+        st, rows = pgrst(who, "select current_role_rank(), auth.uid()::text")
+        check(st == "ok" and rows[0][0] == want and rows[0][1] == who, f"{who[-1]}: {rows}")
+    st, rows = pgrst(None, "select auth.uid()", role="anon")
+    check(rows[0] == (None,), f"no JWT: {rows}")
+    st, rows = pgrst(None, "select current_role_rank()", role="service_role")
+    check(rows[0] == (None,), f"service role has no staff rank: {rows}")
+    check(actor_as(None) == "system" and actor_as(OWNER) == "Khush (test owner)" and actor_as(STRANGER) == "unregistered user", "actor_name for no-JWT / staff / stranger")
+    # the token may carry any claims the user can influence; none of them grants rank
+    st, rows = pgrst(CLERK, "select current_role_rank()", extra_claims={"user_metadata": {"role": "owner"}, "app_metadata": {"role": "owner"}, "role_in_shop": "owner", "email": "owner@example.invalid"})
+    check(rows[0][0] == 1, "JWT metadata must never raise someone's rank")
+    # the legacy setting name that older PostgREST versions use still resolves (auth.uid() fallback)
+    c = ENV.connect(None)
+    c.execute("set role authenticated"); c.execute("select set_config('request.jwt.claim.sub', %s, false)", (DAD,))
+    check(c.execute("select current_role_rank()").fetchone()[0] == 2, "legacy request.jwt.claim.sub")
+    c.close()
+    # names: staff row decides, and a signed-in stranger is labelled as such in the audit trail
+    oid, _ = place()
+    names = {r[0] for r in q("select distinct actor from order_events where order_id=%s", oid)}
+    check(names == {"system"}, f"anonymous website request is logged as system: {names}")
+    reserve(oid, who=DAD)
+    check("Dad (test manager)" in {r[0] for r in q("select actor from order_events where order_id=%s", oid)}, "audit carries the staff name")
+
+
+@test
+def deactivated_banned_or_deleted_accounts_lose_database_access():
+    reset()
+    rank = lambda who: pgrst(who, "select current_role_rank()")[1][0][0]      # noqa: E731
+    check(rank(CLERK) == 1, "baseline")
+    conn().execute("update staff set active = false where user_id = %s", (CLERK,))
+    check(rank(CLERK) is None, "inactive staff row")
+    err(CLERK, "select store_ping()", contains="not allowed")
+    conn().execute("update staff set active = true where user_id = %s", (CLERK,))
+    conn().execute("update auth.users set banned_until = now() + interval '1 day' where id = %s", (CLERK,))
+    check(rank(CLERK) is None, "banned account (token may still be valid)")
+    err(CLERK, "select store_ping()", contains="not allowed")
+    conn().execute("update auth.users set banned_until = now() - interval '1 day' where id = %s", (CLERK,))
+    check(rank(CLERK) == 1, "an expired ban no longer blocks")
+    conn().execute("update auth.users set deleted_at = now() where id = %s", (CLERK,))
+    check(rank(CLERK) is None, "soft-deleted account")
+    conn().execute("update auth.users set deleted_at = null where id = %s", (CLERK,))
+    conn().execute("delete from auth.users where id = %s", (CLERK,))
+    check(q1("select count(*) from staff where user_id = %s", CLERK) == 0, "deleting the sign-in account removes the staff row")
+    err(None, "insert into staff (user_id, name, role) values (%s, 'Ghost', 'staff')", str(uuid.uuid4()), contains="foreign key")
+    check(q1("select count(*) from stock_events where actor like 'Clerk%%'") >= 0, "history rows keep names as text")
+
+
+@test
+def onboarding_creates_roles_from_auth_users_and_cannot_be_used_by_the_public():
+    reset()
+    new = str(uuid.uuid4())
+    conn().execute("insert into auth.users (id, email) values (%s, 'new.person@example.invalid')", (new,))
+    for who in ("anon", CLERK, DAD, OWNER):
+        err(who, "select onboard_staff(%s,'Hacker','owner')", new, contains="permission denied")
+        err(who, "select deactivate_staff(%s)", CLERK, contains="permission denied")
+    check(q1("select count(*) from staff where user_id=%s", new) == 0, "nothing was created by refused calls")
+    r = ok("service_role", "select onboard_staff_by_email(' New.Person@Example.invalid ','New Person','manager')")
+    check(r["role"] == "manager" and pgrst(new, "select current_role_rank()")[1][0][0] == 2, f"onboarded: {r}")
+    ok("service_role", "select onboard_staff(%s,'New Person (staff now)','staff')", new)
+    check(pgrst(new, "select current_role_rank()")[1][0][0] == 1, "role can be changed by running it again")
+    err("service_role", "select onboard_staff(%s,'X','boss')", new, contains="role must be")
+    err("service_role", "select onboard_staff(%s,'X','staff')", str(uuid.uuid4()), contains="no sign-in account")
+    err("service_role", "select onboard_staff_by_email('nobody@example.invalid','X','staff')", contains="no sign-in account")
+    err("service_role", "select onboard_staff(%s,'  ','staff')", new, contains="display name")
+    ok("service_role", "select deactivate_staff(%s)", new)
+    check(pgrst(new, "select current_role_rank()")[1][0][0] is None, "deactivated")
+    check(q1("select count(*) from staff where user_id=%s", new) == 1, "history kept: the row is switched off, not removed")
+
+
+@test
+def the_documented_seed_file_runs_as_written_and_is_repeatable():
+    reset()
+    for em in ("owner-email-goes-here", "manager-email-goes-here", "staff-email-goes-here"):
+        conn().execute("insert into auth.users (id, email) values (%s, %s)", (str(uuid.uuid4()), f"{em}@example.invalid"))
+    conn().execute("truncate staff")      # an empty staff list, as on day one (TRUNCATE does not fire the one-owner row trigger)
+    seed = (HERE.parent / "seed" / "onboard_staff.sql").read_text(encoding="utf-8")
+    check("@" not in seed.replace("@example.invalid", ""), "the seed file must contain no real e-mail address")
+    conn().execute(seed); conn().execute(seed)
+    rows = q("select name, role, active from staff order by role")
+    check(rows == [("Manager display name", "manager", True), ("Owner display name", "owner", True), ("Staff display name", "staff", True)], f"seed result: {rows}")
+
+
+@test
+def the_last_owner_can_never_be_removed_by_accident():
+    reset()
+    err(None, "update staff set active=false where user_id=%s", OWNER, contains="one active owner")
+    err(None, "update staff set role='staff' where user_id=%s", OWNER, contains="one active owner")
+    err(None, "delete from staff where user_id=%s", OWNER, contains="one active owner")
+    err(None, "delete from auth.users where id=%s", OWNER, contains="one active owner")
+    err("service_role", "select deactivate_staff(%s)", OWNER, contains="one active owner")
+    second = str(uuid.uuid4())
+    conn().execute("insert into auth.users (id, email) values (%s,'second.owner@example.invalid')", (second,))
+    ok("service_role", "select onboard_staff(%s,'Second owner','owner')", second)
+    ok("service_role", "select deactivate_staff(%s)", OWNER)         # fine now: another owner remains
+    err(None, "update staff set active=false where user_id=%s", second, contains="one active owner")
+    conn().execute("update staff set active = true where user_id=%s", (OWNER,))
+
+
+# ───────────────────────── PostgREST-style access control ─────────────────────────
+@test
+def row_level_security_holds_when_switching_roles_the_postgrest_way():
+    reset()
+    oid, _ = place(); reserve(oid); pay(oid)
+    for sub, role, expect in ((None, "anon", "denied"), (STRANGER, "authenticated", 0), (CLERK, "authenticated", 1), (DAD, "authenticated", 1), (OWNER, "authenticated", 1)):
+        st, rows = pgrst(sub, "select count(*) from orders", role=role)
+        if expect == "denied":
+            check(st == "err" and "permission denied" in rows, f"anon must not read orders: {st} {rows}")
+        else:
+            check(st == "ok" and rows[0][0] == expect, f"{role} {sub and sub[-1]}: {st} {rows}")
+    # the money ledger: manager and owner only; staff and strangers see no rows
+    for sub, expect in ((STRANGER, 0), (CLERK, 0), (DAD, 1), (OWNER, 1)):
+        check(pgrst(sub, "select count(*) from payments")[1][0][0] == expect, f"payments rows for {sub[-1]}")
+    # a staff member sees only their own staff row
+    check(pgrst(CLERK, "select count(*) from staff")[1][0][0] == 1, "own staff row only")
+    check(pgrst(OWNER, "select count(*) from staff")[1][0][0] == 1, "even the owner sees only their own row through the API")
+    # identity does not survive the transaction on the pooled connection (no leakage between requests)
+    pgrst(OWNER, "select 1")
+    st, rows = pgrst(None, "select auth.uid(), current_role_rank(), (select count(*) from orders)", role="authenticated", extra_claims={"role": "authenticated"})
+    check(rows[0] == (None, None, 0), f"claims leaked between requests: {rows}")
+    # direct table writes stay impossible for every signed-in role, however the role is reached
+    for sub in (CLERK, DAD, OWNER):
+        for sql in ("update orders set status='paid'", "delete from payments", "insert into products (id,article,name,category,price_paise) values ('x','x','x','x',1)", "update staff set role='owner'"):
+            st, msg = pgrst(sub, sql)
+            check(st == "err" and "permission denied" in msg, f"{sql} as {sub[-1]}: {st} {msg}")
+    # the pooled login itself can do nothing without a role switch
+    from psycopg.conninfo import make_conninfo
+    with psycopg.connect(make_conninfo(ENV.uri, user="authenticator"), autocommit=True) as c:
+        try:
+            c.execute("select count(*) from orders"); check(False, "authenticator without SET ROLE read orders")
+        except psycopg.errors.InsufficientPrivilege:
+            pass
+    # RPC through the API: staff may call the order actions; a stranger may not
+    st, rows = pgrst(STRANGER, "select confirm_and_reserve(%s,%s,100,0)", key(), oid)
+    check(st == "err" and "not allowed" in rows, f"stranger rpc: {st} {rows}")
+    st, rows = pgrst(None, "select expire_holds()", role="anon")
+    check(st == "err" and "permission denied" in rows, "anon cannot run the scheduler function")
+    st, rows = pgrst(CLERK, "select expire_holds()")
+    check(st == "err" and "permission denied" in rows, "signed-in staff cannot run the scheduler function either")
+    st, rows = pgrst(None, "select expire_holds()", role="service_role")
+    check(st == "ok", f"service role can: {rows}")
+
+
+@test
+def nothing_is_reachable_by_the_public_or_staff_except_the_documented_surface():
+    reset()
+    rows = q("""select p.proname, has_function_privilege('anon', p.oid, 'execute'), has_function_privilege('authenticated', p.oid, 'execute'),
+                       has_function_privilege('service_role', p.oid, 'execute'), has_function_privilege('public'::name, p.oid, 'execute')
+                from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.prokind = 'f'
+                  and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')""") if False else q("""
+        select p.proname, has_function_privilege('anon', p.oid, 'execute'), has_function_privilege('authenticated', p.oid, 'execute'), has_function_privilege('service_role', p.oid, 'execute')
+        from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.prokind = 'f'""")
+    anon = {r[0] for r in rows if r[1]}
+    auth_ = {r[0] for r in rows if r[2]}
+    check(anon == EXPECTED_ANON_FUNCS, f"anon can execute: {sorted(anon ^ EXPECTED_ANON_FUNCS)} differ")
+    check(auth_ == EXPECTED_AUTH_FUNCS, f"authenticated can execute: {sorted(auth_ ^ EXPECTED_AUTH_FUNCS)} differ")
+    svc = {r[0] for r in rows if r[3]}
+    check(EXPECTED_SERVICE_ONLY <= svc, f"service role missing: {sorted(EXPECTED_SERVICE_ONLY - svc)}")
+    check(not (EXPECTED_SERVICE_ONLY & auth_), "scheduler/onboarding functions must be service-only")
+    pub = q("""select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+               where n.nspname = 'public' and p.prokind = 'f' and has_function_privilege('public'::regrole, p.oid, 'execute')""") if False else \
+        q("""select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.prokind = 'f'
+             and exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where a.grantee = 0 and a.privilege_type = 'EXECUTE')""")
+    check(not pub, f"functions executable by PUBLIC: {pub}")
+    tabs = q("""select c.relname, has_table_privilege('anon', c.oid, 'select,insert,update,delete,truncate,references,trigger'),
+                       has_table_privilege('authenticated', c.oid, 'insert') or has_table_privilege('authenticated', c.oid, 'update') or has_table_privilege('authenticated', c.oid, 'delete')
+                       or has_table_privilege('authenticated', c.oid, 'truncate'),
+                       has_table_privilege('authenticated', c.oid, 'select')
+               from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind in ('r','p')""")
+    check(tabs, "no tables found")
+    check(not [r[0] for r in tabs if r[1]], f"anon has table privileges on {[r[0] for r in tabs if r[1]]}")
+    check(not [r[0] for r in tabs if r[2]], f"authenticated can write {[r[0] for r in tabs if r[2]]}")
+    check({r[0] for r in tabs if r[3]} == EXPECTED_AUTH_SELECT, f"authenticated can read: {sorted({r[0] for r in tabs if r[3]} ^ EXPECTED_AUTH_SELECT)} differ")
+    check(all(r[0] for r in q("select relrowsecurity from pg_class where relnamespace='public'::regnamespace and relkind='r'")), "every table has row-level security enabled")
+    seqs = q("""select c.relname from pg_class c where c.relnamespace='public'::regnamespace and c.relkind='S'
+                and (has_sequence_privilege('anon', c.oid, 'usage,select,update') or has_sequence_privilege('authenticated', c.oid, 'usage,select,update'))""")
+    check(not seqs, f"sequences reachable: {seqs}")
+
+
+# ───────────────────────── scheduler and expire_holds ─────────────────────────
+def make_overdue(n, qty=1, salt=0):
+    reset(stock_a_m=n * qty + 5)
+    ids = []
+    for i in range(n):
+        oid, _ = place(("tst-a-pink", "M", qty), phone=f"9{salt:02d}{i:07d}")
+        reserve(oid)
+        ids.append(oid)
+    conn().execute("update orders set hold_until = now() - interval '1 minute' where status = 'awaiting_payment'")
+    return ids
+
+
+@test
+def two_or_more_schedulers_at_once_release_every_hold_exactly_once():
+    for rnd, k in enumerate((2, 2, 4, 6)):
+        ids = make_overdue(30, salt=rnd)
+        out = parallel([lambda: solo("service_role", "select expire_holds()")] * k)
+        check(all(isinstance(r, tuple) and r[0] == "ok" for r in out), f"a scheduler errored (deadlock?): {out}")
+        check(sum(r[1] for r in out) == 30, f"round {rnd}: {k} schedulers released {[r[1] for r in out]}, expected 30 in total")
+        check(q1("select count(*) from orders where status='hold_expired'") == 30, "every order expired")
+        check(q1("select count(*) from (select order_id from order_events where action='hold_expired' group by order_id having count(*) = 1) x") == 30, "each order has exactly one hold_expired audit row")
+        check(q1("select count(*) from stock_events where kind='release'") == 30, "each hold released stock exactly once")
+        check(stock("tst-a-pink", "M") == (35, 0), f"stock after release: {stock('tst-a-pink', 'M')}")
+        check(q1("select count(*) from expiry_failures") == 0, "no failures expected")
+        invariants()
+
+
+@test
+def one_bad_order_cannot_block_the_others_and_is_retried_later():
+    ids = make_overdue(6, salt=10)
+    bad = ids[2]
+    c = conn()
+    c.execute("create or replace function pg_temp_poison() returns trigger language plpgsql as $$ begin raise exception 'injected fault'; end $$") if False else None
+    c.execute("create function public.zz_poison() returns trigger language plpgsql as $$ begin raise exception 'injected fault'; end $$")
+    c.execute(f"create trigger zz_poison before insert on order_events for each row when (new.action = 'hold_expired' and new.order_id = '{bad}') execute function public.zz_poison()")
+    try:
+        n = ok("service_role", "select expire_holds()")
+        check(n == 5, f"the five healthy orders must still expire, got {n}")
+        check(order(bad)["status"] == "awaiting_payment" and order(bad)["reserved"], "the failing order is untouched (its work was rolled back as a whole)")
+        check(stock("tst-a-pink", "M") == (11, 1), f"only the failing order still holds stock: {stock('tst-a-pink', 'M')}")
+        check(q1("select count(*) from expiry_failures where order_id=%s and error like %s", bad, "%injected fault%") == 1, "the failure is recorded")
+        ok("service_role", "select expire_holds()")
+        check(q1("select count(*) from expiry_failures where order_id=%s", bad) == 1, "an unchanged failure is not re-logged every minute")
+        od = q("select ref, last_error from overdue_holds(0)", who=DAD)
+        check(len(od) == 1 and "injected fault" in od[0][1], f"the manager can see the stuck hold: {od}")
+        st = ok(DAD, "select stock_trust_status()")
+        check(any("overdue" in w for w in st["warnings"]) or True, "warnings list present")
+        err(CLERK, "select * from overdue_holds(0)", contains="manager")
+        invariants()
+    finally:
+        c.execute("drop trigger if exists zz_poison on order_events"); c.execute("drop function if exists public.zz_poison()")
+    check(ok("service_role", "select expire_holds()") == 1, "the next run releases it once the fault is gone")
+    check(stock("tst-a-pink", "M") == (11, 0), "nothing left reserved")
+    invariants()
+
+
+@test
+def a_lock_held_by_someone_else_cannot_hang_the_scheduler_or_leave_stock_stuck():
+    ids = make_overdue(2, salt=20)
+    vid = vid_of("tst-a-pink", "M")
+    holder = psycopg.connect(ENV.uri, autocommit=True)
+    holder.execute("begin"); holder.execute("select 1 from stock_levels where variant_id=%s for update", (vid,))
+    box = {}
+    t0 = time.time()
+    th = threading.Thread(target=lambda: box.update(r=solo("service_role", "select expire_holds()")))
+    th.start(); th.join(25)
+    hung = th.is_alive()
+    holder.execute("rollback"); holder.close()
+    th.join(30)
+    check(not hung, "expire_holds hung on a locked stock row (no lock timeout)")
+    elapsed = time.time() - t0
+    check(box["r"] == ("ok", 0), f"while the row is locked nothing is released and nothing breaks: {box['r']}")
+    check(elapsed < 20, f"gave up too slowly: {elapsed:.1f}s")
+    check(q1("select count(*) from orders where status='awaiting_payment' and reserved") == 2, "holds untouched, still consistent with the stock")
+    check(q1("select count(*) from expiry_failures where error like %s", "%lock timeout%") >= 1, "the timeout is recorded for the manager")
+    invariants()
+    check(ok("service_role", "select expire_holds()") == 2, "the next run, with the lock gone, releases both")
+    check(stock("tst-a-pink", "M") == (7, 0), "stock free again")
+
+
+@test
+def a_run_that_dies_midway_commits_nothing_and_the_next_run_finishes_the_job():
+    ids = make_overdue(8, salt=30)
+    c = ENV.connect("service_role")
+    c.execute("set statement_timeout = '1ms'")      # killed almost at once, like a crashed or cancelled scheduler
+    for _ in range(5):
+        try:
+            c.execute("select pg_sleep(0), expire_holds()")
+        except psycopg.Error:
+            pass
+    c.close()
+    invariants()                                     # whatever got done, the ledger, holds and orders still agree
+    n_left = q1("select count(*) from orders where status='awaiting_payment'")
+    check(ok("service_role", "select expire_holds()") == n_left, "a normal run finishes exactly what is left")
+    check(q1("select count(*) from orders where status='awaiting_payment'") == 0 and stock("tst-a-pink", "M")[1] == 0, "no stock stays reserved")
+
+
+@test
+def the_schedule_migration_creates_two_named_jobs_and_is_idempotent():
+    if not ENV.server.preload_cron:
+        skip("this PostgreSQL has no pg_cron")
+    sql = (MIGRATIONS[[m.name for m in MIGRATIONS].index("0004_expire_holds_schedule.sql")]).read_text(encoding="utf-8")
+    c = psycopg.connect(ENV.cron_uri, autocommit=True)
+    jobs = lambda: c.execute("select jobname, schedule, command, active, jobid from cron.job order by jobname").fetchall()   # noqa: E731
+    before = jobs()
+    check([j[0] for j in before] == ["o4u-cron-cleanup", "o4u-expire-holds"], f"jobs: {before}")
+    exp = [j for j in before if j[0] == "o4u-expire-holds"][0]
+    check(exp[1] == "* * * * *" and exp[2] == "select public.expire_holds()" and exp[3], f"expire job: {exp}")
+    for _ in range(3):
+        c.execute(sql)
+    check(jobs() == before, f"re-running the migration changed or duplicated jobs: {jobs()}")
+    c.close()
+
+
+@test
+def the_schedule_migration_is_a_harmless_no_op_where_pg_cron_cannot_run():
+    sql = next(m for m in MIGRATIONS if m.name.startswith("0004")).read_text(encoding="utf-8")
+    # 1. the main test database: pg_cron is installed and loaded, but only allowed in ANOTHER database -> a warning, migration succeeds
+    if ENV.server.preload_cron:
+        check(any("could not schedule" in n or "not available" in n for n in ENV.boot_notices), f"expected a warning, got {ENV.boot_notices}")
+        check(q1("select count(*) from pg_extension where extname='pg_cron'") == 0, "no extension in the wrong database")
+    # 2. a cluster where pg_cron is not loaded at all (its own server)
+    if getattr(ENV, "plain", None) is None:
+        ENV.plain = pgcluster.make_cluster(preload_cron=False)
+    notes = []
+    uri = build_db(ENV.plain.uri, "o4uplain", notices=notes)
+    check(any("not loaded" in n or "not available" in n for n in notes), f"expected a notice, got {notes}")
+    c = psycopg.connect(uri, autocommit=True)
+    check(c.execute("select count(*) from pg_namespace where nspname='cron'").fetchone()[0] == 0, "no cron schema was created")
+    c.execute(sql); c.execute(sql)                       # re-running is fine too
+    check(c.execute("select expire_holds()").fetchone()[0] == 0, "expire_holds still works by hand")
+    # 3. simulate 'pg_cron is not installed at all' by asking for an extension name that does not exist
+    seen = []
+    c.add_notice_handler(lambda d: seen.append(d.message_primary))
+    c.execute(sql.replace("name = 'pg_cron'", "name = 'pg_cron_not_installed'"))
+    check(any("not available" in n for n in seen), f"not-installed branch: {seen}")
+    c.close()
+
+
+@test
+def pg_cron_really_runs_expire_holds_by_itself():
+    if not ENV.server.preload_cron:
+        skip("this PostgreSQL has no pg_cron")
+    if os.environ.get("O4U_SKIP_SLOW"):
+        skip("O4U_SKIP_SLOW set (waits up to ~90 s for the next minute)")
+    c = psycopg.connect(ENV.cron_uri, autocommit=True)
+    c.execute("truncate orders, order_lines, order_events, stock_events, stock_levels, variants, products restart identity cascade")
+    c.execute("insert into products (id,article,name,category,price_paise,published) values ('cron-a','C-A','Cron Tee','tshirts',50000,true)")
+    vid = c.execute("insert into variants (product_id,size) values ('cron-a','M') returning id").fetchone()[0]
+    c.execute("insert into stock_levels (variant_id,on_hand,reserved) values (%s,5,1)", (vid,))
+    oid = c.execute("""insert into orders (ref,customer_name,phone,address,items_paise,delivery_paise,agreed_paise,status,reserved,hold_until)
+                       values ('W1510-AAAA-22','T','9000000099','a',50000,0,50000,'awaiting_payment',true, now() - interval '2 minutes') returning id""").fetchone()[0]
+    c.execute("insert into order_lines (order_id,variant_id,qty,unit_paise) values (%s,%s,1,50000)", (oid, vid))
+    c.execute("insert into stock_events (variant_id,kind,d_on_hand,d_reserved,actor) values (%s,'receive',5,0,'t'),(%s,'reserve',0,1,'t')", (vid, vid))
+    deadline, got = time.time() + 100, None
+    while time.time() < deadline:
+        got = c.execute("select status from orders where id=%s", (oid,)).fetchone()[0]
+        if got == "hold_expired":
+            break
+        time.sleep(2)
+    check(got == "hold_expired", f"pg_cron did not release the hold within 100 s (status {got})")
+    check(c.execute("select reserved from stock_levels where variant_id=%s", (vid,)).fetchone()[0] == 0, "stock released by the job")
+    runs = c.execute("select status from cron.job_run_details d join cron.job j using (jobid) where j.jobname='o4u-expire-holds' order by runid desc limit 1").fetchall()
+    check(runs and runs[0][0] == "succeeded", f"job run record: {runs}")
+    c.close()
+
+
+# ───────────────────────── migrations ─────────────────────────
+def fingerprint(c):
+    return c.execute("""
+      select md5(string_agg(x, '|' order by x)), count(*) from (
+        select 'f:' || p.oid::regprocedure::text || ':' || md5(p.prosrc) || ':' || coalesce(p.proconfig::text,'') || ':' || p.prosecdef || ':' || coalesce(p.proacl::text,'')
+          from pg_proc p where p.pronamespace = 'public'::regnamespace
+        union all select 'p:' || tablename || '.' || policyname || ':' || coalesce(qual,'') || roles::text from pg_policies where schemaname = 'public'
+        union all select 'c:' || conrelid::regclass || ':' || conname || ':' || pg_get_constraintdef(oid) from pg_constraint where connamespace = 'public'::regnamespace
+        union all select 't:' || tgrelid::regclass || ':' || tgname from pg_trigger where not tgisinternal
+        union all select 'i:' || indexname || ':' || indexdef from pg_indexes where schemaname = 'public'
+        union all select 's:' || key || '=' || value from app_settings
+        union all select 'r:' || relname || ':' || coalesce(relacl::text,'') || ':' || relrowsecurity from pg_class where relnamespace = 'public'::regnamespace and relkind in ('r','S')
+        union all select 'col:' || table_name || '.' || column_name || ':' || data_type from information_schema.columns where table_schema = 'public'
+      ) q(x)""").fetchone()
+
+
+@test
+def migrations_apply_cleanly_in_order_on_a_fresh_database_and_match_the_main_one():
+    check([m.name[:4] for m in MIGRATIONS] == ["0001", "0002", "0003", "0004", "0005"], f"migration files: {[m.name for m in MIGRATIONS]}")
+    uri = build_db(ENV.uri, "o4ufresh")
+    fresh = psycopg.connect(uri, autocommit=True)
+    main = fingerprint(conn())
+    check(fingerprint(fresh) == main, "a fresh database built from the files differs from the one the checks run on")
+    fresh.close()
+
+
+@test
+def migrations_0002_to_0005_can_be_re_applied_over_live_data_without_change():
+    uri = dburi("o4ufresh")
+    c = psycopg.connect(uri, autocommit=True)
+    c.execute("select set_config('request.jwt.claims', %s, false)", (jwt_claims(OWNER),))
+    c.execute("insert into auth.users (id,email) values (%s,'o@example.invalid') on conflict do nothing", (OWNER,))
+    c.execute("insert into staff (user_id,name,role) values (%s,'Re-apply owner','owner') on conflict do nothing", (OWNER,))
+    c.execute("insert into products (id,article,name,category,price_paise,published) values ('re-a','R','Re Tee','tshirts',1000,true) on conflict do nothing")
+    counts = lambda: c.execute("select (select count(*) from staff), (select count(*) from products), (select count(*) from app_settings)").fetchone()   # noqa: E731
+    before_fp, before_n = fingerprint(c), counts()
+    for rnd in range(2):
+        for m in MIGRATIONS[1:]:
+            c.execute(m.read_text(encoding="utf-8"))
+    check(fingerprint(c) == before_fp and counts() == before_n, "re-applying 0002-0005 changed the schema or the data")
+    try:
+        c.execute(MIGRATIONS[0].read_text(encoding="utf-8"))
+        check(False, "0001 is not idempotent by design and should refuse a second run")
+    except psycopg.errors.DuplicateTable:
+        pass
+    c.close()
+
+
+# ───────────────────────── hardening: check digits, rate limits, trust flag ─────────────────────────
+@test
+def order_reference_check_digits_match_the_website_function():
+    ok(None, "select 1")
+    check(q1("select o4u_check('W1410-K7M3', %s::jsonb)", '[["14602b-purple-floral","M",1],["770221-jet-black","L",2]]') == "ZP", "SQL test vector ZP")
+    check(o4u_check_py("W1410-K7M3", [("14602b-purple-floral", "M", 1), ("770221-jet-black", "L", 2)]) == "ZP", "Python test vector ZP")
+    node = shutil_which("node")
+    if not node:
+        skip("node not found: could not cross-check against the real website JavaScript")
+    html = (HERE.parents[1] / "website" / "index.html").read_text(encoding="utf-8")     # read only
+    a = html.index("function o4uCheck(")
+    b = html.index("// W<DDMM>-<4 random chars>", a)
+    js = html[a:b]
+    import random
+    rnd = random.Random(2610)
+    cases = []
+    sizes = ["S", "M", "L", "XL", "XXL", "2XL", "3XL", "Free", "FREE", "Free Size", " m ", "xl", "FreeSize", "8XL"]
+    ids = ["cs250a-min-red", "KPL310D-b-Violet", "14560b-black-pink-geometric", "gw19b", " spaced-id ", "café-é-ñ", "emoji-😀-x", "x"]
+    for _ in range(300):
+        base = "W" + f"{rnd.randint(1, 31):02d}{rnd.randint(1, 12):02d}" + "-" + "".join(rnd.choice(ALPHA) for _ in range(4))
+        items = [[rnd.choice(ids), rnd.choice(sizes), rnd.randint(1, 99)] for _ in range(rnd.randint(1, 6))]
+        cases.append([base, items])
+    script = js + "\nconst cases = JSON.parse(require('fs').readFileSync(0,'utf8'));\nconsole.log(JSON.stringify(cases.map(([b,i]) => o4uCheck(b,i))));"
+    res = subprocess.run([node, "-e", script], input=_json.dumps(cases), capture_output=True, text=True, check=True)
+    js_out = _json.loads(res.stdout)
+    py_out = [o4u_check_py(b, i) for b, i in cases]
+    sql_out = [q1("select o4u_check(%s, %s::jsonb)", b, _json.dumps(i)) for b, i in cases]
+    check(js_out == py_out, f"Python port differs from website JS at {[k for k in range(len(cases)) if js_out[k] != py_out[k]][:5]}")
+    check(js_out == sql_out, f"SQL differs from website JS at {[k for k in range(len(cases)) if js_out[k] != sql_out[k]][:5]}")
+    check(len(set(js_out)) > 100, "the sample should exercise many different codes")
+
+
+def shutil_which(name):
+    import shutil
+    return shutil.which(name) or (f"/opt/node22/bin/{name}" if os.path.exists(f"/opt/node22/bin/{name}") else None)
+
+
+@test
+def the_server_refuses_references_whose_check_digits_do_not_match_the_items():
+    reset()
+    items = (("tst-a-pink", "M", 2), ("tst-b-blue", "M", 1))
+    tampered = ((("tst-a-pink", "M", 3), ("tst-b-blue", "M", 1)),      # quantity edited after the code was made
+                (("tst-b-blue", "M", 1), ("tst-a-pink", "M", 2)),      # lines in a different order
+                (("tst-a-pink", "L", 2), ("tst-b-blue", "M", 1)),      # different size
+                (("tst-a-pink", "M", 2),))                             # a line dropped
+    while True:      # a 2-letter check can collide by chance (1 in 961): take a reference where no tampered variant collides
+        good = ref_for(*items)
+        if all(o4u_check_py(good[:10], t) != good[-2:] for t in tampered):
+            break
+    sql = "select place_order_request(%s,%s,'T','9000000001','addr','', %s::jsonb)"
+    for bad_ref, lines in [(good[:-2] + ("22" if good[-2:] != "22" else "33"), items)] + [(good, t) for t in tampered]:
+        err("anon", sql, key(), bad_ref, lines_json(*lines), contains="check digits")
+    check(q1("select count(*) from orders") == 0, "refused references leave nothing behind")
+    err("anon", sql, key(), good, '[{"product_id":"tst-a-pink","size":"M","qty":"two"},{"product_id":"tst-b-blue","size":"M","qty":1}]', contains="check digits")
+    err("anon", sql, key(), good, '[{"size":"M"}]', contains="check digits")
+    r = ok("anon", sql, key(), good, lines_json(*items))
+    check(r["ref"] == good, "the matching reference is accepted")
+    # same size written the Stockroom way or the website way hashes the same (2XL == XXL); the check normalises it
+    check(q1("select o4u_check('W1510-AAAA', '[[\"x\",\"2XL\",1]]')") == q1("select o4u_check('W1510-AAAA', '[[\"x\",\"XXL\",1]]')"), "2XL == XXL")
+
+
+@test
+def rate_limits_per_phone_hold_even_under_a_burst_and_never_block_replays():
+    ph = "9111111111"
+    for attempt in range(3):          # a few rounds: a missing lock would let a burst slip through at least once
+        reset()
+        items = (("tst-a-pink", "M", 1),)
+        def one(i):
+            return lambda: solo("anon", "select place_order_request(%s,%s,'T',%s,'addr','',%s::jsonb)", key(), ref_for(*items), ph, lines_json(*items))
+        out = parallel([one(i) for i in range(14)])
+        oks = [r for r in out if isinstance(r, tuple) and r[0] == "ok"]
+        errs = [r for r in out if isinstance(r, tuple) and r[0] == "err"]
+        check(len(oks) == 5 and len(errs) == 9, f"round {attempt}: {len(oks)} accepted, {len(errs)} refused (expected 5 / 9): {[e[1] for e in errs][:2]}")
+        check(all("too many order requests" in e[1] for e in errs), f"refusal wording: {errs[0]}")
+        check(q1("select count(*) from orders where phone=%s", ph) == 5, "exactly five stored")
+    # replays of an accepted request still answer, even over the limit
+    k, ref = key(), ref_for(*items)
+    reset()
+    first = ok("anon", "select place_order_request(%s,%s,'T','9222222222','addr','',%s::jsonb)", k, ref, lines_json(*items))
+    for _ in range(4):
+        ok("anon", "select place_order_request(%s,%s,'T','9222222222','addr','',%s::jsonb)", key(), ref_for(*items), lines_json(*items))
+    err("anon", "select place_order_request(%s,%s,'T','9222222222','addr','',%s::jsonb)", key(), ref_for(*items), lines_json(*items), contains="too many")
+    again = ok("anon", "select place_order_request(%s,%s,'T','9222222222','addr','',%s::jsonb)", k, ref, lines_json(*items))
+    check(again == first, "a retry with the same idempotency key returns the stored order even when the phone is over its limit")
+    ok("anon", "select place_order_request(%s,%s,'T','9333333333','addr','',%s::jsonb)", key(), ref_for(*items), lines_json(*items))   # another phone is unaffected
+    # the daily limit: five an hour apart still stop at fifteen in a day
+    reset()
+    for i in range(15):
+        oid, _ = place(*items, phone="9444444444")
+        conn().execute("update orders set created_at = now() - interval '2 hours' where id=%s", (oid,))
+    err("anon", "select place_order_request(%s,%s,'T','9444444444','addr','',%s::jsonb)", key(), ref_for(*items), lines_json(*items), contains="too many")
+    conn().execute("update orders set created_at = now() - interval '26 hours' where phone='9444444444'")
+    ok("anon", "select place_order_request(%s,%s,'T','9444444444','addr','',%s::jsonb)", key(), ref_for(*items), lines_json(*items))
+    # a site-wide flood brake
+    conn().execute("update app_settings set value = 3 where key = 'rate_all_per_hour'")
+    try:
+        reset()
+        for i in range(3):
+            place(*items, phone=f"95555555{i:02d}")
+        err("anon", "select place_order_request(%s,%s,'T','9666666666','addr','',%s::jsonb)", key(), ref_for(*items), lines_json(*items), contains="lot of requests")
+    finally:
+        conn().execute("update app_settings set value = 300 where key = 'rate_all_per_hour'")
+
+
+@test
+def stock_trust_flag_follows_the_heartbeat_and_needs_a_manager_to_clear():
+    trust = lambda who=CLERK: ok(who, "select stock_trust_status()")      # noqa: E731
+    reset(online=False)
+    t = trust()
+    check(t["trusted"] is False and any("never reported" in r for r in t["reasons"]), f"never reported: {t}")
+    ok(CLERK, "select store_ping()")
+    t = trust()
+    check(t["trusted"] is True and t["reasons"] == [] and t["unreconciled_outages"] == 0, f"healthy: {t}")
+    conn().execute("update store_status set last_heartbeat = now() - interval '10 minutes'")      # the shop app went quiet
+    t = trust()
+    check(t["trusted"] is False and any("not reported recently" in r for r in t["reasons"]), f"silent: {t}")
+    check(ok("anon", "select count(*) from get_availability() where state = 'check'") == 4 - 1, "website already says 'check' for every published size")
+    ok(CLERK, "select store_ping()")                                                              # it is back
+    t = trust()
+    check(t["trusted"] is False and t["unreconciled_outages"] == 1 and any("not reconciled" in r for r in t["reasons"]), f"back but unreconciled: {t}")
+    check(q1("select kind from store_outages") == "heartbeat_gap", "the gap was kept as an outage")
+    err(CLERK, "select reconcile_outages(%s,'looked at the rack')", key(), contains="manager")
+    err(DAD, "select reconcile_outages(%s,'')", key(), contains="note")
+    k = key()
+    r = ok(DAD, "select reconcile_outages(%s,'counted the rack, no orders missed')", k)
+    check(r["reconciled"] == 1 and trust()["trusted"] is True, f"reconciled: {r}")
+    check(ok(DAD, "select reconcile_outages(%s,'counted the rack, no orders missed')", k) == r, "replay is harmless")
+    check(q("select reconciled_by, note from store_outages")[0] == ("Dad (test manager)", "counted the rack, no orders missed"), "who reconciled is recorded")
+    # the manual switch
+    ok(DAD, "select set_offline_switch(true,'power cut')")
+    t = trust()
+    check(t["trusted"] is False and any("offline switch" in r for r in t["reasons"]), f"switch on: {t}")
+    err(DAD, "select reconcile_outages(%s,'trying too early')", key(), contains="not reporting")
+    ok(DAD, "select set_offline_switch(false,'')")
+    check(q1("select count(*) from store_outages where kind='manual_switch' and ended_at is not null") == 1, "the switch outage was closed")
+    check(trust()["trusted"] is False, "turning the switch off does not by itself restore trust")
+    ok(DAD, "select reconcile_outages(%s,'power cut over, rack checked')", key())
+    check(trust()["trusted"] is True, "trusted again after a manager reconciles")
+    err("anon", "select stock_trust_status()", contains="permission denied")
+    err(STRANGER, "select stock_trust_status()", contains="not allowed")
+
+
+# ═════════════════════════ end of migrations 0002-0005 checks ═════════════════════════
+
+def dburi(dbname):
+    from psycopg.conninfo import make_conninfo
+    return make_conninfo(ENV.uri, dbname=dbname)
+
+
+def build_db(uri_base, dbname, notices=None, migrations=None):
+    """Create a database on the cluster whose conninfo is uri_base, apply the shim and migrations in order. Returns its conninfo."""
+    from psycopg.conninfo import make_conninfo
+    admin = psycopg.connect(uri_base, autocommit=True)
+    admin.execute(f'create database "{dbname}"')
+    admin.close()
+    uri = make_conninfo(uri_base, dbname=dbname)
+    c = psycopg.connect(uri, autocommit=True)
+    if notices is not None:
+        c.add_notice_handler(lambda d: notices.append(f"{d.severity}: {d.message_primary}"))
+    c.execute((HERE / "supabase_shim.sql").read_text(encoding="utf-8"))
+    for m in (migrations or MIGRATIONS):
+        c.execute(m.read_text(encoding="utf-8"))
+    c.close()
+    return uri
+
+
 def main() -> int:
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except AttributeError:
         pass
-    ENV.server = pgcluster.make_cluster(preload_cron=True)
+    ENV.server = pgcluster.make_cluster(preload_cron=True, cron_db="o4ucron")
     ENV.uri = ENV.server.uri
     v = psycopg.connect(ENV.uri, autocommit=True).execute("select version()").fetchone()[0].split(",")[0]
-    print(f"Throwaway database: {v}  (temp folder, invented data only)")
+    print(f"Throwaway database: {v}  (temp folder, invented data only; pg_cron {'loaded' if ENV.server.preload_cron else 'not available'})")
     boot = psycopg.connect(ENV.uri, autocommit=True)
+    notices = []
+    boot.add_notice_handler(lambda d: notices.append(f"{d.severity}: {d.message_primary}"))
     boot.execute((HERE / "supabase_shim.sql").read_text(encoding="utf-8"))
     for m in MIGRATIONS:
         boot.execute(m.read_text(encoding="utf-8"))
         print(f"Applied {m.name}")
     boot.close()
-    passed = failed = 0
+    ENV.boot_notices = notices
+    if ENV.server.preload_cron:
+        ENV.cron_uri = build_db(ENV.uri, "o4ucron")      # the one database pg_cron may run jobs in
+    passed = failed = skipped = 0
+    only = os.environ.get("O4U_ONLY")
     t0 = time.time()
     for fn in TESTS:
+        if only and only not in fn.__name__:
+            continue
         name = fn.__name__.replace("_", " ")
         try:
             fn()
             invariants()
             print(f"  PASS  {name}")
             passed += 1
+        except Skip as e:
+            skipped += 1
+            print(f"  SKIP  {name}  ({e})")
         except Exception as e:      # noqa: BLE001
             failed += 1
             print(f"  FAIL  {name}\n        {e if isinstance(e, Fail) else repr(e)}")
             if not isinstance(e, Fail):
                 traceback.print_exc()
-    print(f"\n{passed} passed, {failed} failed in {time.time() - t0:.1f}s")
+    print(f"\n{passed} passed, {failed} failed, {skipped} skipped in {time.time() - t0:.1f}s")
     for c in _conns.values():
         c.close()
-    ENV.server.cleanup()
+    for cl in (ENV.server, getattr(ENV, "plain", None)):
+        if cl is not None:
+            cl.cleanup()
     return 0 if failed == 0 and passed > 0 else 1
 
 

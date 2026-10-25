@@ -35,8 +35,8 @@ def _free_port() -> int:
 
 
 class SystemCluster:
-    def __init__(self, bindir: Path, preload_cron: bool, dbname: str = "o4utest"):
-        self.bin, self.dbname, self.preload_cron = bindir, dbname, preload_cron
+    def __init__(self, bindir: Path, preload_cron: bool, dbname: str = "o4utest", cron_db: str | None = None):
+        self.bin, self.dbname, self.preload_cron, self.cron_db = bindir, dbname, preload_cron, cron_db or dbname
         self.root = Path(tempfile.mkdtemp(prefix="o4u-pg-"))
         self.data = self.root / "data"
         self.port = _free_port()
@@ -55,7 +55,7 @@ class SystemCluster:
         conf = [f"port = {self.port}", f"unix_socket_directories = '{self.root}'", "listen_addresses = ''", "fsync = off", "max_connections = 100",
                 "synchronous_commit = off", "full_page_writes = off"]
         if self.preload_cron:
-            conf += ["shared_preload_libraries = 'pg_cron'", f"cron.database_name = '{self.dbname}'", "cron.use_background_workers = on", "max_worker_processes = 16"]
+            conf += ["shared_preload_libraries = 'pg_cron'", f"cron.database_name = '{self.cron_db}'", "cron.use_background_workers = on", "max_worker_processes = 16"]
         with open(self.data / "postgresql.conf", "a") as f:
             f.write("\n".join(conf) + "\n")
         self._run([str(self.bin / "pg_ctl"), "-D", str(self.data), "-l", str(self.root / "server.log"), "-w", "-t", "60", "start"])
@@ -98,8 +98,8 @@ class PgserverCluster:
         self.server.cleanup()
 
 
-def make_cluster(preload_cron: bool = False):
+def make_cluster(preload_cron: bool = False, cron_db: str | None = None):
     b = find_bin()
-    c = SystemCluster(b, preload_cron) if b else PgserverCluster()
+    c = SystemCluster(b, preload_cron, cron_db=cron_db) if b else PgserverCluster()
     c.start()
     return c
