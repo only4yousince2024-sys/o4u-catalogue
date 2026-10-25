@@ -35,6 +35,7 @@ python scripts/build_catalogue.py            # root workbook → website/product
 python scripts/build_catalogue.py --workbook path/to/other.xlsx --out ... --images-dir ...
 python scripts/test_build_catalogue.py       # 28 self-checks, no pytest needed
 python scripts/run_cart_tests.py             # 120 cart/threshold/WhatsApp-message/order-block/product-view/steppers/availability checks, headless Chrome/Edge
+backend/.venv/Scripts/python backend/tests/run_db_tests.py   # 33 backend checks, throwaway local PostgreSQL, invented data only (see backend/README.md)
 sync.bat                                     # owner's one step: build → commit → push (stops on a failed build)
 scripts/cart_tests.js                        # the same 120 checks; can also be pasted into the browser console (F12)
 ```
