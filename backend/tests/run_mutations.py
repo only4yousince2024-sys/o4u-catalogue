@@ -1,0 +1,94 @@
+"""Mutation check: deliberately break the SQL, one way at a time, and confirm run_db_tests.py notices.
+
+    python backend/tests/run_mutations.py            # all mutations (about 20 s each)
+    python backend/tests/run_mutations.py 3 7        # only mutations number 3 and 7
+
+Each mutation edits a COPY of the migrations in a temp folder (the real files are never touched) and runs the full check
+suite against it with O4U_MIGRATIONS_DIR. CAUGHT = at least one check failed (names printed); HUNG = the suite did not
+finish in time (also a detection, but a clumsy one); SURVIVED = every check still passed -> a gap in the tests, reported.
+"""
+from __future__ import annotations
+
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+MIG = HERE.parent / "migrations"
+
+MUTATIONS = [
+    # (name, file, old, new)
+    ("0003 expire_holds: take rows without SKIP LOCKED (second scheduler waits on the first)", "0003", "           for update skip locked\n", "           for update\n"),
+    ("0003 expire_holds: no per-order sub-transaction (one bad order aborts the whole run)", "0003", "    exception when others then\n      insert into expiry_failures", "    exception when no_data_found then\n      insert into expiry_failures"),
+    ("0003 expire_holds: no lock_timeout (a held lock hangs the scheduler)", "0003", " set lock_timeout = '3s' as $$", " as $$"),
+    ("0003 expire_holds: drop the 'has a verified payment' guard", "0003", "             and not exists (select 1 from payments p where p.order_id = orders.id and p.kind = 'payment')\n           order by hold_until", "           order by hold_until"),
+    ("0003 expire_holds: forget to release the stock", "0003", "      perform release_lines(o.id, 'hold expired');\n", ""),
+    ("0004 schedule: every hour instead of every minute", "0004", "'* * * * *', 'select public.expire_holds()'", "'0 * * * *', 'select public.expire_holds()'"),
+    ("0004 schedule: job calls the wrong function", "0004", "'select public.expire_holds()'", "'select 1'"),
+    ("0004 schedule: skip the 'not loaded' guard (relies on the exception handler alone)", "0004", "  if coalesce(current_setting('shared_preload_libraries', true), '') not like '%pg_cron%' then\n    raise notice 'o4u: pg_cron is installed but not loaded (shared_preload_libraries) - expire_holds() is NOT scheduled here';\n    return;\n  end if;\n", ""),
+    ("0002 current_role_rank: ignore the staff.active flag", "0002", "  where s.user_id = auth.uid() and s.active\n    and not exists", "  where s.user_id = auth.uid()\n    and not exists"),
+    ("0002 current_role_rank: ignore banned / deleted auth accounts", "0002", "    and not exists (select 1 from auth.users u where u.id = s.user_id and (u.deleted_at is not null or u.banned_until > now()))\n", ""),
+    ("0002 current_role_rank: everyone signed in counts as staff rank 1", "0002", "  where s.user_id = auth.uid() and s.active\n", "  where s.active\n"),
+    ("0002 staff.user_id no longer tied to auth.users", "0002", "foreign key (user_id) references auth.users(id) on delete cascade", "foreign key (user_id) references staff(user_id) on delete cascade"),
+    ("0002 drop the last-owner trigger", "0002", "create trigger staff_keep_one_owner before update or delete on staff for each row execute function keep_one_owner();", ""),
+    ("0002 onboarding callable by signed-in users", "0002", "revoke all on function keep_one_owner(), onboard_staff(uuid,text,text), onboard_staff_by_email(text,text,text), deactivate_staff(uuid) from public, anon, authenticated;", ""),
+    ("0002 forget to close sequences", "0002", "revoke all on all sequences in schema public from public, anon, authenticated;", ""),
+    ("0002 default privileges for tables left open", "0002", "alter default privileges in schema public revoke all on tables    from anon, authenticated;", ""),
+    ("0005 check digits: wrong FNV prime", "0005", "* 16777619)", "* 16777618)"),
+    ("0005 check digits: validation removed from place_order_request", "0005", "    if right(p_ref, 2) <> o4u_check(", "    if false and right(p_ref, 2) <> o4u_check("),
+    ("0005 check digits: size normalisation dropped (2XL stays 2XL)", "0005", "when '2XL' then 'XXL' ", "when '2XL' then '2XL' "),
+    ("0005 rate limit: per-phone advisory lock removed (race)", "0005", "  perform pg_advisory_xact_lock(hashtextextended('o4u-order-phone:' || p_phone, 0));\n", ""),
+    ("0005 rate limit: off by one (> instead of >=)", "0005", "created_at > now() - interval '1 hour') >= setting('rate_phone_per_hour')", "created_at > now() - interval '1 hour') > setting('rate_phone_per_hour')"),
+    ("0005 rate limit: daily limit forgotten", "0005", "\n     or (select count(*) from orders where phone = p_phone and created_at > now() - interval '1 day') >= setting('rate_phone_per_day') then", " then"),
+    ("0005 trust flag: store_ping stops recording outages", "0005", "    insert into store_outages (kind, started_at, ended_at) values ('heartbeat_gap', prev, now());", "    null;"),
+    ("0005 trust flag: reconcile allowed while the shop app is silent", "0005", "  if st.offline_switch or st.last_heartbeat is null or st.last_heartbeat <= now() - make_interval(mins => setting('heartbeat_stale_minutes')) then\n    raise exception 'the shop app is not reporting yet: reconcile after it is back online';\n  end if;\n", ""),
+    ("0005 trust flag: reconcile open to any staff, not just managers", "0005", "  perform require_role('manager');\n  prev := idem_begin(p_idem_key, 'reconcile_outages');", "  perform require_role('staff');\n  prev := idem_begin(p_idem_key, 'reconcile_outages');"),
+    ("0005 trust flag: unreconciled outage no longer lowers trust", "0005", "if unrec > 0 and fresh and not st.offline_switch then", "if false and unrec > 0 and fresh and not st.offline_switch then"),
+    ("0005 stock_trust_status left executable by the public", "0005", "revoke all on function stock_trust_status(), reconcile_outages(text,text), o4u_check(text,jsonb) from public, anon, authenticated;", ""),
+]
+
+
+def main() -> int:
+    wanted = {int(a) for a in sys.argv[1:]}
+    results = []
+    for n, (name, prefix, old, new) in enumerate(MUTATIONS, 1):
+        if wanted and n not in wanted:
+            continue
+        tmp = Path(tempfile.mkdtemp(prefix="o4u-mut-"))
+        try:
+            for f in MIG.glob("*.sql"):
+                shutil.copy(f, tmp / f.name)
+            target = next(tmp.glob(f"{prefix}_*.sql"))
+            text = target.read_text(encoding="utf-8")
+            if text.count(old) != 1:
+                results.append((n, name, "BAD MUTATION", [f"pattern found {text.count(old)} times"]))
+                continue
+            target.write_text(text.replace(old, new), encoding="utf-8")
+            env = dict(os.environ, O4U_MIGRATIONS_DIR=str(tmp), O4U_SKIP_SLOW="1")
+            try:
+                r = subprocess.run([sys.executable, str(HERE / "run_db_tests.py")], env=env, capture_output=True, text=True, timeout=240)
+                out = r.stdout
+                fails = re.findall(r"^  FAIL  (.+)$", out, re.M)
+                if r.returncode != 0 and fails:
+                    results.append((n, name, "CAUGHT", fails))
+                elif r.returncode != 0:
+                    results.append((n, name, "CAUGHT (suite aborted)", [out.strip().splitlines()[-1] if out.strip() else r.stderr.strip().splitlines()[-1]]))
+                else:
+                    results.append((n, name, "SURVIVED", []))
+            except subprocess.TimeoutExpired:
+                results.append((n, name, "HUNG", ["suite did not finish in 240 s"]))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        n_, name_, verdict, why = results[-1]
+        print(f"[{n_:2d}] {verdict:22s} {name_}" + (f"\n        by: {'; '.join(why[:3])}" if why else ""), flush=True)
+    caught = sum(1 for r in results if r[2].startswith("CAUGHT") or r[2] == "HUNG")
+    print(f"\n{caught} of {len(results)} mutations detected; survived: {[r[0] for r in results if r[2] == 'SURVIVED']}; bad patterns: {[r[0] for r in results if r[2] == 'BAD MUTATION']}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

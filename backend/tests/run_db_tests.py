@@ -1109,6 +1109,16 @@ def a_run_that_dies_midway_commits_nothing_and_the_next_run_finishes_the_job():
 
 
 @test
+def an_order_with_a_verified_payment_is_never_expired_even_if_its_status_looks_unpaid():
+    ids = make_overdue(2, salt=40)
+    # an inconsistent state that should be impossible (payment row present, status still awaiting_payment): the guard must still hold it
+    conn().execute("insert into payments (order_id, method, amount_paise, upi_ref, verified_by) values (%s,'upi',1000,'UPIGUARD1','test')", (ids[0],))
+    check(ok("service_role", "select expire_holds()") == 1, "only the unpaid one expires")
+    check(order(ids[0])["status"] == "awaiting_payment" and order(ids[0])["reserved"], "the order with a payment row keeps its hold")
+    conn().execute("update orders set status='paid', paid_paise=1000, agreed_paise=1000, hold_until=null where id=%s", (ids[0],))   # settle it so the sweep stays honest
+
+
+@test
 def the_schedule_migration_creates_two_named_jobs_and_is_idempotent():
     if not ENV.server.preload_cron:
         skip("this PostgreSQL has no pg_cron")
