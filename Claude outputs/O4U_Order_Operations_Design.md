@@ -140,7 +140,7 @@ Branch `dev/backend-synthetic` from `fb2fa4d`, development only, invented data o
 | database suite before the work (`fb2fa4d`) | 61 passed, 0 failed, 1 skipped |
 | database suite now | **66 passed, 0 failed, 0 skipped**; `hosted_like_check.py` ALL PASSED (non-superuser, restricted grants, seed + smoke twice) |
 | the 4 new database checks without 0009 | all 4 fail (and the 2 migration-list checks); the other 59 pass |
-| mutation checks (`run_mutations.py`) | MUTATION_RESULT |
+| mutation checks (`run_mutations.py`) | 34 mutations: 29 detected in the full run; 4 survivors were 0005 rate-limit/check-digit mutations that 0009's replacement of `place_order_request` had made dead code, so they were retargeted at 0009 and are now detected; 1 stale pattern (0004) repaired and detected. Every one of the 34 was individually confirmed detected, 0 survivors (a single uninterrupted 34-way run was not repeated after the retargeting) |
 | API suite, migrations 0001-0009, minted tokens | **42 passed, 0 failed, 0 skipped** (about 15 s) |
 | API suite on 0001-0008 (`--without-0009`) | 35 passed, **7 failed** = the gaps below |
 | API suite with real GoTrue tokens (`--gotrue`) | **30 passed, 0 failed, 0 skipped** (23 repeated + R1-R7) |

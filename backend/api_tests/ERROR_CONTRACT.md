@@ -3,8 +3,9 @@
 What the website and Stockroom actually receive over HTTP when something goes wrong. **Generated** by `backend/api_tests/run_local_stack.py`
 (the full suite, test D5 plus the observed limit cases of F1/F2) against PostgREST in front of the migrations 0001-0009 - do not edit by hand;
 rerun the suite to refresh it. Values are the exact status / `code` / `message` / `details` / `hint` of the JSON error body. Random ids in
-`details` are shown as `<uuid>`. Local PostgREST version and test run: see `backend/api_tests/README.md`. The hosted project returns the same
-bodies for database errors (it runs PostgREST too); gateway-level errors (missing apikey, platform limits) are not covered here.
+`details` are shown as `<uuid>`. Local PostgREST version and test run: see `backend/api_tests/README.md`. A hosted Supabase project runs PostgREST
+too, so database-error bodies are expected to have the same shape - NOT yet verified on the hosted project; gateway-level errors (missing apikey,
+platform limits) are not covered here.
 
 ## Rules for the front ends
 
@@ -68,7 +69,6 @@ bodies for database errors (it runs PostgREST too); gateway-level errors (missin
 | ST-uuid | Order id is not a UUID | 400 | `22P02` | invalid input syntax for type uuid: "not-a-uuid" |  |  | Programming error. |
 | ST-barcode | Unknown barcode in a counter sale | 400 | `P0001` | unknown barcode |  |  | 'Barcode not found.' |
 | ST-sale-pay | Counter sale payments do not equal the bill | 400 | `P0001` | payments 1 do not equal the bill 149900 |  |  | Show the bill amount. |
-| PO-rate-hour-observed | (F1) 6th request in an hour, as a client sees it | 429 | `PT429` | too many order requests from this phone number - please wait a while or message the shop on WhatsApp |  |  | Same as PO-rate-hour. |
 | PO-rate-global | More than 300 order requests in the last hour, from anyone | 429 | `PT429` | the shop is receiving a lot of requests right now - please try again shortly |  |  | Show the message; do not retry automatically; offer WhatsApp. |
 
 ## PostgREST / gateway-level errors

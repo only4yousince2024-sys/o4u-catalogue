@@ -24,7 +24,7 @@ functions/expire-holds/index.ts                fallback scheduler (Supabase Edge
 tests/supabase_shim.sql                        TEST ONLY: Supabase roles, auth.uid(), auth.users, default privileges
 tests/pgcluster.py                             starts throwaway PostgreSQL clusters (OS PostgreSQL, optional pg_cron)
 tests/run_db_tests.py                          the database checks (66 on Linux with pg_cron and node, 0 skipped; fewer run on Windows; the run prints the real count)
-tests/run_mutations.py                         breaks the SQL on purpose, 34 ways, and confirms the checks notice
+tests/run_mutations.py                         breaks the SQL on purpose, 34 ways (all detected), and confirms the checks notice
 api_tests/                                     REAL HTTP tests: PostgREST + JWT + (optionally) real GoTrue in front of a throwaway database; hosted-project runner for the owner; ERROR_CONTRACT.md for the front ends - see api_tests/README.md
 ```
 
