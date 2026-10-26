@@ -126,3 +126,61 @@ Branch `dev/backend-synthetic`, development only, synthetic data only. Nothing w
 **Still planned.** Website `AVAILABILITY.url` and order submission wiring (it must send lines in bag order so the check digits match); Stockroom reading orders live and the shop-app heartbeat plus banner using `stock_trust_status()`; change/exchange flow; POS screen, barcode hardware, receipts, tax invoices; partial/over-payments; rate limiting on `report_payment`; MFA enforcement for the owner role (`aal2`); production migration (separate approval).
 
 **Owner action required (nothing was done on your behalf).** Create the Supabase development project and users and run the migrations following the numbered steps in `backend/README.md`; check that the first real `supabase start`/project run reports the Postgres version and that `cron.job` shows two `o4u-*` rows; D4 (late payment), the 60-minute grace, and the roles in section 10 are still open. If pg_cron turns out to be unavailable on the chosen plan, deploy the Edge Function and pick a scheduler.
+
+
+## 12. Cloud session results — API (26 Oct 2026)
+
+Branch `dev/backend-synthetic` from `fb2fa4d`, development only, invented data only. Nothing was pushed to `master`, no pull request, no deploy, no Supabase account/project/key/token/password was used or asked for, `website/` and `stockroom/` untouched. Full detail, test matrix and the owner's run plan: `backend/api_tests/README.md`; the error table for the front ends: `backend/api_tests/ERROR_CONTRACT.md` (generated).
+
+**What was built.** A real-HTTP harness: throwaway PostgreSQL 16.15 + the official **PostgREST 12.2.12** binary configured like Supabase (`authenticator` NOINHERIT → `anon`/`authenticated`/`service_role`, `public` exposed, HS256 JWT with a throwaway secret generated per run, per-role statement timeouts), and a second profile with **real GoTrue** (Supabase's auth server, built from source because Docker image pulls are refused in this sandbox: "Data limit exceeded"). So: **no Supabase CLI/Docker stack, no Kong gateway and no Postgres 17 were run.** Suite: 42 checks (A public surface, B roles, C JWT, D formats + idempotency + error contract, E CORS, F abuse/limits, G concurrency), a 30-check real-GoTrue profile, `run_hosted.py` for the owner (23 checks, read-only/always-refused, passwords by hidden prompt, refuses unless every product id starts with `dev-`), `rehearsal_hosted.py`, `selfcheck.py`, a real-browser CORS page and its Chromium run, and migration `0009` with 4 new database checks.
+
+**Results (actual runs).**
+| Run | Result |
+|---|---|
+| database suite before the work (`fb2fa4d`) | 61 passed, 0 failed, 1 skipped |
+| database suite now | **66 passed, 0 failed, 0 skipped**; `hosted_like_check.py` ALL PASSED (non-superuser, restricted grants, seed + smoke twice) |
+| the 4 new database checks without 0009 | all 4 fail (and the 2 migration-list checks); the other 59 pass |
+| mutation checks (`run_mutations.py`) | MUTATION_RESULT |
+| API suite, migrations 0001-0009, minted tokens | **42 passed, 0 failed, 0 skipped** (about 15 s) |
+| API suite on 0001-0008 (`--without-0009`) | 35 passed, **7 failed** = the gaps below |
+| API suite with real GoTrue tokens (`--gotrue`) | **30 passed, 0 failed, 0 skipped** (23 repeated + R1-R7) |
+| `selfcheck.py` (database broken 18 ways) | **18 of 18** noticed |
+| `rehearsal_hosted.py` (fake gateway; and `--gotrue --ban` with real GoTrue sign-in) | 22 / 23 PASS, 0 FAIL, leak scan clean; `--not-dev` refused |
+| real Chromium, local PostgREST | 7 of 7 requests readable cross-origin; with CORS restricted to another site all 7 show BLOCKED |
+
+**Passed as designed (executed over HTTP).** Anon reaches exactly `get_availability`, `place_order_request`, `report_payment`; the OpenAPI document lists nothing else; all 20 tables refuse every verb for anon; the 25+3 staff functions answer 403 `42501` to the wrong rank and reach their logic for the right one; staff read no payments/sales/refunds; strangers get empty sets, not errors; nobody writes a table directly; altered/expired/alg-none/wrong-secret tokens are 401; `role` claims (`service_role`, `postgres`, metadata, e-mail) raise nothing; a still-valid token stops working **at once** when the user is banned, soft/hard-deleted (real GoTrue) or the staff row is deactivated, and works again when restored; role changes are immediate; the last owner cannot be removed (GoTrue's own DELETE of the last owner fails); the last piece goes to exactly one of 12 simultaneous HTTP requests (5 rounds), website hold vs counter sale likewise; replayed keys return the stored answer; 24 simultaneous orders from one phone admit exactly 5; unknown reference and wrong phone are byte-identical; 600 brute-force guesses all refused alike.
+
+**Gaps found and fixed (migration `0009_api_abuse_limits.sql`, idempotent, 0001-0008 untouched).**
+1. **Limit refusals were HTTP 500.** `P0429` is not a code PostgREST maps, so "please wait a while" reached the customer's browser as a server error. Now `PT429` → HTTP 429, same messages and limits.
+2. **Unbounded free text.** A 1 MB name was stored; control/escape characters were stored; a 20 MB request was accepted; a NULL phone surfaced a raw `23502`; a 1 MB idempotency key produced **HTTP 500 `54000`** (index row limit). Now: name 100, address 500, landmark 200, key 100 characters, plain single-line text, lines ≤ 20,000 bytes, all refused with ordinary 400s before anything is stored.
+3. **`report_payment` could grow without end** (60 calls → 60 report rows and 60 audit rows, any text, any amount). Now 10 reports per order (429 beyond), reference ≤ 64 characters, amount 0 … ₹10 lakh; inputs that cannot belong to an order get the same `order not found`.
+4. **Internal helpers (`apply_stock_event`, `idem_begin`, `log_order` …) were executable by the service role over the Data API.** Revoked; the functions that use them internally still work.
+Regression checks for 1-4 are in `run_db_tests.py` (each fails without 0009) and the API suite; 7 new mutations of 0009 are all detected.
+
+**Observed, not changed (need a decision or a front-end rule).**
+* PostgREST honours an expired token for ~30 s, ignores `aud`/`iss`, accepts a token without `exp` (only a holder of the signing secret can make such tokens).
+* **A stale or expired token breaks PUBLIC calls too** (401 `PGRST301`); the website must send only the anon key for public calls.
+* **Sign-out does not cut an access token until it expires** (real GoTrue: the session row is deleted, PostgREST and the database do not look at it). Ban, delete and deactivation do cut at once.
+* Self-signup and anonymous sign-in give 'authenticated' tokens; the database gives them nothing (tested), but they should be off.
+* A banned or soft-deleted **sole owner** leaves no one with owner rank; the last-owner rule watches the staff table, not account state. Recovery is via the SQL editor.
+* No per-caller throttle for `report_payment`/`place_order_request` beyond the stored-order limits: the database cannot see an IP address and failed lookups roll back (cannot be counted). Guess space ≈ 31^6 references × 10^10 phones.
+* `23505` errors include internal ids and a UPI reference in `details`; statement timeouts are HTTP 500 `57014`; anonymous callers can tell that a table or column exists (the schema is public here anyway).
+* Local PostgREST's CORS echoes any header and answers `*`; **Supabase's gateway CORS was not run** — see the hosted plan.
+
+**Decisions needed from the owner.**
+* **A1.** Apply `0009` to the dev project (SQL editor, as for 0008), then run the hosted runner. Until applied, the hosted run will show gaps 1-4.
+* **A2.** Switch off "Allow new users to sign up" and "Allow anonymous sign-ins" (Authentication settings) unless a customer account feature is planned.
+* **A3.** Sign-out lag: accept it, shorten the JWT expiry (e.g. 15-30 min) in the dashboard, or have me add a session check to `current_role_rank` (a token whose `session_id` no longer exists in `auth.sessions` gets no rank; touches the hot path and every test token) — my recommendation: shorten expiry first, add the check only if staff devices are shared.
+* **A4.** Request-rate protection in front of the public functions (IP-level limits need an edge such as Cloudflare/Netlify; the database cannot do it). Is the stored-order limit plus the cap enough for launch?
+* **A5.** Confirm the limits are right for real customers (name 100, address 500, landmark 200 characters; one line; 10 payment reports per order; ₹10 lakh maximum claimed).
+* **A6.** The front ends adopt `ERROR_CONTRACT.md` (branch on status + code, 429 handling, anon key only on public calls).
+* **A7.** Previous open decisions remain: D4 late payment, 60-minute grace, roles, uncounted-stock counter policy, applying 0008.
+
+**What was NOT executed here and needs a local authenticated run on the hosted project** (everything marked so in the README matrix): the real gateway's apikey handling, CORS answers and request-size limits; the real PostgREST version and Postgres 17 behaviour; role/table/function matrices with real hosted sign-in tokens; tamper tests on real hosted tokens; the real-browser CORS page; the banned-user replay on the hosted project. `run_hosted.py` does these, read-only.
+
+**Local execution plan for the owner (about 10 minutes, nothing to install except Python).**
+1. `git fetch origin dev/backend-synthetic`, `git checkout dev/backend-synthetic`.
+2. Dashboard → SQL editor: paste and run `backend/migrations/0009_api_abuse_limits.sql` (check the pasted text's SHA-256 against the file, as before).
+3. PowerShell: `$env:O4U_API_URL="https://<dev-project>.supabase.co"`, `$env:O4U_ANON_KEY="<public anon key from Project Settings > API>"`, optionally `$env:O4U_SITE_ORIGIN="https://<shop site>"`, then `py -3 backend\api_tests\run_hosted.py` (optionally `--interactive-ban`). Type the e-mails of the owner/manager/staff test users and, at the hidden password prompts, their passwords (an optional fourth, non-staff account makes the stranger checks run).
+4. `py -3 -m http.server 8765 --directory backend\api_tests`, open `http://localhost:8765/browser_cors_check.html`, paste URL and **public** key, click Run.
+5. Send back `backend/api_tests/reports/hosted_report.md` and, if any row says NO, the page's table. **Never share** the service-role/secret key, passwords, access tokens, `Authorization` headers or the database password; the runner never asks for them and prints/stores none.

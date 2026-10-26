@@ -13,6 +13,7 @@ migrations/0005_public_hardening_and_trust_flag.sql   order-ref check digits, pe
 migrations/0006_shared_barcodes_opening_balance.sql   shared barcodes (scan never guesses), opening-balance import, count-pending flag, FREE=Free
 migrations/0007_service_role_no_table_access.sql   service role loses leftover TRUNCATE/REFERENCES/TRIGGER on every table (found on the real hosted project)
 migrations/0008_function_search_path.sql       pins search_path on setting/forbid_change/keep_one_owner (Security Advisor warning)
+migrations/0009_api_abuse_limits.sql           found by the real-HTTP tests: HTTP 429 (not 500) for limits, bounded free text, capped payment reports, internal helpers closed to the service role
 importer/stockroom_import.py                   plan/apply a Stockroom backup into a DEV database (dry run by default; counts only)
 seed/onboard_staff.sql                         how the owner puts real people on the staff list (placeholders only)
 seed/preflight_hosted.sql                      READ-ONLY look at a hosted project (roles, default grants, event triggers, cron) before running 0001
@@ -22,11 +23,12 @@ seed/dev_smoke_test.sql                        plays website/staff/manager/owner
 functions/expire-holds/index.ts                fallback scheduler (Supabase Edge Function), code only, not deployed
 tests/supabase_shim.sql                        TEST ONLY: Supabase roles, auth.uid(), auth.users, default privileges
 tests/pgcluster.py                             starts throwaway PostgreSQL clusters (OS PostgreSQL, optional pg_cron)
-tests/run_db_tests.py                          the checks (60 on Linux with pg_cron and node; 57 + 3 skips on Windows; the run prints the real count)
-tests/run_mutations.py                         breaks the SQL on purpose, 27 ways, and confirms the checks notice
+tests/run_db_tests.py                          the database checks (66 on Linux with pg_cron and node, 0 skipped; fewer run on Windows; the run prints the real count)
+tests/run_mutations.py                         breaks the SQL on purpose, 34 ways, and confirms the checks notice
+api_tests/                                     REAL HTTP tests: PostgREST + JWT + (optionally) real GoTrue in front of a throwaway database; hosted-project runner for the owner; ERROR_CONTRACT.md for the front ends - see api_tests/README.md
 ```
 
-Migrations are applied in file order. 0002-0008 are idempotent (safe to run again); 0001 is not (it creates tables) and
+Migrations are applied in file order. 0002-0009 are idempotent (safe to run again); 0001 is not (it creates tables) and
 refuses a second run. 0002+ need Supabase's `auth` schema.
 
 ## Run the checks

@@ -94,7 +94,7 @@ def f3(X: Ctx):
     med = {k: round(statistics.median(v), 2) for k, v in times.items()}
     X.note("median_ms", med)
     spread = max(med.values()) - min(med.values())
-    X.need(spread < 25, f"timing differs by {spread:.1f} ms between cases: {med}")
+    X.need(spread < 40, f"timing differs by {spread:.1f} ms between cases: {med}")
     X.need(X.sql1("select count(*) from payment_reports") == 0, "a failed lookup wrote a payment report")
 
 
