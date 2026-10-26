@@ -49,6 +49,13 @@ MUTATIONS = [
     ("0005 trust flag: reconcile open to any staff, not just managers", "0005", "  perform require_role('manager');\n  prev := idem_begin(p_idem_key, 'reconcile_outages');", "  perform require_role('staff');\n  prev := idem_begin(p_idem_key, 'reconcile_outages');"),
     ("0005 trust flag: unreconciled outage no longer lowers trust", "0005", "if unrec > 0 and fresh and not st.offline_switch then", "if false and unrec > 0 and fresh and not st.offline_switch then"),
     ("0005 stock_trust_status left executable by the public", "0005", "revoke all on function stock_trust_status(), reconcile_outages(text,text), o4u_check(text,jsonb) from public, anon, authenticated;", ""),
+    ("0009 rate limit refusals back to the old code P0429 (HTTP 500 for the customer)", "0009", "wait a while or message the shop on WhatsApp' using errcode = 'PT429';", "wait a while or message the shop on WhatsApp' using errcode = 'P0429';"),
+    ("0009 payment reports no longer capped per order", "0009", ">= setting('max_payment_reports_per_order') then", ">= setting('max_payment_reports_per_order') + 1000000 then"),
+    ("0009 name length limit removed", "0009", "if char_length(trim(p_name)) > 100 then", "if false then"),
+    ("0009 control characters allowed in customer text", "0009", "if p_name ~ '[\\x01-\\x1f\\x7f]' or p_address ~ '[\\x01-\\x1f\\x7f]' or coalesce(p_landmark,'') ~ '[\\x01-\\x1f\\x7f]' then", "if false then"),
+    ("0009 internal helpers stay executable by the service role", "0009", "  from public, anon, authenticated, service_role;", "  from public, anon, authenticated;"),
+    ("0009 claimed payment amount unbounded", "0009", "if p_claimed_paise is not null and (p_claimed_paise < 0 or p_claimed_paise > 100000000) then", "if false then"),
+    ("0009 oversized request body accepted", "0009", "if p_lines is not null and octet_length(p_lines::text) > 20000 then", "if false then"),
 ]
 
 

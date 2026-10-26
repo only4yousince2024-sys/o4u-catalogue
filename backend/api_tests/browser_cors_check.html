@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>O4U browser CORS check</title>
+<style>
+  :root { --bg:#fffaf3; --ink:#2b2118; --mut:#6b5b4d; --ok:#0b6b2e; --bad:#a1230f; --line:#e6d9c8; --card:#fff; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#17120e; --ink:#f3e9dc; --mut:#b8a899; --ok:#5fd68b; --bad:#ff8a73; --line:#3a2f26; --card:#211a14; } }
+  body { margin:0; padding:16px; font:15px/1.5 system-ui,sans-serif; background:var(--bg); color:var(--ink); max-width:60rem; margin-inline:auto; }
+  h1 { font-size:1.3rem; } label { display:block; margin:.6rem 0 .2rem; font-weight:600; }
+  input { width:100%; box-sizing:border-box; padding:.5rem; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink); font:inherit; }
+  button { margin-top:.8rem; padding:.55rem 1.1rem; border:0; border-radius:6px; background:#bd3e0b; color:#fff; font:inherit; cursor:pointer; }
+  table { border-collapse:collapse; width:100%; margin-top:1rem; display:block; overflow-x:auto; } td,th { border:1px solid var(--line); padding:.35rem .5rem; text-align:left; vertical-align:top; }
+  .ok { color:var(--ok); font-weight:600 } .bad { color:var(--bad); font-weight:600 } small, .note { color:var(--mut); }
+</style>
+</head>
+<body>
+<h1>Does a browser accept the Data API's CORS answers?</h1>
+<p class="note">Open this page from <b>http://localhost:8765</b> (see README: <code>python -m http.server 8765 --directory backend/api_tests</code>), so the request really crosses origins.
+Paste the project's <b>public</b> anon / publishable key only. It is used for these requests, shown nowhere and stored nowhere. Never paste a service-role or secret key.
+Every request below is read-only or is refused/fails validation, so nothing is written.</p>
+<label for="url">Project URL (https://&lt;project&gt;.supabase.co)</label>
+<input id="url" autocomplete="off" spellcheck="false">
+<label for="key">Public anon / publishable key</label>
+<input id="key" type="password" autocomplete="off" spellcheck="false">
+<label for="prefix">REST path <small>(Supabase: /rest/v1 &nbsp;|&nbsp; local PostgREST: leave empty)</small></label>
+<input id="prefix" value="/rest/v1" autocomplete="off">
+<button id="run">Run the checks</button>
+<table id="out" hidden><thead><tr><th>Request (as the website's browser code would send it)</th><th>Could the page read the answer?</th><th>Status</th><th>Code / note</th></tr></thead><tbody></tbody></table>
+<p id="verdict"></p>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const BASE_HEADERS = (key) => ({ "apikey": key, "Authorization": "Bearer " + key, "Content-Type": "application/json", "Prefer": "return=representation", "x-client-info": "o4u-cors-check/1" });
+const BAD_ORDER = { p_idem_key: "cors-check-0001", p_ref: "bad", p_name: "", p_phone: "1", p_address: "", p_landmark: "", p_lines: [] };
+const ZERO = "00000000-0000-0000-0000-000000000000";
+
+async function attempt(label, url, init, expect) {
+  const row = { label, readable: false, status: "", note: "" };
+  try {
+    const r = await fetch(url, init);
+    row.readable = true; row.status = r.status;
+    let j = null; try { j = await r.json(); } catch (e) { /* not JSON */ }
+    row.note = j && (j.code || j.message) ? String(j.code || "") + " " + String(j.message || "").slice(0, 70) : "";
+    row.ok = expect(r.status, j);
+  } catch (e) {
+    row.note = "BLOCKED by the browser (CORS) or no network: " + e.message; row.ok = false;
+  }
+  return row;
+}
+
+$("run").onclick = async () => {
+  const base = $("url").value.trim().replace(/\/+$/, "") + $("prefix").value.trim();
+  const key = $("key").value.trim();
+  if (!/^https?:\/\//.test(base) || !key) { alert("Fill in the URL and the public key."); return; }
+  if (/^sb_secret_/.test(key)) { alert("That is a SECRET key. Do not use it here."); return; }
+  const rows = [];
+  rows.push(await attempt("POST /rpc/get_availability  (apikey, authorization, content-type, prefer, x-client-info)", base + "/rpc/get_availability",
+    { method: "POST", headers: BASE_HEADERS(key), body: "{}" }, (s, j) => s === 200 && Array.isArray(j)));
+  rows.push(await attempt("GET  /rpc/get_availability?p_product_ids={a,b}  (apikey + authorization only)", base + "/rpc/get_availability?p_product_ids=%7Ba,b%7D",
+    { method: "GET", headers: { "apikey": key, "Authorization": "Bearer " + key } }, (s) => s === 200));
+  rows.push(await attempt("POST /rpc/place_order_request  (invalid on purpose: expect a readable 400)", base + "/rpc/place_order_request",
+    { method: "POST", headers: BASE_HEADERS(key), body: JSON.stringify(BAD_ORDER) }, (s, j) => s === 400 && j && j.code === "P0001"));
+  rows.push(await attempt("POST /rpc/report_payment  (unknown reference: expect a readable 400 'order not found')", base + "/rpc/report_payment",
+    { method: "POST", headers: BASE_HEADERS(key), body: JSON.stringify({ p_ref: "W0000-2222-22", p_phone: "0000000000", p_claimed_ref: "", p_claimed_paise: 0 }) }, (s, j) => s === 400 && j && /order not found/.test(j.message || "")));
+  rows.push(await attempt("POST /rpc/confirm_and_reserve  (not signed in: expect a readable 401)", base + "/rpc/confirm_and_reserve",
+    { method: "POST", headers: BASE_HEADERS(key), body: JSON.stringify({ p_idem_key: "cors-check-0002", p_order: ZERO, p_delivery_paise: 1, p_discount_paise: 0 }) }, (s) => s === 401 || s === 403));
+  rows.push(await attempt("GET  /orders  (table read as anon: expect a readable 401)", base + "/orders?select=*&limit=1",
+    { method: "GET", headers: { "apikey": key, "Authorization": "Bearer " + key } }, (s) => s === 401 || s === 403));
+  rows.push(await attempt("GET  /rpc/get_availability with accept-profile header (supabase-js adds it for non-default schemas)", base + "/rpc/get_availability",
+    { method: "GET", headers: { "apikey": key, "Authorization": "Bearer " + key, "Accept-Profile": "public" } }, (s) => s === 200));
+  const tb = $("out").querySelector("tbody"); tb.textContent = "";
+  for (const r of rows) {
+    const tr = document.createElement("tr");
+    const cells = [r.label, r.readable ? "yes" : "NO", String(r.status), r.note];
+    cells.forEach((c, i) => { const td = document.createElement("td"); td.textContent = c; if (i === 1) td.className = r.ok ? "ok" : "bad"; tr.appendChild(td); });
+    tb.appendChild(tr);
+  }
+  $("out").hidden = false;
+  const bad = rows.filter((r) => !r.ok).length;
+  $("verdict").className = bad ? "bad" : "ok";
+  $("verdict").textContent = bad ? bad + " of " + rows.length + " checks did NOT behave as the website needs. Copy this table to Claude." : "All " + rows.length + " checks behaved as the website needs from this origin (" + location.origin + ").";
+  $("verdict").setAttribute("data-bad", String(bad));
+};
+</script>
+</body>
+</html>

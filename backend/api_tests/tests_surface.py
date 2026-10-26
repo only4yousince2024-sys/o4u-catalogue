@@ -268,3 +268,16 @@ def b4(X: Ctx):
     r = X.rpc("owner_sales_summary", args, "owner")
     X.need(r.status == 200 and isinstance(r.json, list), f"owner: {r.err()}")
     X.note("owner_summary_shape", sorted(r.json[0]) if r.json else "no rows in range")
+
+
+@test("B5", "B roles over HTTP", "The probe calls used on the hosted project write nothing, even when the role is allowed to make them (checked locally)", where=("local",))
+def b5(X: Ctx):
+    X.reset()
+    before = X.counts()
+    for role in ("owner", "manager", "staff"):
+        for name, (minrole, args) in FUNCS.items():
+            X.rpc(name, X.fresh(args), role)
+    for name, (minrole, args) in FUNCS.items():
+        X.rpc(name, X.fresh(args), "anon")
+    after = X.counts()
+    X.need(before == after, f"probe calls changed tables: {[(t, before[t], after[t]) for t in before if before[t] != after[t]]}")

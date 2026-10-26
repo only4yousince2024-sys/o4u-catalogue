@@ -168,7 +168,7 @@ def d5(X: Ctx):
     hid = (("tst-hidden", "M", 1),)
     case("PO-unpublished", "Unpublished product", P(base(p_lines=lines(*hid), p_ref=X.ref_for(*hid))), "Same as PO-unknown (does not reveal that it exists).", 400, "P0001", "item not available on the website")
     dup = (("tst-a-pink", "M", 1), ("tst-a-pink", "M", 2))
-    case("PO-dup-line", "The same product+size twice in one request", P(base(p_lines=lines(*dup), p_ref=X.ref_for(*dup))), "Merge the lines in the bag before sending (the bag already does).", None, None, None)
+    case("PO-dup-line", "The same product+size twice in one request", P(base(p_lines=lines(*dup), p_ref=X.ref_for(*dup))), "Merge the lines in the bag before sending (the bag already does).", 409, "23505", None)
     case("PO-key-short", "Idempotency key shorter than 8 characters", P(base(p_idem_key="short")), "Programming error; generate a longer key.", 400, "P0001", "idempotency key required")
     first = base()
     case("PO-first", "(setup) first request of a pair", P(first), "-", 200)
@@ -191,12 +191,12 @@ def d5(X: Ctx):
         r = P(base(p_phone=ph, p_ref=X.ref_for(*ok_items), p_idem_key=X.key()))
         if r.status != 200:
             raise Fail(f"rate-limit setup request {i} failed: {r.err()}")
-    case("PO-rate-hour", "6th request in an hour from one phone", P(base(p_phone=ph)), "Tell the customer to wait or message the shop on WhatsApp. Do NOT retry automatically.", None, "P0429", "too many order requests")
+    case("PO-rate-hour", "6th request in an hour from one phone", P(base(p_phone=ph)), "Tell the customer to wait or message the shop on WhatsApp. Do NOT retry automatically.", 429, "PT429", "too many order requests")
     X.db.execute("update orders set created_at = now() - interval '2 hours' where phone = %s", (ph,))
     for i in range(10):
         X.db.execute("insert into orders (ref, source, customer_name, phone, address, items_paise, created_at) values (%s,'website','x',%s,'y',1, now() - interval '3 hours')",
                      (f"W0101-{'ABCDEFGHJK'[i]}222-22", ph))
-    case("PO-rate-day", "16th request in a day from one phone", P(base(p_phone=ph)), "Same as PO-rate-hour.", None, "P0429", "too many order requests")
+    case("PO-rate-day", "16th request in a day from one phone", P(base(p_phone=ph)), "Same as PO-rate-hour.", 429, "PT429", "too many order requests")
     X.db.execute("delete from order_events where order_id in (select id from orders where phone = %s)", ("9111111111",)) if False else None
     # PO-rate-global is produced by the abuse tests (F3) to keep this test fast
     # report_payment
@@ -218,8 +218,8 @@ def d5(X: Ctx):
     case("ST-notfound", "Order id does not exist", S("pack_order", {"p_idem_key": "x", "p_order": ZERO}), "Refresh the list.", 400, "P0001", "order not found")
     case("ST-no-delivery", "Confirm without a delivery charge", S("confirm_and_reserve", {"p_idem_key": "x", "p_order": o2, "p_delivery_paise": None, "p_discount_paise": 0}), "Ask staff to enter the charge.", 400, "P0001", "delivery charge")
     case("ST-discount", "Discount equal to or above the items total", S("confirm_and_reserve", {"p_idem_key": "x", "p_order": o2, "p_delivery_paise": 100, "p_discount_paise": 999999}, "manager"), "Fix the amount.", 400, "P0001", "discount must be below")
-    case("ST-state", "Action not allowed from the current status", S("dispatch_order", {"p_idem_key": "x", "p_order": o2, "p_tracking": ""}), "Refresh; show the current status.", None, "P0001", None)
-    case("ST-pay-state", "Verify payment on a request that was never reserved", S("verify_payment", {"p_idem_key": "x", "p_order": o2, "p_method": "upi", "p_amount_paise": 1, "p_upi_ref": "u1"}), "Refresh.", 400, "P0001")
+    case("ST-state", "Action not allowed from the current status", S("dispatch_order", {"p_idem_key": "x", "p_order": o2, "p_tracking": ""}), "Refresh; show the current status.", 400, "P0001", "cannot dispatch")
+    case("ST-pay-state", "Verify payment on a request that was never reserved", S("verify_payment", {"p_idem_key": "x", "p_order": o2, "p_method": "upi", "p_amount_paise": 1, "p_upi_ref": "u1"}), "Refresh.", 400, "P0001", "cannot verify_payment")
     X.reserve(o2)
     case("ST-pay-amount", "Verified amount differs from the agreed bill", S("verify_payment", {"p_idem_key": "x", "p_order": o2, "p_method": "upi", "p_amount_paise": 1, "p_upi_ref": "u2"}), "Show the agreed amount.", 400, "P0001", "amount")
     X.pay(o2)
@@ -227,10 +227,10 @@ def d5(X: Ctx):
     X.reserve(o3)
     dup_ref = X.sql1("select upi_ref from payments limit 1")
     agreed = X.order(o3)["agreed_paise"]
-    case("ST-pay-dup-ref", "UPI reference already used on another order", S("verify_payment", {"p_idem_key": "x", "p_order": o3, "p_method": "upi", "p_amount_paise": agreed, "p_upi_ref": dup_ref}), "Check the reference.", None, None)
+    case("ST-pay-dup-ref", "UPI reference already used on another order", S("verify_payment", {"p_idem_key": "x", "p_order": o3, "p_method": "upi", "p_amount_paise": agreed, "p_upi_ref": dup_ref}), "Check the reference.", 409, "23505")
     case("ST-cancel-paid", "Cancel a paid order", S("cancel_order", {"p_idem_key": "x", "p_order": o2, "p_reason": "x"}), "Use refund instead.", 400, "P0001")
-    case("ST-short-stock", "Not enough free stock to hold", (lambda: (X.db.execute("update stock_levels set on_hand = reserved where variant_id=%s", (X.vid("tst-b-blue", "M"),)), S("confirm_and_reserve", {"p_idem_key": "x", "p_order": X.place_ok(("tst-b-blue", "M", 1))[0], "p_delivery_paise": 100, "p_discount_paise": 0}))[1])(), "Offer to contact the customer.", None, "P0001")
-    case("ST-qty-neg", "Receive a negative quantity", S("receive_stock", {"p_idem_key": "x", "p_variant": X.vid("tst-a-pink", "M"), "p_qty": -3, "p_reason": "x"}), "Fix the number.", None, None)
+    case("ST-short-stock", "Not enough free stock to hold", (lambda: (X.db.execute("update stock_levels set on_hand = reserved where variant_id=%s", (X.vid("tst-b-blue", "M"),)), S("confirm_and_reserve", {"p_idem_key": "x", "p_order": X.place_ok(("tst-b-blue", "M", 1))[0], "p_delivery_paise": 100, "p_discount_paise": 0}))[1])(), "Offer to contact the customer.", 400, "P0001", "not enough stock")
+    case("ST-qty-neg", "Receive a negative quantity", S("receive_stock", {"p_idem_key": "x", "p_variant": X.vid("tst-a-pink", "M"), "p_qty": -3, "p_reason": "x"}), "Fix the number.", 400, "P0001", "quantity must be positive")
     case("ST-uuid", "Order id is not a UUID", X.rpc("pack_order", {"p_idem_key": X.key(), "p_order": "not-a-uuid"}, "staff"), "Programming error.", 400, "22P02")
     case("ST-barcode", "Unknown barcode in a counter sale", S("complete_sale", {"p_idem_key": "x", "p_lines": [{"barcode": "NOPE", "qty": 1}], "p_payments": [{"method": "cash", "amount_paise": 1}]}), "'Barcode not found.'", 400, "P0001", "unknown barcode")
     case("ST-sale-pay", "Counter sale payments do not equal the bill", S("complete_sale", {"p_idem_key": "x", "p_lines": [{"product_id": "tst-b-blue", "size": "M", "qty": 1}], "p_payments": [{"method": "cash", "amount_paise": 1}]}), "Show the bill amount.", 400, "P0001")
@@ -240,7 +240,7 @@ def d5(X: Ctx):
     case("PG-denied-anon", "Function refused to anon", X.rpc("pack_order", {"p_idem_key": X.key(), "p_order": ZERO}, "anon"), "Sign in.", 401, "42501", group="postgrest")
     case("PG-denied-user", "Table refused to a signed-in user", X.tbl("DELETE", "orders", "staff", query="id=is.null"), "Never done by the apps.", 403, "42501", group="postgrest")
     case("PG-no-table", "Table that does not exist", X.tbl("GET", "no_such_table", "staff"), "Programming error.", 404, "42P01", group="postgrest")
-    case("PG-method", "GET on a function that writes", X.rpc_get("place_order_request", FUNCS["place_order_request"][1], "anon"), "Programming error: use POST.", 405, None, group="postgrest")
+    case("PG-method", "GET on a function that writes", X.rpc_get("place_order_request", FUNCS["place_order_request"][1], "anon"), "Programming error: use POST.", 405, "25006", group="postgrest")
     case("PG-accept", "Unsupported Accept header", X.rpc("get_availability", {}, "anon", headers={"Accept": "application/octet-stream"}), "Programming error.", 406, None, group="postgrest")
     case("PG-schema", "Schema not exposed", X.rpc("get_availability", {}, "anon", headers={"Content-Profile": "auth"}), "Programming error.", 406, "PGRST106", group="postgrest")
     case("PG-single", "Accept single object but several rows", X.rpc("get_availability", {}, "anon", headers={"Accept": "application/vnd.pgrst.object+json"}), "Programming error.", 406, "PGRST116", group="postgrest")
@@ -254,7 +254,7 @@ def d5(X: Ctx):
     X.stack.reload_schema()         # PostgREST reads per-role settings when it loads its schema cache
     try:
         r = X.rpc("get_availability", {}, "anon")
-        case("PG-timeout", "Statement timeout (anon limit 3 s on hosted projects; forced to 1 ms here)", r, "Show 'try again in a moment'; fall back to 'Check availability'.", None, None, group="postgrest")
+        case("PG-timeout", "Statement timeout (anon limit 3 s on hosted projects; forced to 1 ms here)", r, "Show 'try again in a moment'; fall back to 'Check availability'.", 500, "57014", group="postgrest")
     finally:
         X.db.execute("alter role anon set statement_timeout = '3s'")
         X.stack.reload_schema()

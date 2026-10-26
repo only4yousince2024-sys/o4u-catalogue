@@ -108,7 +108,7 @@ def c3(X: Ctx):
     who = [r for r in ("owner", "manager", "staff", "stranger") if r in X.tokens]
     want = {"owner": 3, "manager": 2, "staff": 1, "stranger": None}
     jobs = []
-    for i in range(160):
+    for i in range(160 if X.local else 24):      # lighter on the hosted project
         who_i = (who + ["anon"])[i % (len(who) + 1)]
         jobs.append((who_i, (lambda w=who_i: X.rpc("current_role_rank", {}, w))))
     res = parallel([j for _, j in jobs])
