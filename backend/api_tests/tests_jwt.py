@@ -288,7 +288,7 @@ def c8(X: Ctx):
     r = X.rpc("deactivate_staff", {"p_user_id": OWNER}, token=sv)
     X.need(r.status >= 400 and "owner" in (r.message or "").lower(), f"the only owner was deactivated: {r.err()}")
     X.need(X.sql1("select active from staff where user_id=%s", OWNER) is True, "the owner row changed")
-    X.note("last_owner_error", X.record("last_owner_deactivate", r))
+    X.note("last_owner_error", X.record("ST-last-owner", r, desc="Deactivate / remove the only active owner (service role or direct SQL)", site="Tell the owner to add a second owner first.", group="rpc"))
     for sql in ("delete from staff where user_id = %s", "update staff set role = 'staff' where user_id = %s", "update staff set active = false where user_id = %s"):
         try:
             X.db.execute(sql, (OWNER,))

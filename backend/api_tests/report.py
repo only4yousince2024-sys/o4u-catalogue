@@ -62,10 +62,10 @@ def contract_md(contract: dict) -> str:
     return redact("\n".join(out) + "\n")
 
 
-def write_local(res, tool, X, partial=False):
+def write_local(res, tool, X, partial=False, name="local"):
     d = HERE / "reports"
     d.mkdir(exist_ok=True)
-    (d / "local_report.json").write_text(redact(json.dumps({"tool": tool, "results": res}, indent=1, default=str)), encoding="utf-8")
+    (d / f"{name}_report.json").write_text(redact(json.dumps({"tool": tool, "results": res}, indent=1, default=str)), encoding="utf-8")
     n = {s: sum(1 for r in res if r["status"] == s) for s in ("PASS", "FAIL", "SKIP")}
     lines = [f"# Local API test run", "", f"{n['PASS']} passed, {n['FAIL']} failed, {n['SKIP']} skipped", "", "```", json.dumps(tool, indent=1), "```", "",
              "| id | result | test |", "|---|---|---|"]
@@ -78,6 +78,6 @@ def write_local(res, tool, X, partial=False):
     for r in res:
         for k, v in r["observations"]:
             lines += [f"**{r['id']} {k}**", "```json", json.dumps(v, indent=1, default=str)[:6000], "```", ""]
-    (d / "local_report.md").write_text(redact("\n".join(lines)), encoding="utf-8")
+    (d / f"{name}_report.md").write_text(redact("\n".join(lines)), encoding="utf-8")
     if not partial and X.contract:
         (HERE / "ERROR_CONTRACT.md").write_text(contract_md(X.contract), encoding="utf-8")

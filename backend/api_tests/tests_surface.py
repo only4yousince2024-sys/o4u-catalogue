@@ -37,6 +37,9 @@ def swagger_paths(r):
 def a1(X: Ctx):
     for role in ("anon", "none"):
         r = X.root(role)
+        if r.status in (401, 403, 404) and not X.local:      # newer hosted projects may hide the document from the anon key altogether: even better
+            X.note(f"openapi_{role}", f"not served to this caller (HTTP {r.status}): nothing to list")
+            continue
         X.need(r.status == 200, f"GET /rest/v1/ as {role}: {r.status} {r.text[:150]}")
         paths, defs = swagger_paths(r)
         rpc = {p[len("/rpc/"):] for p in paths if p.startswith("/rpc/")}
@@ -50,6 +53,9 @@ def a1(X: Ctx):
 @test("A2", "A public surface", "OpenAPI for a signed-in stranger lists no function a stranger cannot use")
 def a2(X: Ctx):
     r = X.root("stranger")
+    if r.status in (401, 403, 404) and not X.local:
+        X.note("openapi_authenticated", f"not served to this caller (HTTP {r.status})")
+        return
     paths, _ = swagger_paths(r)
     rpc = {p[len("/rpc/"):] for p in paths if p.startswith("/rpc/")}
     X.need(rpc == AUTH_FUNCS, f"functions listed to a signed-in user differ from the allowlist: {sorted(rpc ^ AUTH_FUNCS)}")

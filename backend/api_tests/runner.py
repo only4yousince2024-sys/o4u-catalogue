@@ -9,14 +9,21 @@ from lib import TESTS, Fail, Skip, redact
 
 
 def load_all():
-    import tests_surface, tests_jwt, tests_formats, tests_cors, tests_abuse, tests_concurrency     # noqa: F401,E401,PLC0415
+    import tests_surface, tests_jwt, tests_formats, tests_cors, tests_abuse, tests_concurrency, tests_gotrue     # noqa: F401,E401,PLC0415
+
+
+# with real GoTrue behind the tokens these existing checks are repeated (they only use the role names, never the invented ids)
+GOTRUE_REUSE = {"A1", "A2", "A3", "A4", "A5", "A6", "A7", "B1", "B2", "B3", "B4", "B5", "C1", "C2", "C3", "D1", "D2", "D3", "D4", "D6", "F3", "G1", "G2"}
 
 
 def run(X, profile: str, only: str | None = None, log=print) -> list[dict]:
     load_all()
     out = []
     for t in TESTS:
-        if profile not in t["where"]:
+        if profile == "gotrue":
+            if "gotrue" not in t["where"] and t["id"] not in GOTRUE_REUSE:
+                continue
+        elif profile not in t["where"]:
             continue
         if only and not any(o in t["id"] or o in t["title"].lower() for o in only.split(",")):
             continue

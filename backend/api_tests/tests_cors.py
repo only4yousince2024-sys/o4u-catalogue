@@ -34,6 +34,11 @@ def cors_view(h):
             "vary": h.get("vary")}
 
 
+def must_work(label: str) -> bool:
+    """Origins the site really runs from (shop site, local development) must work; 'another site' and 'null' are recorded, not judged."""
+    return label.startswith(("the shop's site", "the real site", "http://localhost", "localhost", "127.0.0.1"))
+
+
 def covers(allow_headers: str | None, wanted: str) -> list[str]:
     """Which wanted request headers the server's Access-Control-Allow-Headers does NOT cover."""
     if allow_headers is None:
@@ -55,6 +60,8 @@ def e1(X: Ctx):
             X.need(r.status < 500, f"{label} {path}: preflight gave {r.status}")
             X.need((v["allow-credentials"] or "").lower() != "true", f"{label}: Access-Control-Allow-Credentials: true (tokens travel in headers, never cookies)")
             ao = v["allow-origin"]
+            if not must_work(label):
+                continue
             if r.status in (200, 204) and path.startswith(("/rpc/get_availability", "/rpc/place_order_request")):
                 if ao not in ("*", origin):
                     problems.append(f"{label}: Allow-Origin={ao!r} for a browser at {origin}")
@@ -81,7 +88,7 @@ def e2(X: Ctx):
             r = call()
             v = cors_view(r.headers)
             out[f"{label} {name}"] = {"status": r.status, **v}
-            if v["allow-origin"] not in ("*", origin) and origin != "null":
+            if must_work(label) and v["allow-origin"] not in ("*", origin):
                 problems.append(f"{label} {name}: status {r.status} without Allow-Origin ({v['allow-origin']!r}) - the browser would hide the answer from the page")
     X.note("simple_request_matrix (" + ("LOCAL PostgREST" if X.local else "HOSTED gateway") + ")", out)
     X.need(not problems, "; ".join(problems[:6]))

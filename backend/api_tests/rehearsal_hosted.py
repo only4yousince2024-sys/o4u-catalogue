@@ -7,6 +7,8 @@ the real Supabase gateway, Auth or CORS.
 
     python3 backend/api_tests/rehearsal_hosted.py            # gate passes (dev- ids) and the hosted profile runs
     python3 backend/api_tests/rehearsal_hosted.py --not-dev  # the gate must refuse (non dev- ids)
+    O4U_GOTRUE=/path/to/gotrue python3 backend/api_tests/rehearsal_hosted.py --gotrue --ban
+                                                             # sign-in goes to a REAL local GoTrue instead of the fake; the 'dashboard click' bans/unbans through its admin API
 """
 from __future__ import annotations
 
@@ -44,7 +46,7 @@ def seed(db, prefix):
     db.execute("update store_status set last_heartbeat = now()")
 
 
-def gateway(st, anon_key, secret):
+def gateway(st, anon_key, secret, real_auth=False):
     class H(BaseHTTPRequestHandler):
         def log_message(self, *a):
             pass
@@ -61,6 +63,12 @@ def gateway(st, anon_key, secret):
         def handle_any(self):
             n = int(self.headers.get("Content-Length") or 0)
             body = self.rfile.read(n) if n else None
+            if real_auth and self.path.startswith("/auth/v1/"):
+                if self.headers.get("apikey") != anon_key:
+                    return self._send(401, {"Content-Type": "application/json"}, b'{"message":"No API key found in request"}')
+                fwd = {k: v for k, v in self.headers.items() if k.lower() not in ("host", "content-length", "connection")}
+                r = request(self.command, st.auth_base + self.path[len("/auth/v1"):], fwd, body, 60)
+                return self._send(r.status, r.headers, r.body)
             if self.path.startswith("/auth/v1/token"):
                 d = json.loads(body or b"{}")
                 pw = PASSWORDS.get(d.get("email"))
@@ -85,23 +93,46 @@ def gateway(st, anon_key, secret):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--not-dev", action="store_true")
+    ap.add_argument("--gotrue", action="store_true", help="use a real local GoTrue for sign-in")
     ap.add_argument("--ban", action="store_true", help="also rehearse the interactive ban step (the fake 'dashboard click' is done by this script)")
     a = ap.parse_args()
-    st = stack.LocalStack()
+    st = stack.LocalStack(gotrue=a.gotrue)
     try:
         st.prepare_db()
         db = psycopg.connect(st.db_uri, autocommit=True)
-        seed(db, "tst" if a.not_dev else "dev")
         st.start_postgrest()
         anon = mint(st.secret, anon_claims())
-        srv = gateway(st, anon, st.secret)
+        if a.gotrue:
+            import time as _t
+            st.start_gotrue()
+            admin = mint(st.secret, {"role": "service_role", "iss": "supabase-demo", "exp": int(_t.time()) + 3600})
+            for em, (pw, _) in list(PASSWORDS.items()):
+                c = request("POST", st.auth_base + "/admin/users", {"apikey": anon, "Authorization": "Bearer " + admin, "Content-Type": "application/json"},
+                            json.dumps({"email": em, "password": pw, "email_confirm": True}))
+                PASSWORDS[em] = (pw, c.json["id"])
+            roles = {"owner": "owner@example.invalid", "manager": "manager@example.invalid", "staff": "staff@example.invalid"}
+            global OWNER, MANAGER, STAFF
+            OWNER, MANAGER, STAFF = (PASSWORDS[roles[r]][1] for r in ("owner", "manager", "staff"))
+            db.execute("insert into staff values (%s,'Rehearsal owner','owner'), (%s,'Rehearsal manager','manager'), (%s,'Rehearsal staff','staff')", (OWNER, MANAGER, STAFF))
+            for pid, size in (("dev-a-pink", "M"), ("dev-b-blue", "L")):
+                db.execute("insert into products (id, article, name, brand, category, colour, price_paise, published) values (%s,'T','Test','','tshirts','x',10000,true)", (pid,))
+                vid = db.execute("insert into variants (product_id, size) values (%s,%s) returning id", (pid, size)).fetchone()[0]
+                db.execute("insert into stock_levels (variant_id, on_hand) values (%s, 5)", (vid,))
+            db.execute("update store_status set last_heartbeat = now()")
+        else:
+            seed(db, "tst" if a.not_dev else "dev")
+        srv = gateway(st, anon, st.secret, real_auth=a.gotrue)
         url = f"http://127.0.0.1:{srv.server_address[1]}"
         creds = iter(["owner@example.invalid", "manager@example.invalid", "staff@example.invalid", "stranger@example.invalid"])
         pws = iter(["invented-pass-1", "invented-pass-2", "invented-pass-3", "invented-pass-4"])
 
         def enter(msg):
             print("   [rehearsal] " + msg.split(":")[0][:90])
-            if "Ban user" in msg:
+            ban = "Ban user" in msg
+            if a.gotrue:      # the owner would click this in the dashboard; here the same thing is done through GoTrue's admin API
+                request("PUT", st.auth_base + f"/admin/users/{STAFF}", {"apikey": anon, "Authorization": "Bearer " + admin, "Content-Type": "application/json"},
+                        json.dumps({"ban_duration": "24h" if ban else "none"}))
+            elif ban:
                 db.execute("update auth.users set banned_until = now() + interval '1 day' where id = %s", (STAFF,))
             else:
                 db.execute("update auth.users set banned_until = null where id = %s", (STAFF,))

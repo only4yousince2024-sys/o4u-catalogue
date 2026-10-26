@@ -30,6 +30,14 @@ import psycopg        # noqa: E402
 MIGRATIONS = sorted((ROOT / "migrations").glob("*.sql"))
 
 
+def find_gotrue() -> Path | None:
+    env = os.environ.get("O4U_GOTRUE")
+    if env and Path(env).exists():
+        return Path(env)
+    w = shutil.which("gotrue") or shutil.which("auth")
+    return Path(w) if w else None
+
+
 def find_postgrest() -> Path:
     env = os.environ.get("O4U_POSTGREST")
     if env and Path(env).exists():
@@ -50,7 +58,13 @@ def free_port() -> int:
 
 
 class LocalStack:
-    def __init__(self, with_cron: bool = False, extra_pgrst: dict | None = None):
+    def __init__(self, with_cron: bool = False, extra_pgrst: dict | None = None, gotrue: bool = False):
+        self.gotrue_enabled = gotrue
+        self.gotrue_bin = find_gotrue() if gotrue else None
+        if gotrue and not self.gotrue_bin:
+            raise SystemExit("GoTrue binary not found: set O4U_GOTRUE=/path/to/gotrue (see README, 'Real GoTrue').")
+        self.gproc = None
+        self.gport = free_port()
         self.cluster = pgcluster.make_cluster(preload_cron=with_cron, cron_db="o4ucron")
         self.secret = secrets.token_urlsafe(48)           # throwaway; never reused, never written outside the temp folder
         self.port = free_port()
@@ -65,11 +79,29 @@ class LocalStack:
     def db_uri(self) -> str:
         return self.cluster.uri
 
+    def _gotrue_env(self) -> dict:
+        sock = str(self.cluster.root)
+        return dict(os.environ, GOTRUE_DB_DRIVER="postgres", DB_NAMESPACE="auth",
+                    DATABASE_URL=f"postgres://supabase_auth_admin@/{self.cluster.dbname}?host={sock}&port={self.cluster.port}&sslmode=disable",
+                    GOTRUE_API_HOST="127.0.0.1", PORT=str(self.gport), API_EXTERNAL_URL=f"http://127.0.0.1:{self.gport}", GOTRUE_SITE_URL="http://localhost:3000",
+                    GOTRUE_JWT_SECRET=self.secret, GOTRUE_JWT_EXP="3600", GOTRUE_JWT_AUD="authenticated", GOTRUE_JWT_DEFAULT_GROUP_NAME="authenticated",
+                    GOTRUE_JWT_ADMIN_ROLES="service_role", GOTRUE_MAILER_AUTOCONFIRM="true", GOTRUE_DISABLE_SIGNUP="false", GOTRUE_EXTERNAL_EMAIL_ENABLED="true",
+                    GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED="true", GOTRUE_LOG_LEVEL="warn", GOTRUE_RATE_LIMIT_EMAIL_SENT="1000", GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED="true",
+                    GOTRUE_RATE_LIMIT_TOKEN_REFRESH="1000", GOTRUE_RATE_LIMIT_ANONYMOUS_USERS="1000", GOTRUE_RATE_LIMIT_SIGN_IN_SIGN_UPS="1000", GOTRUE_PASSWORD_MIN_LENGTH="8")
+
     def prepare_db(self, migrations=None, notices=None):
         c = psycopg.connect(self.db_uri, autocommit=True)
         if notices is not None:
             c.add_notice_handler(lambda d: notices.append(f"{d.severity}: {d.message_primary}"))
-        c.execute((ROOT / "tests" / "supabase_shim.sql").read_text(encoding="utf-8"))
+        if self.gotrue_enabled:
+            pre, post = (HERE / "shim_gotrue.sql").read_text(encoding="utf-8").split("\n-- @@POST@@\n")
+            c.execute(pre.replace("current_database()", f'"{self.cluster.dbname}"'))
+            r = subprocess.run([str(self.gotrue_bin), "migrate"], env=self._gotrue_env(), capture_output=True, text=True, timeout=240)
+            if r.returncode != 0:
+                raise RuntimeError("GoTrue migrate failed: " + (r.stdout + r.stderr)[-1200:])
+            c.execute(post)
+        else:
+            c.execute((ROOT / "tests" / "supabase_shim.sql").read_text(encoding="utf-8"))
         for m in (migrations or MIGRATIONS):
             c.execute(m.read_text(encoding="utf-8"))
         # hosted projects give these roles statement timeouts; copy them so a runaway request is cut like it would be there
@@ -125,6 +157,33 @@ class LocalStack:
             time.sleep(0.2)
         raise RuntimeError("PostgREST did not become ready: " + self.log_path.read_text()[-800:])
 
+    def start_gotrue(self):
+        self.glog = self.root / "gotrue.log"
+        self.gproc = subprocess.Popen([str(self.gotrue_bin), "serve"], env=self._gotrue_env(), stdout=open(self.glog, "w"), stderr=subprocess.STDOUT)
+        t0 = time.time()
+        while time.time() - t0 < 40:
+            try:
+                s = socket.create_connection(("127.0.0.1", self.gport), timeout=1)
+                s.sendall(b"GET /health HTTP/1.0\r\n\r\n")
+                if b" 200 " in s.recv(100):
+                    s.close()
+                    return
+                s.close()
+            except OSError:
+                pass
+            if self.gproc.poll() is not None:
+                raise RuntimeError("GoTrue exited: " + self.glog.read_text()[-1200:])
+            time.sleep(0.3)
+        raise RuntimeError("GoTrue did not become ready: " + self.glog.read_text()[-1200:])
+
+    @property
+    def auth_base(self) -> str:
+        return f"http://127.0.0.1:{self.gport}"
+
+    def gotrue_version(self) -> str:
+        r = subprocess.run([str(self.gotrue_bin), "version"], capture_output=True, text=True)
+        return (r.stdout + r.stderr).strip().splitlines()[0] if (r.stdout + r.stderr).strip() else "unknown"
+
     def reload_schema(self):
         """Tell PostgREST to re-read the schema cache (needed after DDL such as a new migration)."""
         self.proc.send_signal(signal.SIGUSR1)
@@ -138,6 +197,12 @@ class LocalStack:
         return f"http://127.0.0.1:{self.port}"
 
     def stop(self):
+        if self.gproc and self.gproc.poll() is None:
+            self.gproc.terminate()
+            try:
+                self.gproc.wait(10)
+            except subprocess.TimeoutExpired:
+                self.gproc.kill()
         if self.proc and self.proc.poll() is None:
             self.proc.terminate()
             try:

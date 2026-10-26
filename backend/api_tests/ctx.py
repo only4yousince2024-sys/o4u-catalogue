@@ -76,8 +76,11 @@ ALL_FUNCS = set(FUNCS) | set(WRITING) | set(SERVICE_ONLY) | set(INTERNAL) | TRIG
 
 
 class Ctx:
-    def __init__(self, *, local: bool, rest: str, anon_key: str, tokens: dict, db=None, secret: str | None = None, stack=None):
+    def __init__(self, *, local: bool, rest: str, anon_key: str, tokens: dict, db=None, secret: str | None = None, stack=None,
+                 real_auth: bool = False, uids: dict | None = None, auth_base: str | None = None, admin_token: str | None = None):
         self.local, self.rest, self.anon_key, self.tokens, self.db, self.secret, self.stack = local, rest.rstrip("/"), anon_key, tokens, db, secret, stack
+        self.real_auth, self.auth_base, self.admin_token = real_auth, auth_base, admin_token       # real GoTrue behind the tokens (profile "gotrue")
+        self.uids = uids or {"owner": OWNER, "manager": MANAGER, "staff": STAFF, "stranger": STRANGER}
         self.obs: list[tuple[str, object]] = []
         self.contract: dict[str, dict] = {}
         self._phone = 0
@@ -93,7 +96,9 @@ class Ctx:
         if token is not None:
             h["Authorization"] = "Bearer " + token
         elif role == "anon":
-            h["Authorization"] = "Bearer " + self.anon_key
+            if self.anon_key.count(".") == 2:           # legacy anon key = a JWT: send it as the bearer, as supabase-js does
+                h["Authorization"] = "Bearer " + self.anon_key
+            # a new-style publishable key (sb_publishable_...) is not a JWT: the gateway wants it in `apikey` only
         elif role == "none":
             pass
         else:
@@ -132,6 +137,18 @@ class Ctx:
             a["p_idem_key"] = self.key()
         return a
 
+    def auth(self, method, path, body=None, token=None, service=False, headers=None) -> Resp:
+        """A call to the local GoTrue (profile 'gotrue' only). service=True uses a service-role token (the admin API)."""
+        if not self.auth_base:
+            raise Skip("needs the real GoTrue (run_local_stack.py --gotrue)")
+        h = {"apikey": self.anon_key, "Content-Type": "application/json"}
+        if service:
+            h["Authorization"] = "Bearer " + self.admin_token
+        elif token:
+            h["Authorization"] = "Bearer " + token
+        h.update(headers or {})
+        return request(method, self.auth_base + path, h, json.dumps(body) if body is not None else None, 30)
+
     # ── notes & checks ───────────────────────────────────────────────────────────────────────────
     def note(self, key, value):
         self.obs.append((key, value))
@@ -169,11 +186,14 @@ class Ctx:
         self.require_local("reset")
         c = self.db
         c.execute("""truncate sale_lines, sales, payments, refunds, payment_reports, order_events, order_lines, orders, stock_events,
-                     idempotency, stock_levels, variants, products, staff, auth.users, store_outages, expiry_failures restart identity cascade""")
-        for uid, em in ((OWNER, "owner"), (MANAGER, "manager"), (STAFF, "staff"), (STRANGER, "stranger")):
-            c.execute("insert into auth.users (id, email) values (%s, %s)", (uid, f"{em}@example.invalid"))
+                     idempotency, stock_levels, variants, products, staff, store_outages, expiry_failures restart identity cascade""")
+        if not self.real_auth:          # with real GoTrue the accounts already exist (created through its admin API); only the staff list is rebuilt
+            c.execute("truncate auth.users cascade")
+            for uid, em in ((OWNER, "owner"), (MANAGER, "manager"), (STAFF, "staff"), (STRANGER, "stranger")):
+                c.execute("insert into auth.users (id, email) values (%s, %s)", (uid, f"{em}@example.invalid"))
         c.execute("update store_status set last_heartbeat = null, offline_switch = false, note = null")
-        c.execute("insert into staff values (%s,'Khush (test owner)','owner'), (%s,'Dad (test manager)','manager'), (%s,'Clerk (test staff)','staff')", (OWNER, MANAGER, STAFF))
+        c.execute("insert into staff values (%s,'Khush (test owner)','owner'), (%s,'Dad (test manager)','manager'), (%s,'Clerk (test staff)','staff')",
+                  (self.uids["owner"], self.uids["manager"], self.uids["staff"]))
         c.execute("""insert into products (id, article, name, brand, category, colour, price_paise, published) values
                      ('tst-a-pink','TST-A','Pink Test Tee','','tshirts','Pink',%s,true),
                      ('tst-b-blue','TST-B','Blue Test Lower','','lowers','Blue',%s,true),

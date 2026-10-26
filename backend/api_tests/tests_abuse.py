@@ -43,7 +43,6 @@ def f1(X: Ctx):
     got = [P(X, b) for b in bodies[:5]]
     X.need(all(r.status == 200 for r in got), f"first five should be accepted: {[r.status for r in got]}")
     r6 = P(X, bodies[5])
-    X.record("PO-rate-hour-observed", r6)
     X.note("sixth_request", r6.err())
     X.need(X.sql1("select count(*) from orders where phone=%s", ph) == 5, "the sixth request created an order")
     X.need(r6.status == 429, f"at the limit the client receives HTTP {r6.status} (code {r6.code}); a rate limit must be HTTP 429 so it is not retried or reported as a server fault")
@@ -65,7 +64,7 @@ def f2(X: Ctx):
     X.reset()
     fill_orders(X, 300, lambda i: f"90000{i:05d}")
     r = P(X, order_body(X))
-    X.record("PO-rate-global-observed", r)
+    X.record("PO-rate-global", r, desc="More than 300 order requests in the last hour, from anyone", site="Show the message; do not retry automatically; offer WhatsApp.", group="rpc")
     X.note("global_brake", r.err())
     X.need(r.status == 429 and "lot of requests" in (r.message or ""), f"301st request in an hour: {r.err()}")
     X.need(X.rpc("get_availability", {}, "anon").status == 200, "availability must keep working while the order brake is on")
