@@ -1208,7 +1208,7 @@ def fingerprint(c):
 
 @test
 def migrations_apply_cleanly_in_order_on_a_fresh_database_and_match_the_main_one():
-    check([m.name[:4] for m in MIGRATIONS] == ["0001", "0002", "0003", "0004", "0005", "0006", "0007", "0008"], f"migration files: {[m.name for m in MIGRATIONS]}")
+    check([m.name[:4] for m in MIGRATIONS] == ["0001", "0002", "0003", "0004", "0005", "0006", "0007", "0008", "0009"], f"migration files: {[m.name for m in MIGRATIONS]}")
     uri = build_db(ENV.uri, "o4ufresh")
     fresh = psycopg.connect(uri, autocommit=True)
     main = fingerprint(conn())
@@ -1593,6 +1593,96 @@ def disputed_quantities_stay_off_the_website_until_a_person_counts_them():
     err(DAD, "select set_count_pending(%s,%s,'')", key(), vid_of("imp-clean", "L"), contains="say why")
     err(CLERK, "select set_count_pending(%s,%s,'because')", key(), vid_of("imp-clean", "L"), contains="manager")
     invariants()
+
+
+# ═════════════════════════ migration 0009: limits found by the real-HTTP tests (backend/api_tests) ═════════════════════════
+def sqlstate_of(who, sql, *args):
+    """('ok', value) or ('err', sqlstate, message) - the SQLSTATE is what PostgREST turns into an HTTP status."""
+    try:
+        row = conn(who).execute(sql, args).fetchone()
+        return "ok", (row[0] if row else None)
+    except psycopg.Error as e:
+        return "err", e.sqlstate, (e.diag.message_primary or str(e))
+
+
+def place_raw(**over):
+    items = (("tst-a-pink", "M", 1),)
+    a = dict(idem=key(), ref=ref_for(*items), name="Test Customer", phone="9000000077", address="12 Test Street, Testville", landmark="near test park", lines=lines_json(*items))
+    a.update(over)
+    return sqlstate_of("anon", "select place_order_request(%s,%s,%s,%s,%s,%s,%s::jsonb)", a["idem"], a["ref"], a["name"], a["phone"], a["address"], a["landmark"], a["lines"])
+
+
+@test
+def free_text_is_bounded_one_line_and_oversized_requests_are_refused_before_anything_is_stored():
+    reset()
+    n0 = q1("select count(*) from orders") + q1("select count(*) from idempotency")
+    check(place_raw(name="N" * 100, address="A" * 500, landmark="L" * 200, idem="k" * 100)[0] == "ok", "the documented maximum lengths must be accepted")
+    for label, kw, msg in (("name", dict(name="N" * 101), "name is too long"), ("address", dict(address="A" * 501), "address is too long"),
+                           ("landmark", dict(landmark="L" * 201), "landmark is too long"), ("idempotency key", dict(idem="k" * 101), "idempotency key is too long"),
+                           ("huge name", dict(name="N" * 1_000_000), "name is too long"), ("huge key", dict(idem="k" * 1_000_000), "idempotency key is too long"),
+                           ("bell in name", dict(name="A\u0007B"), "plain single-line"), ("escape in address", dict(address="A\u001b[31mB"), "plain single-line"),
+                           ("newline in landmark", dict(landmark="A\nB"), "plain single-line"), ("DEL", dict(name="A\u007fB"), "plain single-line"),
+                           ("null phone", dict(phone=None), "phone must be 10 digits"), ("null lines", dict(lines=None), "lines must be a list"),
+                           ("oversized lines", dict(lines=json.dumps([{"product_id": "tst-a-pink", "size": "M", "qty": 1, "junk": "j" * 25000}])), "too large")):
+        r = place_raw(**kw)
+        check(r[0] == "err" and msg in r[2], f"{label}: expected '{msg}', got {r}")
+        check(r[1] == "P0001", f"{label}: SQLSTATE {r[1]} (must be P0001 so PostgREST answers 400)")
+    r = sqlstate_of("anon", "select place_order_request(%s,null,'x','9000000078','y','','[]'::jsonb)", key())
+    check(r[0] == "err" and r[1] == "P0001", f"null reference: {r}")
+    check(q1("select count(*) from orders") + q1("select count(*) from idempotency") == n0 + 2, "refused requests left rows behind")      # +2: the one accepted maximum-length order and its key
+    uni = "Ṛāṅjīt 👩‍👧 مرحبا 你好"
+    check(place_raw(name=uni, phone="9000000079")[0] == "ok" and q1("select customer_name from orders where phone='9000000079'") == uni, "ordinary unicode must be stored unchanged")
+
+
+@test
+def rate_limit_refusals_use_a_code_postgrest_maps_to_http_429_not_500():
+    reset()
+    for i in range(5):
+        check(place_raw(phone="9000000081")[0] == "ok", f"request {i + 1} within the limit")
+    r = place_raw(phone="9000000081")
+    check(r[0] == "err" and r[1] == "PT429" and "too many order requests" in r[2], f"per-phone limit: {r}")
+    conn().execute("update app_settings set value = 1 where key = 'rate_all_per_hour'")
+    r = place_raw(phone="9000000082")
+    conn().execute("update app_settings set value = 300 where key = 'rate_all_per_hour'")
+    check(r[0] == "err" and r[1] == "PT429" and "lot of requests" in r[2], f"site-wide brake: {r}")
+
+
+@test
+def customer_payment_reports_are_capped_bounded_and_cannot_be_used_to_probe_orders():
+    reset()
+    oid, ref = place(phone="9000000091")
+    rp = lambda *a: sqlstate_of("anon", "select report_payment(%s,%s,%s,%s)", *a)      # noqa: E731
+    for i in range(10):
+        check(rp(ref, "9000000091", f"UPI{i}", 1000)[0] == "ok", f"report {i + 1} within the cap")
+    r = rp(ref, "9000000091", "UPI11", 1000)
+    check(r[0] == "err" and r[1] == "PT429" and "WhatsApp" in r[2], f"report over the cap: {r}")
+    check(q1("select count(*) from payment_reports where order_id=%s", oid) == 10 and q1("select count(*) from order_events where order_id=%s and action='payment_reported'", oid) == 10,
+          "history grew past the cap")
+    oid2, ref2 = place(phone="9000000092")
+    for label, args, msg in (("long reference", (ref2, "9000000092", "U" * 65, 1), "too long"), ("control chars", (ref2, "9000000092", "U\u0007", 1), "plain text"),
+                             ("negative amount", (ref2, "9000000092", "u", -1), "out of range"), ("absurd amount", (ref2, "9000000092", "u", 2_000_000_000), "out of range")):
+        r = rp(*args)
+        check(r[0] == "err" and msg in r[2] and r[1] == "P0001", f"{label}: {r}")
+    check(rp(ref2, "9000000092", "U" * 64, 100_000_000)[0] == "ok", "the documented maxima must be accepted")
+    same = {rp("W0000-2222-22", "9000000092", "", 0)[1:], rp(ref2, "9000000093", "", 0)[1:], rp("x" * 5000, "9000000092", "", 0)[1:], rp(ref2, "9" * 5000, "", 0)[1:], rp(None, "9000000092", "", 0)[1:]}
+    check(same == {("P0001", "order not found")}, f"unknown reference, wrong phone and absurd inputs must all say the same thing: {same}")
+
+
+@test
+def internal_helper_functions_are_not_executable_by_anyone_over_the_api_not_even_the_service_role():
+    reset()
+    helpers = ["actor_name", "apply_stock_event", "idem_begin", "idem_end", "lock_order_for", "lock_stock_rows", "log_order", "o4u_check", "release_lines",
+               "require_role", "reserve_lines", "setting", "forbid_change", "keep_one_owner", "variants_barcode_sync"]
+    rows = q("""select p.proname, has_function_privilege('service_role', p.oid, 'execute'), has_function_privilege('anon', p.oid, 'execute'),
+                       has_function_privilege('authenticated', p.oid, 'execute') from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = any(%s)""", helpers)
+    check({r[0] for r in rows} == set(helpers), "helper list is out of date")
+    check(not [r[0] for r in rows if r[1] or r[2] or r[3]], f"executable by an API role: {[r[0] for r in rows if r[1] or r[2] or r[3]]}")
+    ok("service_role", "select expire_holds()")                                   # what the service role is for still works
+    err("service_role", "select apply_stock_event(%s,'x',1,0,null,null,'x')", vid_of("tst-a-pink", "M"), contains="permission denied")
+    err("service_role", "select setting('hold_minutes')", contains="permission denied")
+    ok(OWNER, "select owner_sales_summary(now() - interval '1 day', now())")      # and the people-facing functions that use the helpers inside still work
+    place()
+    check(q1("select count(*) from orders") == 1, "ordering still works with the helpers closed")
 
 
 def main() -> int:

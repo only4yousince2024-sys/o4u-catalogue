@@ -216,6 +216,9 @@ def c5(X: Ctx):
     r = X.rpc("confirm_and_reserve", {"p_idem_key": X.key(), "p_order": ZERO, "p_delivery_paise": 1, "p_discount_paise": 0}, token=sv)
     X.need(r.status == 403 and r.code == "42501", f"service_role without a staff identity acted as staff: {r.err()}")
     X.need(X.rpc("expire_holds", {}, token=sv).status == 200, "service_role cannot run expire_holds")
+    from ctx import INTERNAL
+    leaked = [n for n, a in INTERNAL.items() if X.rpc(n, X.fresh(a), token=sv).code not in ("42501", "PGRST202")]
+    X.need(not leaked, f"the service role can run internal helper functions over the Data API: {leaked}")
     # service key + an owner's sub = the owner (it is the master key; it must never reach a browser)
     imp = mint(sec, user_claims(OWNER, role="service_role"))
     r = X.rpc("current_role_rank", {}, token=imp)

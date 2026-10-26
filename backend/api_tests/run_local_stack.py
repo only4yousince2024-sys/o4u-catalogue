@@ -56,6 +56,9 @@ def main() -> int:
         t0 = time.time()
         res = runner.run(X, "local", a.only)
         print(f"\n{runner.summary(res)} in {time.time() - t0:.1f}s")
+        import os
+        if os.environ.get('O4U_DUMP'):
+            json.dump(X.contract, open(os.environ['O4U_DUMP'], 'w'), indent=1)
         import report      # noqa: PLC0415
         report.write_local(res, tool, X, partial=bool(a.only) and not a.write_contract)
         rc = 0 if all(r["status"] != "FAIL" for r in res) and res else 1
