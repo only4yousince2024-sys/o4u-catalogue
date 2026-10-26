@@ -1208,7 +1208,7 @@ def fingerprint(c):
 
 @test
 def migrations_apply_cleanly_in_order_on_a_fresh_database_and_match_the_main_one():
-    check([m.name[:4] for m in MIGRATIONS] == ["0001", "0002", "0003", "0004", "0005", "0006", "0007"], f"migration files: {[m.name for m in MIGRATIONS]}")
+    check([m.name[:4] for m in MIGRATIONS] == ["0001", "0002", "0003", "0004", "0005", "0006", "0007", "0008"], f"migration files: {[m.name for m in MIGRATIONS]}")
     uri = build_db(ENV.uri, "o4ufresh")
     fresh = psycopg.connect(uri, autocommit=True)
     main = fingerprint(conn())
@@ -1217,7 +1217,7 @@ def migrations_apply_cleanly_in_order_on_a_fresh_database_and_match_the_main_one
 
 
 @test
-def migrations_0002_to_0007_can_be_re_applied_over_live_data_without_change():
+def migrations_0002_to_0008_can_be_re_applied_over_live_data_without_change():
     uri = dburi("o4ufresh")
     c = psycopg.connect(uri, autocommit=True)
     c.execute("select set_config('request.jwt.claims', %s, false)", (jwt_claims(OWNER),))
@@ -1229,7 +1229,7 @@ def migrations_0002_to_0007_can_be_re_applied_over_live_data_without_change():
     for rnd in range(2):
         for m in MIGRATIONS[1:]:
             c.execute(m.read_text(encoding="utf-8"))
-    check(fingerprint(c) == before_fp and counts() == before_n, "re-applying 0002-0007 changed the schema or the data")
+    check(fingerprint(c) == before_fp and counts() == before_n, "re-applying 0002-0008 changed the schema or the data")
     try:
         c.execute(MIGRATIONS[0].read_text(encoding="utf-8"))
         check(False, "0001 is not idempotent by design and should refuse a second run")
@@ -1402,6 +1402,15 @@ def build_db(uri_base, dbname, notices=None, migrations=None):
         c.execute(m.read_text(encoding="utf-8"))
     c.close()
     return uri
+
+@test
+def every_function_pins_its_search_path():
+    reset()
+    bad = q("""select p.proname from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prokind = 'f'
+               and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')
+               and not exists (select 1 from unnest(coalesce(p.proconfig, '{}')) c where c like 'search_path=%%')""")
+    check(not bad, f"functions without a pinned search_path (Supabase's Security Advisor flags these): {[r[0] for r in bad]}")
+
 
 @test
 def the_service_role_has_no_table_privileges_not_even_truncate():
