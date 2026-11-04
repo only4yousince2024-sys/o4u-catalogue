@@ -86,6 +86,25 @@
     delete: async (id) => { await api("DELETE", `/api/assets/${id}`); },
   };
 
+  // Atomic stock moves (spike-only capability used by the patched page copy). ONE request key per user action, reused on every retry:
+  // if the response is lost the retry returns the stored answer instead of deducting again. Only network failures are retried.
+  window.__spikeStockCalls = 0;
+  const stock = {
+    move: async ({key, meta, moves}) => {
+      let last;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        window.__spikeStockCalls++;
+        let r;
+        try { r = await fetch("/api/stock/moves", {method: "POST", headers: J, body: JSON.stringify({key, meta, moves})}); }
+        catch (e) { last = err("unavailable", "network"); await new Promise((ok) => setTimeout(ok, 150 * (attempt + 1))); continue; }
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw err(j.code || "error", j.error);
+        return j;
+      }
+      throw last;
+    },
+  };
+
   // a normal browser download (an <a download> click) - what a self-hosted page would do
   const downloads = {
     save: async ({filename, data}) => {
@@ -110,5 +129,5 @@
   }
   if (document.body) notice(); else document.addEventListener("DOMContentLoaded", notice);
 
-  window.claude = {use: async (name) => name === "db" ? db : name === "assets" ? assets : name === "downloads" ? downloads : null /* "sample": deliberately unavailable */};
+  window.claude = {use: async (name) => name === "db" ? db : name === "assets" ? assets : name === "downloads" ? downloads : name === "stock" ? stock : null /* "sample": deliberately unavailable */};
 })();

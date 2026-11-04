@@ -14,6 +14,7 @@ migrations/0006_shared_barcodes_opening_balance.sql   shared barcodes (scan neve
 migrations/0007_service_role_no_table_access.sql   service role loses leftover TRUNCATE/REFERENCES/TRIGGER on every table (found on the real hosted project)
 migrations/0008_function_search_path.sql       pins search_path on setting/forbid_change/keep_one_owner (Security Advisor warning)
 migrations/0009_api_abuse_limits.sql           found by the real-HTTP tests: HTTP 429 (not 500) for limits, bounded free text, capped payment reports, internal helpers closed to the service role
+migrations/0010_stock_moves_atomic.sql          LOCAL ONLY (not applied to any hosted project): apply_stock_moves - atomic, retry-safe, delta-based stock changes with their ledger rows
 importer/stockroom_import.py                   plan/apply a Stockroom backup into a DEV database (dry run by default; counts only)
 seed/onboard_staff.sql                         how the owner puts real people on the staff list (placeholders only)
 seed/preflight_hosted.sql                      READ-ONLY look at a hosted project (roles, default grants, event triggers, cron) before running 0001

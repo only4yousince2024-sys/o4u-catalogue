@@ -44,6 +44,7 @@ FUNCS: dict[str, tuple[str, dict]] = {
     "mark_failed": ("staff", {"p_idem_key": K, "p_order": Z, "p_who": "x", "p_note": "n"}),
     "mark_delivered": ("staff", {"p_idem_key": K, "p_order": Z}),
     "receive_stock": ("staff", {"p_idem_key": K, "p_variant": Z, "p_qty": 1, "p_reason": "x"}),
+    "apply_stock_moves": ("staff", {"p_idem_key": K, "p_moves": [], "p_reason": "x"}),
     "complete_sale": ("staff", {"p_idem_key": K, "p_lines": [], "p_payments": [], "p_discount_paise": 0}),
     "get_receipt": ("staff", {"p_sale": Z}),
     "lookup_barcode": ("staff", {"p_barcode": "x"}),

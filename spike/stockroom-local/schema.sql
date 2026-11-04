@@ -27,3 +27,12 @@ begin
 end $$;
 drop trigger if exists spike_docs_notify on spike_docs;
 create trigger spike_docs_notify after insert or update or delete on spike_docs for each row execute function spike_notify();
+
+-- the relational backend (backend/migrations) is the ONLY owner of stock: tell open pages when it changes
+create or replace function spike_notify_stock() returns trigger language plpgsql as $$
+begin
+  perform pg_notify('spike_changes', 'products');
+  return null;
+end $$;
+drop trigger if exists stock_levels_notify on stock_levels;
+create trigger stock_levels_notify after insert or update or delete on stock_levels for each statement execute function spike_notify_stock();

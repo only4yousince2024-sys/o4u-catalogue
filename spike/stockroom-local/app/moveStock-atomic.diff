@@ -1,0 +1,61 @@
+--- stockroom-v44-original.html
++++ stockroom-v44-atomic.html
+@@ -2462,30 +2462,27 @@
+ // meta: {kind, orderId?, caseId?, note?}; respectHolds: a sale may not take pieces held for orders.
+ async function moveStock(changes, meta, respectHolds){
++  // SPIKE COPY: one atomic server call (stock change + ledger row together, retry-safe) instead of read -> compute absolute -> write -> write history.
++  const stockApi = window.claude && typeof window.claude.use === "function" ? await window.claude.use("stock") : null;
++  if (!stockApi) throw fail("Atomic stock changes are not available in this view.");
+   const pids = [...new Set(changes.map(c => c.productId))];
+-  return withLeases(pids, async () => {
+-    const prods = {};
+-    for (const id of pids) prods[id] = await freshProduct(id);
+-    const holding = respectHolds ? (await freshHolding()).filter(o => o.id !== meta.orderId) : [];
+-    const plan = {};
+-    for (const id of pids) plan[id] = {stock: {...(prods[id].stock || {})}, moves: []};
+-    for (const c of changes) {
+-      const pl = plan[c.productId];
+-      if (respectHolds && c.change < 0) {
+-        const left = C.stockOf({stock: pl.stock}, c.size) - C.held(holding, c.productId, c.size);
+-        if (left < -c.change) { const e = new Error(`Only ${Math.max(0, left)} of ${prodName(prods[c.productId])} in ${C.sizeLabel(c.size)} free to sell (the rest is held for orders).`); e.code = "short"; throw e; }
+-      }
+-      const r = C.applyDelta(pl.stock, c.size, c.change);
+-      pl.stock = r.stock;
+-      pl.moves.push({productId: c.productId, label: prodName(prods[c.productId]), article: prods[c.productId].article || "", category: prods[c.productId].category || "",
+-        size: C.normSize(c.size), change: c.change, before: r.before, after: r.after, unitP: C.isNum(c.unitP) ? c.unitP : null});
++  const prods = {};
++  for (const id of pids) prods[id] = await freshProduct(id);
++  const holding = respectHolds ? (await freshHolding()).filter(o => o.id !== meta.orderId) : [];
++  const seen = {};
++  for (const id of pids) seen[id] = {...(prods[id].stock || {})};
++  const moves = [];
++  for (const c of changes) {
++    if (respectHolds && c.change < 0) {      // friendly pre-check, exactly as before; the database repeats it under a lock
++      const left = C.stockOf({stock: seen[c.productId]}, c.size) - C.held(holding, c.productId, c.size);
++      if (left < -c.change) { const e = new Error(`Only ${Math.max(0, left)} of ${prodName(prods[c.productId])} in ${C.sizeLabel(c.size)} free to sell (the rest is held for orders).`); e.code = "short"; throw e; }
+     }
+-    const at = nowIso();
+-    for (const id of pids) {
+-      const total = Object.values(plan[id].stock).reduce((a, v) => a + (Number(v) || 0), 0);
+-      await O.db.collection("products").doc(id).update({stock: plan[id].stock, inStock: total > 0, updatedAt: at});
+-    }
+-    await logMoves(pids.flatMap(id => plan[id].moves), meta, at);
+-    return plan;
+-  });
++    const p = prods[c.productId];
++    const line = {productId: c.productId, size: C.normSize(c.size), change: c.change, unitP: C.isNum(c.unitP) ? c.unitP : null,
++      label: prodName(p), article: p.article || "", category: p.category || ""};
++    if (meta.kind === "recount") line.expect = C.stockOf({stock: meta.expect || seen[c.productId]}, c.size);   // what the person saw when counting
++    moves.push(line);
++  }
++  const key = "mv-" + newId("k");      // ONE key per user action; the shim reuses it on every retry
++  return stockApi.move({key, meta: {kind: meta.kind, orderId: meta.orderId || "", caseId: meta.caseId || "", note: meta.note || "", by: O.who}, moves});
+ }
+ async function logMoves(list, meta, at){
+@@ -2798,5 +2795,5 @@
+         });
+       }
+-      await moveStock(ch, {kind: f.why, note: (f.note || "").trim()}, f.why !== "restock");
++      await moveStock(ch, {kind: f.why, note: (f.note || "").trim(), expect: f.why === "recount" ? (p.stock || {}) : undefined}, f.why !== "restock");
+       if (f.why === "restock") {   // a new size gets a size line, priced like the nearest smaller size (as on the product page)
+         const fresh = await freshProduct(p.id);

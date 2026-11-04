@@ -796,7 +796,7 @@ EXPECTED_ANON_FUNCS = {"get_availability", "place_order_request", "report_paymen
 EXPECTED_AUTH_FUNCS = EXPECTED_ANON_FUNCS | {
     "confirm_and_reserve", "verify_payment", "release_hold", "cancel_order", "pack_order", "dispatch_order", "mark_failed", "mark_delivered",
     "request_refund", "mark_refund_sent", "receive_stock", "recount_stock", "return_to_stock", "complete_sale", "get_receipt", "store_ping",
-    "set_offline_switch", "owner_sales_summary", "current_role_rank", "overdue_holds", "stock_trust_status", "reconcile_outages",
+    "set_offline_switch", "owner_sales_summary", "current_role_rank", "overdue_holds", "stock_trust_status", "reconcile_outages", "apply_stock_moves",
     "lookup_barcode", "set_count_pending", "pending_counts"}
 EXPECTED_SERVICE_ONLY = {"expire_holds", "onboard_staff", "onboard_staff_by_email", "deactivate_staff", "import_opening_balance"}
 EXPECTED_AUTH_SELECT = {"products", "variants", "stock_levels", "stock_events", "orders", "order_lines", "order_events", "order_transitions",
@@ -1208,7 +1208,7 @@ def fingerprint(c):
 
 @test
 def migrations_apply_cleanly_in_order_on_a_fresh_database_and_match_the_main_one():
-    check([m.name[:4] for m in MIGRATIONS] == ["0001", "0002", "0003", "0004", "0005", "0006", "0007", "0008", "0009"], f"migration files: {[m.name for m in MIGRATIONS]}")
+    check([m.name[:4] for m in MIGRATIONS] == ["0001", "0002", "0003", "0004", "0005", "0006", "0007", "0008", "0009", "0010"], f"migration files: {[m.name for m in MIGRATIONS]}")
     uri = build_db(ENV.uri, "o4ufresh")
     fresh = psycopg.connect(uri, autocommit=True)
     main = fingerprint(conn())
@@ -1381,6 +1381,159 @@ def stock_trust_flag_follows_the_heartbeat_and_needs_a_manager_to_clear():
 
 
 # ═════════════════════════ end of migrations 0002-0005 checks ═════════════════════════
+
+
+# ═════════════════════════ migration 0010: atomic, retry-safe stock moves ═════════════════════════
+def mv(kind, change=None, size="M", pid="tst-a-pink", **kw):
+    d = {"product_id": pid, "size": size, "kind": kind}
+    if change is not None:
+        d["change"] = change
+    d.update(kw)
+    return d
+
+
+def moves(who, key_, lines, reason="test"):
+    import json as _j
+    return rpc(who, "select apply_stock_moves(%s, %s::jsonb, %s)", key_, _j.dumps(lines), reason)
+
+
+def ledger_rows(pid="tst-a-pink", size="M", kind=None):
+    return q1("select count(*) from stock_events where variant_id=%s" + (" and kind=%s" if kind else ""), *([vid_of(pid, size)] + ([kind] if kind else [])))
+
+
+@test
+def two_clients_selling_the_final_piece_exactly_one_succeeds():
+    import json as _j
+    for rnd in range(6):
+        reset(stock_a_m=1)
+        base = ledger_rows()
+        out = parallel([lambda i=i: solo(CLERK, "select apply_stock_moves(%s, %s::jsonb, 'final piece')", f"final-{rnd}-{i}-{uuid.uuid4().hex[:6]}", _j.dumps([mv("sale", -1)])) for i in range(12)])
+        oks = [r for r in out if isinstance(r, tuple) and r[0] == "ok"]
+        errs = [r for r in out if isinstance(r, tuple) and r[0] == "err"]
+        check(len(oks) == 1 and len(errs) == 11, f"round {rnd}: {len(oks)} sold, {len(errs)} refused (expected 1 / 11): {out[:2]}")
+        check(all("only 0 free" in e[1] for e in errs), f"refusal wording: {errs[0]}")
+        check(stock("tst-a-pink", "M") == (0, 0), f"stock after: {stock('tst-a-pink', 'M')}")
+        check(ledger_rows(kind="sale") == 1 and ledger_rows() == base + 1, "exactly one sale ledger row")
+
+
+@test
+def a_failure_between_the_stock_update_and_its_ledger_row_rolls_both_back():
+    reset(stock_a_m=5, stock_a_l=5)
+    c = conn()
+    c.execute("create or replace function public.zz_fault() returns trigger language plpgsql as $$ begin raise exception 'injected ledger failure'; end $$")
+    c.execute("create trigger zz_fault before insert on stock_events for each row when (new.reason = 'FAULT') execute function public.zz_fault()")
+    try:
+        k = key()
+        st, msg = moves(CLERK, k, [mv("sale", -1, reason="FAULT")])
+        check(st == "err" and "injected ledger failure" in msg, f"{st} {msg}")
+        check(stock("tst-a-pink", "M") == (5, 0), f"stock must be untouched: {stock('tst-a-pink', 'M')}")
+        check(q1("select count(*) from stock_events where reason='FAULT'") == 0 and q1("select count(*) from idempotency where key=%s", k) == 0, "no ledger row and no stored key")
+        # several lines, the LAST one fails: the earlier ones must roll back too
+        st, msg = moves(CLERK, key(), [mv("sale", -1, size="L"), mv("sale", -1, size="M", reason="FAULT")])
+        check(st == "err", "second line fault must fail the call")
+        check(stock("tst-a-pink", "L") == (5, 0) and stock("tst-a-pink", "M") == (5, 0), "an earlier line of a failed call stayed applied")
+    finally:
+        c.execute("drop trigger if exists zz_fault on stock_events"); c.execute("drop function if exists public.zz_fault()")
+    st, r = moves(CLERK, k, [mv("sale", -1, reason="FAULT")])          # same key, fault gone: the retry works and counts once
+    check(st == "ok" and stock("tst-a-pink", "M") == (4, 0) and ledger_rows(kind="sale") == 1, f"retry after the fault: {st} {r}")
+
+
+@test
+def a_process_killed_between_the_stock_update_and_the_ledger_insert_leaves_nothing_behind():
+    reset(stock_a_m=5)
+    c = conn()
+    c.execute("create function public.zz_slow() returns trigger language plpgsql as $$ begin perform pg_sleep(10); return new; end $$")
+    c.execute("create trigger zz_slow before insert on stock_events for each row when (new.reason = 'SLOWLEDGER') execute function public.zz_slow()")
+    try:
+        victim = ENV.connect(CLERK)
+        pid = victim.execute("select pg_backend_pid()").fetchone()[0]
+        box = {}
+        import json as _j
+
+        def run():
+            try:
+                victim.execute("select apply_stock_moves(%s, %s::jsonb, 'x')", (key(), _j.dumps([mv("sale", -1, reason="SLOWLEDGER")])))
+                box["r"] = "finished"
+            except Exception as e:      # noqa: BLE001
+                box["r"] = type(e).__name__
+        th = threading.Thread(target=run); th.start()
+        time.sleep(1.2)                                   # the stock row is updated, the ledger insert is asleep in the trigger
+        inside = q1("select on_hand from stock_levels where variant_id=%s", vid_of("tst-a-pink", "M"))
+        check(inside == 5, "other sessions must not see the uncommitted change")
+        conn().execute("select pg_terminate_backend(%s)", (pid,))
+        th.join(20)
+        check(box.get("r") not in (None, "finished"), f"the killed call should fail, got {box}")
+    finally:
+        c.execute("drop trigger if exists zz_slow on stock_events"); c.execute("drop function if exists public.zz_slow()")
+    check(stock("tst-a-pink", "M") == (5, 0) and ledger_rows(kind="sale") == 0, "a killed call must leave neither a deduction nor a ledger row")
+    check(q1("select count(*) from idempotency where action='apply_stock_moves'") == 0, "no half-finished idempotency key either")
+
+
+@test
+def a_lost_response_followed_by_a_retry_deducts_exactly_once():
+    import json as _j
+    reset(stock_a_m=5)
+    k = key()
+    lines = [mv("sale", -2)]
+    st1, r1 = moves(CLERK, k, lines, "lost response")
+    st2, r2 = moves(CLERK, k, lines, "lost response")                 # the client never saw r1 and sends the same request again
+    check(st1 == st2 == "ok" and r1 == r2, f"replay must return the stored answer: {r1} / {r2}")
+    check(stock("tst-a-pink", "M") == (3, 0) and ledger_rows(kind="sale") == 1, f"one deduction, one ledger row: {stock('tst-a-pink', 'M')}")
+    # the same retry arriving five times at once
+    k2 = key()
+    out = parallel([lambda: solo(CLERK, "select apply_stock_moves(%s, %s::jsonb, 'burst')", k2, _j.dumps([mv("sale", -1)]))] * 5)
+    check(all(isinstance(r, tuple) and r[0] == "ok" for r in out) and len({_j.dumps(r[1], sort_keys=True) for r in out}) == 1, f"burst replay: {out}")
+    check(stock("tst-a-pink", "M") == (2, 0) and ledger_rows(kind="sale") == 2, "five simultaneous copies of one request deduct once")
+    st, msg = moves(CLERK, k, [mv("sale", -1)], "lost response")      # same key, different contents
+    check(st == "err" and "different contents" in msg and stock("tst-a-pink", "M") == (2, 0), f"key reuse with other contents: {st} {msg}")
+    check(moves(CLERK, key(), lines)[0] == "ok" and stock("tst-a-pink", "M") == (0, 0), "a NEW key is a new request")
+
+
+@test
+def a_delayed_or_expired_holder_cannot_overwrite_newer_stock():
+    reset(stock_a_m=10)
+    # phone A counted the rack when it held 10, then its lease expired and it was slow; phone B sold one piece meanwhile
+    check(moves(CLERK, key(), [mv("sale", -1)])[0] == "ok", "B's sale")
+    st, msg = moves(DAD, key(), [mv("recount", None, counted=8, expect_on_hand=10)], "A's delayed recount")
+    check(st == "err" and "stock changed while counting" in msg, f"stale recount must be refused: {st} {msg}")
+    check(stock("tst-a-pink", "M") == (9, 0) and ledger_rows(kind="recount") == 0, "newer stock untouched")
+    # a delayed SALE is a delta on the current row: it adds to B's sale instead of replacing it
+    check(moves(CLERK, key(), [mv("sale", -1)], "A's delayed sale")[0] == "ok" and stock("tst-a-pink", "M") == (8, 0), "delayed delta lands on top of newer stock")
+    # a recount made with fresh knowledge works and clears the pending flag
+    conn().execute("update stock_levels set count_pending=true, count_pending_reason='x' where variant_id=%s", (vid_of("tst-a-pink", "M"),))
+    check(moves(DAD, key(), [mv("recount", None, counted=7, expect_on_hand=8)])[0] == "ok" and stock("tst-a-pink", "M") == (7, 0), "fresh recount")
+    check(q1("select count_pending from stock_levels where variant_id=%s", vid_of("tst-a-pink", "M")) is False, "recount clears count_pending")
+    check(ledger_rows(kind="recount") == 1, "one recount ledger row")
+
+
+@test
+def stock_moves_check_roles_kinds_holds_and_all_or_nothing():
+    reset(stock_a_m=5, stock_a_l=5)
+    err(STRANGER, "select apply_stock_moves(%s, %s::jsonb, '')", key(), '[{"product_id":"tst-a-pink","size":"M","kind":"sale","change":-1}]', contains="not allowed")
+    err("anon", "select apply_stock_moves(%s, '[]'::jsonb, '')", key(), contains="permission denied")
+    st, msg = moves(CLERK, key(), [mv("recount", None, counted=1, expect_on_hand=5)])
+    check(st == "err" and "manager" in msg, f"staff must not recount: {msg}")
+    for bad, why in (([mv("sale", 1)], "must take pieces off"), ([mv("receive", -1)], "must add pieces"), ([mv("sale", 0)], "non-zero"), ([mv("fly", 1)], "unknown kind"),
+                     ([mv("sale", -1), mv("sale", -1)], "list each item once"), ([mv("sale", -1, pid="nope")], "unknown item"), ([], "between 1")):
+        st, msg = moves(CLERK, key(), bad)
+        check(st == "err" and why in msg, f"{bad}: {st} {msg}")
+    # a website hold keeps pieces off the counter: 5 on hand, 3 held -> only 2 free
+    oid, _ = place(("tst-a-pink", "M", 3)); reserve(oid)
+    st, msg = moves(CLERK, key(), [mv("sale", -3)])
+    check(st == "err" and "only 2 free" in msg, f"hold must be respected: {msg}")
+    check(moves(CLERK, key(), [mv("sale", -2)])[0] == "ok", "the 2 free pieces can be taken")
+    st, msg = moves(DAD, key(), [mv("recount", None, counted=2, expect_on_hand=3)])
+    check(st == "err" and "held for customers" in msg, f"cannot count below holds: {msg}")
+    # one bad line fails the whole call
+    before = (stock("tst-a-pink", "M"), stock("tst-a-pink", "L"))
+    st, msg = moves(CLERK, key(), [mv("receive", 2, size="L"), mv("sale", -9, size="M")])
+    check(st == "err" and (stock("tst-a-pink", "M"), stock("tst-a-pink", "L")) == before, "all-or-nothing")
+    ok(CLERK, "select 1")
+    # kinds map to the ledger kinds the rest of the backend already uses
+    for line in (mv("receive", 4, size="L"), mv("adjust", -1, size="L"), mv("return_in", 1, size="L")):
+        check(moves(CLERK, key(), [line])[0] == "ok", f"kind {line['kind']}")
+    check({r[0] for r in q("select kind from stock_events where variant_id=%s and kind in ('receive','adjust','return_in')", vid_of("tst-a-pink", "L"))} >= {"adjust", "return_in", "receive"}, "ledger kinds")
+
 
 def dburi(dbname):
     from psycopg.conninfo import make_conninfo

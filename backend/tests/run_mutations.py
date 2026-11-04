@@ -56,6 +56,15 @@ MUTATIONS = [
     ("0009 internal helpers stay executable by the service role", "0009", "  from public, anon, authenticated, service_role;", "  from public, anon, authenticated;"),
     ("0009 claimed payment amount unbounded", "0009", "if p_claimed_paise is not null and (p_claimed_paise < 0 or p_claimed_paise > 100000000) then", "if false then"),
     ("0009 oversized request body accepted", "0009", "if p_lines is not null and octet_length(p_lines::text) > 20000 then", "if false then"),
+    # ---- 0010 atomic stock moves
+    ("0010 replay of a key with different contents is accepted", "0010", "    if prev->>'_req' is distinct from req then raise exception 'idempotency key already used with different contents'; end if;\n", ""),
+    ("0010 recount no longer checks what the counter saw", "0010", "      if cur <> exp then raise exception 'stock changed while counting: the rack was % when you started, it is % now', exp, cur using errcode = 'P0001'; end if;\n", ""),
+    ("0010 no free-stock check (relies on the table constraint alone)", "0010", "      if chg < 0 and cur - rsv < -chg then\n        raise exception 'only % free to take off (% on hand, % held for customers)', greatest(cur - rsv, 0), cur, rsv using errcode = 'P0001';\n      end if;\n", ""),
+    ("0010 stock changed without a ledger row (bypasses apply_stock_event)", "0010", "      perform apply_stock_event(v, kind, chg, 0, null, null, coalesce(nullif(e->>'reason',''), nullif(p_reason,''), kind));", "      update stock_levels set on_hand = on_hand + chg where variant_id = v;"),
+    ("0010 the answer is never stored (replay finds an unfinished key)", "0010", "  perform idem_end(p_idem_key, jsonb_build_object('moves', res, '_req', req));\n", ""),
+    ("0010 stock rows not locked before the checks", "0010", "  perform lock_stock_rows(vids);\n", ""),
+    ("0010 staff may recount", "0010", "  if exists (select 1 from jsonb_array_elements(p_moves) m where m->>'kind' = 'recount') then perform require_role('manager'); end if;\n", ""),
+    ("0010 the public may call apply_stock_moves", "0010", "grant execute on function apply_stock_moves(text, jsonb, text) to authenticated;", "grant execute on function apply_stock_moves(text, jsonb, text) to anon, authenticated;"),
 ]
 
 

@@ -177,8 +177,221 @@ def download_checks():
     check("D3 full-backup ZIP is valid and complete", zip_backup)
 
 
+
+# ───────────── atomic stock path: HTTP-level checks against the real database (migration 0010 through the spike endpoint) ─────────────
+import psycopg  # noqa: E402
+
+
+def pg():
+    return psycopg.connect(pgdev.conninfo(), autocommit=True)
+
+
+def sproduct(pid, m):
+    return {"id": pid, "article": pid.upper(), "brand": "", "category": "tshirts", "type": "Http Test Tee", "colour": "Teal", "sizes": [{"size": "M", "mrp": 999}, {"size": "L", "mrp": 999}],
+            "stock": {"M": m, "L": 0}, "inStock": m > 0, "published": True, "status": "ready", "flags": [], "notes": "", "webImages": [], "createdAt": "2026-11-01T00:00:00.000Z", "updatedAt": "2026-11-01T00:00:00.000Z"}
+
+
+def seed(**stocks):
+    req("POST", "/api/_spike/reset")
+    st, j = req("POST", "/api/_spike/bulk?relational=1", {"products": {pid: sproduct(pid, m) for pid, m in stocks.items()}})
+    assert st == 200, (st, j)
+
+
+def move(key_, pid, change, by="tester", kind="sale", size="M", **extra):
+    m = {"productId": pid, "size": size, "change": change, "label": "Http Test Tee", "article": pid.upper(), "category": "tshirts", **extra}
+    return req("POST", "/api/stock/moves", {"key": key_, "meta": {"kind": kind, "by": by}, "moves": [m]})
+
+
+def state(pid):
+    with pg() as c:
+        oh = c.execute("select coalesce(sum(sl.on_hand),0) from stock_levels sl join variants v on v.id=sl.variant_id where v.product_id=%s", (pid,)).fetchone()[0]
+        ev = c.execute("select count(*) from stock_events e join variants v on v.id=e.variant_id where v.product_id=%s and e.kind <> 'opening_balance'", (pid,)).fetchone()[0]
+        docs = c.execute("select count(*) from spike_docs where collection='stockmoves' and data->>'productId'=%s", (pid,)).fetchone()[0]
+        idem = c.execute("select count(*) from idempotency where action='apply_stock_moves'").fetchone()[0]
+    return int(oh), ev, docs, idem
+
+
+def uk(tag):
+    return f"{tag}-{uuid_hex()}"
+
+
+def uuid_hex():
+    import uuid
+    return uuid.uuid4().hex[:10]
+
+
+def assert_ledger():
+    """The ledger explains the shelf (per variant) and the page's history copies equal the ledger (per product). Raises AssertionError."""
+    with pg() as c:
+        bad = c.execute("""select v.product_id, v.size from stock_levels sl join variants v on v.id = sl.variant_id
+                           where sl.on_hand <> coalesce((select sum(d_on_hand) from stock_events e where e.variant_id = sl.variant_id), 0)
+                              or sl.reserved <> coalesce((select sum(d_reserved) from stock_events e where e.variant_id = sl.variant_id), 0)
+                              or sl.on_hand < 0""").fetchall()
+        assert not bad, f"stock_levels disagree with the ledger for {bad}"
+        docsum = {k: int(v) for k, v in c.execute("select data->>'productId', sum((data->>'change')::int) from spike_docs where collection='stockmoves' and data ? 'ledgerKey' group by 1").fetchall()}
+        ledsum = {k: int(v) for k, v in c.execute("select v.product_id, sum(e.d_on_hand) from stock_events e join variants v on v.id=e.variant_id where e.kind <> 'opening_balance' group by 1").fetchall()}
+        assert docsum == ledsum, f"history copies {docsum} vs ledger {ledsum}"
+        # the page reads stock through the overlay: it must equal the relational number
+        for pid, in c.execute("select id from products").fetchall():
+            st, j = req("GET", f"/api/doc/products/{pid}")
+            rel = {r[0]: r[1] for r in c.execute("select v.size, sl.on_hand from variants v join stock_levels sl on sl.variant_id=v.id where v.product_id=%s", (pid,)).fetchall()}
+            assert j["data"]["stock"] == rel, f"{pid}: page sees {j['data']['stock']}, database {rel}"
+
+
+def stock_checks():
+    def h1():
+        seed(**{"h-final": 1})
+        out, bar = [], threading.Barrier(12)
+
+        def go(i):
+            bar.wait()
+            out.append(move(uk(f"final{i}"), "h-final", -1))
+        ts = [threading.Thread(target=go, args=(i,)) for i in range(12)]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+        wins = [r for r in out if r[0] == 200]
+        loses = [r for r in out if r[0] == 409]
+        assert len(out) == 12 and len(wins) == 1 and len(loses) == 11, f"{len(wins)} sold, {len(loses)} refused, others {[r for r in out if r[0] not in (200, 409)][:2]}"
+        assert all(r[1]["code"] == "short" for r in loses), loses[0]
+        assert state("h-final") == (0, 1, 1, 1), state("h-final")
+        assert_ledger()
+        return "12 simultaneous HTTP requests for the last piece: 1 sold, 11 refused (409 short); stock 0, 1 ledger row, 1 history copy"
+    check("H1 final piece: exactly one succeeds", h1)
+
+    def h2():
+        seed(**{"h-fault": 5})
+        c = pg()
+        c.execute("create function public.zz_fault() returns trigger language plpgsql as $$ begin raise exception 'injected ledger failure'; end $$")
+        c.execute("create trigger zz_fault before insert on stock_events for each row when (new.reason like '%FAULTME%') execute function public.zz_fault()")
+        k = uk("fault")
+        try:
+            st, j = move(k, "h-fault", -1, by="FAULTME")
+            assert st != 200 and "injected ledger failure" in json.dumps(j), (st, j)
+            assert state("h-fault") == (5, 0, 0, 0), f"stock/ledger/history/key after the failure: {state('h-fault')}"
+            two = req("POST", "/api/stock/moves", {"key": uk("fault2"), "meta": {"kind": "sale", "by": "FAULTME"}, "moves": [
+                {"productId": "h-fault", "size": "L", "change": 0, "kind": "receive"}]})
+        finally:
+            c.execute("drop trigger if exists zz_fault on stock_events")
+            c.execute("drop function if exists public.zz_fault()")
+        st, j = move(k, "h-fault", -1, by="FAULTME")
+        assert st == 200 and state("h-fault") == (4, 1, 1, 1), f"retry with the same key after the fault is gone: {st} {state('h-fault')}"
+        c.close()
+        assert_ledger()
+        return "ledger insert failed after the stock UPDATE: stock, ledger, history copy and idempotency key all rolled back; the same key then succeeded once"
+    check("H2 failure between stock update and ledger insert: both roll back", h2)
+
+    def h3():
+        seed(**{"h-doc": 5})
+        c = pg()
+        c.execute("create function public.zz_docfault() returns trigger language plpgsql as $$ begin raise exception 'injected history failure'; end $$")
+        c.execute("create trigger zz_docfault before insert on spike_docs for each row when (new.collection = 'stockmoves' and new.data->>'by' = 'DOCFAULT') execute function public.zz_docfault()")
+        try:
+            st, j = move(uk("docfault"), "h-doc", -2, by="DOCFAULT")
+            assert st != 200, (st, j)
+            assert state("h-doc") == (5, 0, 0, 0), f"a failure AFTER the relational ledger row still rolls everything back: {state('h-doc')}"
+        finally:
+            c.execute("drop trigger if exists zz_docfault on spike_docs")
+            c.execute("drop function if exists public.zz_docfault()")
+        c.close()
+        assert_ledger()
+        return "history-copy insert failed after stock and ledger were written: stock_levels, stock_events and the key all rolled back (one transaction)"
+    check("H3 failure after the ledger row (history copy) rolls back too", h3)
+
+    def h4():
+        seed(**{"h-kill": 5})
+        c = pg()
+        c.execute("create function public.zz_slow() returns trigger language plpgsql as $$ begin perform pg_sleep(10); return new; end $$")
+        c.execute("create trigger zz_slow before insert on stock_events for each row when (new.reason like '%SLOWLEDGER%') execute function public.zz_slow()")
+        k, box = uk("kill"), {}
+        try:
+            th = threading.Thread(target=lambda: box.update(r=move(k, "h-kill", -1, by="SLOWLEDGER")))
+            th.start()
+            pid_ = None
+            for _ in range(40):
+                time.sleep(0.25)
+                r = c.execute("select pid from pg_stat_activity where query like 'select apply_stock_moves%%' and state = 'active' and pid <> pg_backend_pid()").fetchone()
+                if r:
+                    pid_ = r[0]
+                    break
+            assert pid_, "the request never reached the database"
+            time.sleep(0.5)
+            assert state("h-kill")[0] == 5, "uncommitted change visible to others"
+            c.execute("select pg_terminate_backend(%s)", (pid_,))      # the database process dies between the UPDATE and the ledger insert
+            th.join(20)
+            assert box["r"][0] != 200, box
+            assert state("h-kill") == (5, 0, 0, 0), f"after the kill: {state('h-kill')}"
+        finally:
+            c.execute("drop trigger if exists zz_slow on stock_events")
+            c.execute("drop function if exists public.zz_slow()")
+            c.close()
+        st, j = move(k, "h-kill", -1, by="SLOWLEDGER")
+        assert st == 200 and state("h-kill") == (4, 1, 1, 1), (st, state("h-kill"))
+        assert_ledger()
+        return "database backend killed mid-transaction (after the stock UPDATE, during the ledger insert): nothing committed; the retry with the same key deducted once"
+    check("H4 process killed between stock update and ledger insert", h4)
+
+    def h5():
+        seed(**{"h-lost": 10})
+        k = uk("lost")
+        r1 = move(k, "h-lost", -3)              # the response is "lost": the caller ignores it and sends the same request again
+        r2 = move(k, "h-lost", -3)
+        assert r1[0] == r2[0] == 200 and r1[1] == r2[1], (r1, r2)
+        assert state("h-lost") == (7, 1, 1, 1), state("h-lost")
+        k2, out, bar = uk("burst"), [], threading.Barrier(6)
+
+        def go():
+            bar.wait()
+            out.append(move(k2, "h-lost", -1))
+        ts = [threading.Thread(target=go) for _ in range(6)]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+        assert len(out) == 6 and all(r[0] == 200 for r in out) and len({json.dumps(r[1], sort_keys=True) for r in out}) == 1, out
+        assert state("h-lost") == (6, 2, 2, 2), state("h-lost")
+        st, j = move(k, "h-lost", -1)            # same key, different contents
+        assert st == 409 and "different contents" in j["error"] and state("h-lost")[0] == 6, (st, j)
+        assert_ledger()
+        return "same request twice: one deduction (10 -> 7), identical answer; 6 simultaneous copies: one deduction; same key with other contents refused"
+    check("H5 lost response then retry: one deduction, one ledger entry", h5)
+
+    def h6():
+        seed(**{"h-late": 10})
+        assert lease("h-late", "A", 300)
+        time.sleep(0.5)
+        assert lease("h-late", "B", 5000), "B should take the expired lease"
+        assert move(uk("b"), "h-late", -1)[0] == 200
+        assert state("h-late")[0] == 9
+        st, j = move(uk("a"), "h-late", -1)                                           # A's delayed sale, sent after its lease expired
+        assert st == 200 and state("h-late")[0] == 8, (st, j, state("h-late"))
+        st, j = move(uk("arc"), "h-late", -2, kind="recount", expect=10)             # A counted 8 when it saw 10
+        assert st == 409 and j["code"] == "stale" and state("h-late")[0] == 8, (st, j)
+        st, j = req("PATCH", "/api/doc/products/h-late", {"stock": {"M": 99, "L": 0}, "inStock": True})   # an old-style absolute overwrite from a delayed page
+        got = req("GET", "/api/doc/products/h-late")[1]["data"]["stock"]["M"]
+        assert got == 8 and state("h-late")[0] == 8, f"stale absolute write changed the stock: {got}"
+        with pg() as c:      # not only ignored on read: no competing stock number may be STORED in the document either
+            raw = c.execute("select data->'stock'->>'M' from spike_docs where collection='products' and id='h-late'").fetchone()[0]
+        assert raw != "99", "the stale absolute value was stored in the document (a second source of truth)"
+        assert_ledger()
+        return "expired lease holder A: its late sale landed on top of B's (10 -> 9 -> 8); its stale recount was refused; a stale absolute 'stock' write from a document PATCH is ignored"
+    check("H6 delayed/expired holder cannot overwrite newer stock", h6)
+
+    def h7():
+        assert_ledger()
+        with pg() as c:
+            n = c.execute("select count(*) from stock_events where kind <> 'opening_balance'").fetchone()[0]
+        return f"final sweep on the last scenario's data ({n} ledger rows): shelf = ledger, history copies = ledger, page overlay = database. The same sweep also ran at the end of H1-H6"
+    check("H7 ledger explains the shelf, history copies match the ledger", h7)
+
+
+def snapshot():
+    with pg() as c:
+        rows = c.execute("select count(*), coalesce(sum(on_hand),0) from stock_levels").fetchone()
+        ev = c.execute("select count(*), coalesce(sum(d_on_hand),0) from stock_events").fetchone()
+    return (rows[0], ev[0], int(rows[1]), int(ev[1]))
+
+
 def node(phase):
-    p = subprocess.run(["node", str(HERE / "browser_tests.js"), phase], cwd=HERE, capture_output=True, text=True, timeout=600)
+    script = "atomic_tests.js" if phase == "atomic" else "browser_tests.js"
+    p = subprocess.run(["node", str(HERE / script), phase], cwd=HERE, capture_output=True, text=True, timeout=600)
     out = []
     for line in p.stdout.splitlines():
         if line.startswith("{"):
@@ -197,6 +410,15 @@ def main():
     print("PostgreSQL:", subprocess.run(["psql", pgdev.conninfo(), "-Atc", "select version()"], capture_output=True, text=True).stdout.strip().split(",")[0])
     start_server()
     try:
+        if "--atomic-only" in sys.argv:      # used by the spike mutation checks: just the atomic stock path
+            print("\n== Atomic stock path only ==")
+            stock_checks()
+            subprocess.run([sys.executable, str(HERE / "patch_app.py")], check=True, capture_output=True)
+            node("atomic")
+            stop_server()
+            npass = sum(1 for r in RESULTS if r[1] == "PASS"); nfail = sum(1 for r in RESULTS if r[1] == "FAIL")
+            print(f"\n{npass} PASS, {nfail} FAIL")
+            return 1 if nfail else 0
         print("\n== HTTP lease checks ==")
         lease_checks()
         print("\n== Browser checks (real Chromium, 390x844 touch viewport) ==")
@@ -209,6 +431,15 @@ def main():
         pgdev.start()
         start_server()
         node("after-restart")
+        print("\n== Atomic stock path: HTTP checks (migration 0010 through the spike endpoint, real database faults) ==")
+        stock_checks()
+        print("\n== Atomic stock path: browser checks (isolated page copy, the app's own moveStock) ==")
+        subprocess.run([sys.executable, str(HERE / "patch_app.py")], check=True, capture_output=True)
+        node("atomic")
+        print("\n== Restart again: relational stock and ledger must survive ==")
+        before = snapshot()
+        stop_server(); pgdev.stop(); pgdev.start(); start_server()
+        check("R1 relational stock + ledger identical after restarting the server AND PostgreSQL", lambda: (snapshot() == before and assert_ledger() is None) and f"{before[0]} stock rows, {before[1]} ledger rows unchanged")
     finally:
         stop_server()
     npass = sum(1 for r in RESULTS if r[1] == "PASS")
