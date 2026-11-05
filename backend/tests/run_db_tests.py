@@ -796,7 +796,7 @@ EXPECTED_ANON_FUNCS = {"get_availability", "place_order_request", "report_paymen
 EXPECTED_AUTH_FUNCS = EXPECTED_ANON_FUNCS | {
     "confirm_and_reserve", "verify_payment", "release_hold", "cancel_order", "pack_order", "dispatch_order", "mark_failed", "mark_delivered",
     "request_refund", "mark_refund_sent", "receive_stock", "recount_stock", "return_to_stock", "complete_sale", "get_receipt", "store_ping",
-    "set_offline_switch", "owner_sales_summary", "current_role_rank", "overdue_holds", "stock_trust_status", "reconcile_outages", "apply_stock_moves",
+    "set_offline_switch", "owner_sales_summary", "current_role_rank", "overdue_holds", "stock_trust_status", "reconcile_outages", "apply_stock_moves", "sync_catalogue_product",
     "lookup_barcode", "set_count_pending", "pending_counts"}
 EXPECTED_SERVICE_ONLY = {"expire_holds", "onboard_staff", "onboard_staff_by_email", "deactivate_staff", "import_opening_balance"}
 EXPECTED_AUTH_SELECT = {"products", "variants", "stock_levels", "stock_events", "orders", "order_lines", "order_events", "order_transitions",
@@ -1208,7 +1208,7 @@ def fingerprint(c):
 
 @test
 def migrations_apply_cleanly_in_order_on_a_fresh_database_and_match_the_main_one():
-    check([m.name[:4] for m in MIGRATIONS] == ["0001", "0002", "0003", "0004", "0005", "0006", "0007", "0008", "0009", "0010"], f"migration files: {[m.name for m in MIGRATIONS]}")
+    check([m.name[:4] for m in MIGRATIONS] == ["0001", "0002", "0003", "0004", "0005", "0006", "0007", "0008", "0009", "0010", "0011"], f"migration files: {[m.name for m in MIGRATIONS]}")
     uri = build_db(ENV.uri, "o4ufresh")
     fresh = psycopg.connect(uri, autocommit=True)
     main = fingerprint(conn())
@@ -1836,6 +1836,109 @@ def internal_helper_functions_are_not_executable_by_anyone_over_the_api_not_even
     ok(OWNER, "select owner_sales_summary(now() - interval '1 day', now())")      # and the people-facing functions that use the helpers inside still work
     place()
     check(q1("select count(*) from orders") == 1, "ordering still works with the helpers closed")
+
+
+# ═════════════════════════ migration 0011: catalogue sync (capture's first quantities) ═════════════════════════
+def prod(pid="tst-sync-red", **kw):
+    d = {"id": pid, "article": "SY100", "name": "Sync Red Top", "brand": "", "category": "tops", "colour": "Red", "price_paise": 79900,
+         "sizes": [{"size": "M", "qty": 3}, {"size": "L", "qty": 2}]}
+    d.update(kw)
+    return d
+
+
+def n_sync():
+    """What a capture of the test product leaves behind: (products, variants, ledger rows)."""
+    return (q1("select count(*) from products where left(id, 8) = 'tst-sync'"), q1("select count(*) from variants where left(product_id, 8) = 'tst-sync'"),
+            q1("select count(*) from stock_events where reason='initial stock at capture'"))
+
+
+def sync(who, key_, p):
+    return rpc(who, "select sync_catalogue_product(%s, %s::jsonb)", key_, json.dumps(p))
+
+
+@test
+def capture_creates_the_product_unpublished_with_its_first_quantities_in_the_ledger():
+    reset()
+    st, r = sync(CLERK, key(), prod())
+    check(st == "ok" and r["created"] is True and len(r["sizes_created"]) == 2, f"{st} {r}")
+    check(q1("select published from products where id='tst-sync-red'") is False, "a captured product must start unpublished")
+    check(stock("tst-sync-red", "M") == (3, 0) and stock("tst-sync-red", "L") == (2, 0), "initial quantities")
+    check(q1("select count(*) from stock_events where variant_id=%s and kind='receive' and d_on_hand=3 and reason='initial stock at capture'", vid_of("tst-sync-red", "M")) == 1, "one ledger row per size")
+    check(q1("select count(*) from get_availability(array['tst-sync-red'])", who="anon") == 0, "an unpublished product must not appear on the website")
+
+
+@test
+def capture_retries_count_once_and_a_reused_key_with_other_contents_is_refused():
+    reset()
+    k = key()
+    first = ok(CLERK, "select sync_catalogue_product(%s, %s::jsonb)", k, json.dumps(prod()))
+    again = ok(CLERK, "select sync_catalogue_product(%s, %s::jsonb)", k, json.dumps(prod()))
+    check(first == again and stock("tst-sync-red", "M") == (3, 0), "a replay must not receive twice")
+    err(CLERK, "select sync_catalogue_product(%s, %s::jsonb)", k, json.dumps(prod(sizes=[{"size": "M", "qty": 9}])), contains="different contents")
+    st, r = sync(CLERK, key(), prod(sizes=[{"size": "M", "qty": 50}, {"size": "XL", "qty": 1}]))   # a NEW key, same product
+    check(st == "ok" and r["created"] is False and r["sizes_kept"] == ["M"] and len(r["sizes_created"]) == 1, f"{st} {r}")
+    check(stock("tst-sync-red", "M") == (3, 0) and stock("tst-sync-red", "XL") == (1, 0), "an existing size keeps its stock; only the missing size is added")
+    check(q1("select count(*) from stock_events where variant_id=%s", vid_of("tst-sync-red", "M")) == 1, "no second ledger row for an existing size")
+
+
+@test
+def only_a_manager_may_change_an_existing_product_and_sync_never_changes_published_or_stock():
+    reset()
+    ok(CLERK, "select sync_catalogue_product(%s, %s::jsonb)", key(), json.dumps(prod()))
+    err(CLERK, "select sync_catalogue_product(%s, %s::jsonb)", key(), json.dumps(prod(price_paise=1)), contains="manager")
+    st, r = sync(DAD, key(), prod(price_paise=89900))
+    check(st == "ok" and r["updated"] is True and q1("select price_paise from products where id='tst-sync-red'") == 89900, f"{st} {r}")
+    check(q1("select published from products where id='tst-sync-red'") is False, "sync never publishes")
+    conn().execute("update products set published = true where id='tst-sync-red'")
+    ok(DAD, "select sync_catalogue_product(%s, %s::jsonb)", key(), json.dumps(prod(price_paise=89900)))
+    check(q1("select published from products where id='tst-sync-red'") is True, "an identical sync must leave published alone")
+    check(stock("tst-sync-red", "M") == (3, 0), "sync must not touch stock")
+
+
+@test
+def capture_input_is_bounded_and_all_or_nothing():
+    reset()
+    bad = [("id", prod(pid="Bad Id"), "product id"), ("category", prod(category="kurtis"), "category"), ("price", prod(price_paise=0), "price"),
+           ("mrp", prod(mrp_paise=100), "mrp"), ("name", prod(name="x" * 101), "too long"), ("ctrl", prod(name="a\x1bb"), "plain"),
+           ("sizes", prod(sizes=[]), "sizes"), ("dup", prod(sizes=[{"size": "M", "qty": 1}, {"size": "m", "qty": 1}]), "once"),
+           ("qty", prod(sizes=[{"size": "M", "qty": -1}]), "qty"), ("bigqty", prod(sizes=[{"size": "M", "qty": 10001}]), "qty"),
+           ("many", prod(sizes=[{"size": f"S{i}", "qty": 1} for i in range(15)]), "sizes"), ("huge", prod(name="y" * 30000), "too large")]
+    for label, p, word in bad:
+        err(CLERK, "select sync_catalogue_product(%s, %s::jsonb)", key(), json.dumps(p), contains=word)
+    check(n_sync() == (0, 0, 0), f"a refused capture must leave nothing behind: {n_sync()}")
+    err(CLERK, "select sync_catalogue_product(%s, %s::jsonb)", key(), json.dumps(prod(sizes=[{"size": "M", "qty": 4}, {"size": "L", "qty": 1, "barcode": "A" * 41}])), contains="barcode")
+    check(n_sync() == (0, 0, 0), f"a bad LAST size must roll the whole product back: {n_sync()}")
+    err(STRANGER, "select sync_catalogue_product(%s, %s::jsonb)", key(), json.dumps(prod()), contains="not allowed")
+    st, _ = rpc("anon", "select sync_catalogue_product(%s, %s::jsonb)", key(), json.dumps(prod()))
+    check(st == "err", "the public must not capture products")
+
+
+@test
+def a_failure_at_the_first_ledger_row_rolls_the_whole_capture_back():
+    reset()
+    c = conn()
+    c.execute("create or replace function public.zz_fault() returns trigger language plpgsql as $$ begin raise exception 'injected ledger failure'; end $$")
+    c.execute("create trigger zz_fault before insert on stock_events for each row when (new.reason = 'initial stock at capture') execute function public.zz_fault()")
+    k = key()
+    try:
+        st, msg = sync(CLERK, k, prod())
+        check(st == "err" and "injected" in msg, f"{st} {msg}")
+        check(n_sync() == (0, 0, 0) and q1("select count(*) from idempotency where key=%s", k) == 0, f"product, variants and key must all roll back: {n_sync()}")
+    finally:
+        c.execute("drop trigger if exists zz_fault on stock_events"); c.execute("drop function if exists public.zz_fault()")
+    st, r = sync(CLERK, k, prod())
+    check(st == "ok" and stock("tst-sync-red", "M") == (3, 0), f"retry after the fault counts once: {st} {r}")
+
+
+@test
+def eight_phones_capturing_the_same_product_at_once_receive_the_first_quantities_once():
+    reset()
+    out = parallel([lambda i=i: solo(CLERK, "select sync_catalogue_product(%s, %s::jsonb)", f"cap-{i}-{uuid.uuid4().hex[:6]}", json.dumps(prod())) for i in range(8)])
+    check(q1("select count(*) from products where id='tst-sync-red'") == 1, "exactly one product row")
+    check(stock("tst-sync-red", "M") == (3, 0) and stock("tst-sync-red", "L") == (2, 0), f"first quantities received once, not once per phone: {stock('tst-sync-red', 'M')}")
+    check(q1("select count(*) from stock_events where reason='initial stock at capture'") == 2, "two ledger rows in total (one per size)")
+    check(sum(1 for r in out if isinstance(r, tuple) and r[0] == "ok") == 8, f"every caller gets a success (created or kept): {out[:3]}")
+
 
 
 def main() -> int:

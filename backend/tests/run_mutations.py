@@ -65,6 +65,13 @@ MUTATIONS = [
     ("0010 stock rows not locked before the checks", "0010", "  perform lock_stock_rows(vids);\n", ""),
     ("0010 staff may recount", "0010", "  if exists (select 1 from jsonb_array_elements(p_moves) m where m->>'kind' = 'recount') then perform require_role('manager'); end if;\n", ""),
     ("0010 the public may call apply_stock_moves", "0010", "grant execute on function apply_stock_moves(text, jsonb, text) to authenticated;", "grant execute on function apply_stock_moves(text, jsonb, text) to anon, authenticated;"),
+    ("0011 a captured product starts published", "0011", "values (pid, art, nm, br, cat, col, price, mrp, false)", "values (pid, art, nm, br, cat, col, price, mrp, true)"),
+    ("0011 staff may change an existing product", "0011", "    perform require_role('manager');\n    update products set", "    update products set"),
+    ("0011 two phones are not serialised", "0011", "  perform pg_advisory_xact_lock(hashtextextended('o4u-sync-product:' || pid, 0));", ""),
+    ("0011 first quantity written without a ledger row", "0011", "      if q > 0 then perform apply_stock_event(vid, 'receive', q, 0, null, null, 'initial stock at capture'); end if;", "      if q > 0 then update stock_levels set on_hand = q where variant_id = vid; end if;"),
+    ("0011 replay of a key with different contents is accepted", "0011", "    if prev->>'_req' is distinct from req then raise exception 'idempotency key already used with different contents'; end if;\n", ""),
+    ("0011 the public may capture products", "0011", "grant execute on function sync_catalogue_product(text, jsonb) to authenticated;", "grant execute on function sync_catalogue_product(text, jsonb) to anon, authenticated;"),
+    ("0011 the category list is not checked", "0011", "cat not in ('tshirts','tops','shirts','lowers','trousers','jeans','nightsuits','capris','accessories')", "false"),
 ]
 
 
