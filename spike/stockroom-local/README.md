@@ -136,3 +136,49 @@ The UI checks were driven from the browser pane's JavaScript console (events dis
 3. Orders, holds, exchanges, pending (Claude-read) products and other-colour capture are switched off, not integrated. A sale and an order confirmation are still not atomic together.
 4. No authentication (the server acts as two invented staff); no hosted PostgREST/RLS path for 0010/0011; Cloud's Playwright checks and the new UI checks are not in one repeatable runner.
 5. A new product with no MRP cannot be saved (by design of the shared stock); Capture offers no "price later".
+
+
+---
+
+# Part 4: repeatable tests, price sync, and what is still only a prototype limit (5 Nov 2026, local branch `spike/integration`)
+
+This part SUPERSEDES the "Remaining gaps" list of Part 3 where it differs. Part 3's numbers describe commit `adca67c`; **only the runs listed here describe this commit.**
+
+## Temporary prototype limitations (NOT approved permanent changes)
+These exist only so the prototype never writes stock or prices around the shared stock. The owner has not approved any of them as product rules:
+* **A new product needs an MRP on at least one size** (the shared stock requires a price; the page refuses to save without one). A "price later" flow is not designed.
+* **Switched off in this build:** saving a product "for Claude to read later" (pending), "other colours" in Capture, and the Orders / Exchanges tabs (holds are not connected to the shared stock).
+* **Staff may create products and the stock editor / Capture-of-existing use recounts (database rank: manager) and price changes (manager).** The spike server acts as a manager for those; who may do what is **provisional**, not an approved production policy.
+
+## Price edits (the E6 defect is fixed in the prototype)
+* Earlier (adca67c) an MRP edit in the stock editor changed only the page document; the shared catalogue kept the old price. That was a defect, now covered by browser test E6.
+* **Migration `0012_catalogue_prices.sql` (local only, not applied to any hosted project)**: `set_catalogue_prices(key, product, expect_price, price, size_prices)`: manager rank; refused when the price is not the one the person saw ("price changed while editing"); refused above a recorded printed MRP; all-or-nothing; same key replays the stored answer, same key with other contents is refused; every change is a row in the new append-only `price_events` table (managers and the owner can read it); never touches stock or `published`.
+* **The stock editor** sends an MRP edit together with any stock change in ONE request (`/api/catalogue/save` with `prices`): both apply or neither. The base price is the lowest size MRP (as in Capture); other sizes get a per-size price. A refusal keeps the editor open with the reason; if the shared catalogue saved but the page document could not be updated, the editor says so and a second tap replays the same key.
+* Known weakness: the "price the person saw" comes from the page document. If a price were changed in the database by some other route without updating the page document, the editor would refuse until the document matches.
+* Not done: Capture of an EXISTING product still ignores typed MRPs for the shared price (only new sizes are added); changing prices for several products at once has no screen.
+
+## Evidence (actual runs on THIS commit's files, 5 Nov 2026, Windows 11)
+| Run | Result |
+|---|---|
+| `python backend/tests/run_db_tests.py` (0001-0012, PostgreSQL 16.2 via pgserver) | **81 passed, 0 failed, 3 skipped** (the 3 Windows skips) |
+| `python backend/tests/run_mutations.py 50-56` (0012) | **7 of 7 mutations caught** (staff may change prices, stale price accepted, no audit row, replay with other contents, public may call, price above MRP, staff read history) |
+| `python spike/stockroom-local/ui_tests.py` (**new, repeatable**: Python Playwright driving the installed Chrome 156, headless, 390x844 touch; own server and throwaway PostgreSQL in a temp folder) | **31 passed, 0 failed** = 20 browser checks (4 regression: load, details edit, photo upload, publish switch; stock editor E1-E10 incl. stale refusal, lost reply, two phones at once, price edit with screen == database after reload, price+stock atomic save with stale-price recovery, invalid price; Capture C1-C6 incl. missing MRP, lost reply, existing product with a recount, pending refused, tabs off) + 11 HTTP checks |
+| `python spike/stockroom-local/run_integration_mutations.py` (14 breakages of server.py / page_integration.py) | first run (12 mutations, before price wiring): **11 caught, 1 survived** - the survivor ("Capture of an existing product forgets what the person saw") showed that check C4 never recounted anything; **C4 was corrected** and that mutation re-run: **caught**. The 2 price mutations (prices never sent; no expected price): **caught**. (Mutations 1-10 and 12 were run on the earlier test set; they were not all re-run after the price change.) |
+| `python backend/api_tests/run_local_stack.py` (PostgREST 12.2.12 in front of a throwaway PostgreSQL; minted tokens; includes the role matrix with the 0010-0012 functions) | **42 passed, 0 failed, 0 skipped** |
+| Cloud's Node Playwright runner (`run_spike.py`, 34 checks) | **BLOCKED**: Node.js not installed (not installed by me). It is not replaced by `ui_tests.py`; the 22 original spike checks (downloads, ZIP/CSV, draft recovery, restart) are NOT re-run on this commit |
+| `run_spike_mutations.py` (Cloud's spike-layer mutations) | **BLOCKED** (same reason) |
+| `--gotrue` API profile | **BLOCKED**: no GoTrue binary |
+| Hosted Supabase, real phone, Safari/iOS | **NOT RUN** (not in scope; no hosted change was made) |
+
+### How the PostgREST run was made possible on Windows (all inside the isolated test environment, nothing installed system-wide)
+* PostgREST **v12.2.12** (official release `postgrest-v12.2.12-windows-x86-64.zip`, 14,802,746 bytes, SHA-256 `4e7c92f1c89babf91f580d5012b9f2f20944da34bfd64521615297bf7ac780eb`). **No published checksum exists for this asset** (the release lists none), so the hash is recorded, not verified against the publisher; the size matches the release listing.
+* It needs `libpq.dll`: taken from the `pgserver` pip package's own PostgreSQL folder via PATH for the run. That PostgreSQL has no timezone data, which PostgREST's schema cache needs: the IANA zone files from the `tzdata` pip package were copied into that folder in the scratch virtual environment (not the repo).
+* `backend/api_tests/stack.py` was made portable: it uses TCP for the pgserver fallback and reloads the schema with `pg_notify('pgrst', 'reload schema')` where `SIGUSR1` does not exist. Existing Linux behaviour is unchanged (not re-run here).
+* `ERROR_CONTRACT.md` regenerated by the suite: no content change.
+
+## Remaining gaps and blockers
+1. The 22 original Cloud spike checks and the GoTrue profile were not re-run (Node.js / GoTrue binary missing).
+2. The browser tests use Chrome through Python Playwright; Safari/iOS and a real phone camera are untested.
+3. Recount, product creation and price changes by STAFF, and the manager-only rule for them, are undecided policy.
+4. Orders, holds, exchanges, pending products and other-colour capture are not integrated.
+5. No authentication in the spike (it acts as two invented staff); nothing has been applied to the hosted project; 0010, 0011 and 0012 are local only.

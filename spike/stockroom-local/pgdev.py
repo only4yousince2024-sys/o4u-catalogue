@@ -12,7 +12,7 @@ except ImportError:
     pwd = None
 
 HERE = Path(__file__).resolve().parent
-DATA = HERE / ".data"
+DATA = Path(os.environ["SPIKE_DATA_DIR"]) if os.environ.get("SPIKE_DATA_DIR") else HERE / ".data"      # the automated tests use a throwaway folder
 PG = DATA / "pg"
 PORT = 54329
 DBNAME = "stockroom_spike"

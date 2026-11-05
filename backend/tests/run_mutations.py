@@ -72,6 +72,13 @@ MUTATIONS = [
     ("0011 replay of a key with different contents is accepted", "0011", "    if prev->>'_req' is distinct from req then raise exception 'idempotency key already used with different contents'; end if;\n", ""),
     ("0011 the public may capture products", "0011", "grant execute on function sync_catalogue_product(text, jsonb) to authenticated;", "grant execute on function sync_catalogue_product(text, jsonb) to anon, authenticated;"),
     ("0011 the category list is not checked", "0011", "cat not in ('tshirts','tops','shirts','lowers','trousers','jeans','nightsuits','capris','accessories')", "false"),
+    ("0012 staff may change prices", "0012", "  perform require_role('manager');\n  if p_idem_key", "  perform require_role('staff');\n  if p_idem_key"),
+    ("0012 a stale price is accepted (no version check)", "0012", "if p_expect_price_paise is not null and pr.price_paise <> p_expect_price_paise then", "if false then"),
+    ("0012 the base price change leaves no audit row", "0012", "insert into price_events (product_id, size, old_paise, new_paise, actor) values (p_product_id, null, pr.price_paise, p_price_paise, actor_name());", "null;"),
+    ("0012 replay of a key with different contents is accepted", "0012", "    if prev->>'_req' is distinct from req then raise exception 'idempotency key already used with different contents'; end if;\n", ""),
+    ("0012 the public may change prices", "0012", "grant execute on function set_catalogue_prices(text, text, int, int, jsonb) to authenticated;", "grant execute on function set_catalogue_prices(text, text, int, int, jsonb) to anon, authenticated;"),
+    ("0012 the price may exceed the printed MRP", "0012", "  if pr.mrp_paise is not null and p_price_paise > pr.mrp_paise then", "  if false then"),
+    ("0012 staff may read the price history", "0012", "using ((select current_role_rank()) >= 2);", "using ((select current_role_rank()) >= 1);"),
 ]
 
 

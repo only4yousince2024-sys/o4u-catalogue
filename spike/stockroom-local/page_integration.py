@@ -69,7 +69,7 @@ EDITS = [
      'async function savePending(){\n  const c = S.cap;\n  if (!S.db) { c.error = "Saving isn\'t available in this view."; renderCapture(); return; }\n'
      '  c.error = "Saving a product for Claude to read later is not available in this build: its stock is not connected to the shared stock. Use \\"Type the tag details myself\\"."; renderCapture(); return;\n'),
     # 6. the stock editor remembers what the person saw, and can show an error
-    ('  S.editStock = {id: p.id, stock: {...(p.stock || {})}, mrp};', '  S.editStock = {id: p.id, stock: {...(p.stock || {})}, seen: {...(p.stock || {})}, mrp, error: ""};'),
+    ('  S.editStock = {id: p.id, stock: {...(p.stock || {})}, mrp};', '  S.editStock = {id: p.id, stock: {...(p.stock || {})}, seen: {...(p.stock || {})}, mrp, mrp0: {...mrp}, error: ""};'),
     ('    <div class="btnrow" style="margin-top:10px">\n      <button class="btn primary" type="button" id="eSave">Save stock</button>',
      '    ${ed.error ? `<p class="hint" role="alert" style="color:#b42318;font-weight:600">${esc(ed.error)}</p>` : ""}\n    <div class="btnrow" style="margin-top:10px">\n      <button class="btn primary" type="button" id="eSave">Save stock</button>'),
     # 7. saving the stock editor: recounts with the number the person saw
@@ -88,14 +88,29 @@ EDITS = [
     const qty = Number(ed.stock[z]) || 0, exp = Number(seen[z]) || 0;
     if (qty !== exp) items.push({size: z, qty, expect: exp});
   }
-  if (items.length) {
-    ed.salt = ed.salt || Math.random().toString(36).slice(2, 10);      // same content = same key (a retry replays); a changed number is a new key
-    try { await catalogueSave({key: "se-" + ed.salt + "-" + hashStr(JSON.stringify([p.id, items])), productId: p.id, sizes: items,
-      meta: {kind: "edit", by: "stock editor", label: [p.colour, p.type].filter(Boolean).join(" "), article: p.article || "", category: p.category || ""}}); }
-    catch (e) { ed.error = saveFriendly(e); toast("Stock was NOT saved"); refreshStockEditor(p); return; }      // the editor stays open with the message
+  // PRICES: an edited MRP is sent to the shared catalogue together with any stock change (one transaction), with the price the person saw
+  let prices = null;
+  const m0 = ed.mrp0 || {};
+  const num = (v) => { const r = String(v || "").replace(/[^0-9.]/g, ""); return r ? Number(r) : null; };
+  if (Object.keys(ed.mrp).some(k => String(ed.mrp[k] || "").trim() !== String(m0[k] || "").trim())) {
+    const vals = Object.values(ed.mrp).map(num).filter(Boolean);
+    if (!vals.length) { ed.error = "Nothing was saved: enter a price (MRP) for at least one size."; refreshStockEditor(p); return; }
+    const was = Object.values(m0).map(num).filter(Boolean);
+    const base = Math.round(Math.min(...vals) * 100);
+    const sp = {};
+    for (const [k, v] of Object.entries(ed.mrp)) { const n = num(v); if (n) sp[k] = Math.round(n * 100) !== base ? Math.round(n * 100) : null; }
+    prices = {expect_price_paise: was.length ? Math.round(Math.min(...was) * 100) : null, price_paise: base, size_prices: sp};
   }
+  if (items.length || prices) {
+    ed.salt = ed.salt || Math.random().toString(36).slice(2, 10);      // same content = same key (a retry replays); a changed number is a new key
+    try { await catalogueSave({key: "se-" + ed.salt + "-" + hashStr(JSON.stringify([p.id, items, prices])), productId: p.id, sizes: items, prices,
+      meta: {kind: "edit", by: "stock editor", label: [p.colour, p.type].filter(Boolean).join(" "), article: p.article || "", category: p.category || ""}}); }
+    catch (e) { ed.error = saveFriendly(e); toast("Nothing was saved"); refreshStockEditor(p); return; }      // the editor stays open with the message
+  }
+  try { await S.db.collection("products").doc(p.id).update({sizes, updatedAt: new Date().toISOString()}); }      // product details only: stock is never part of this write
+  catch (e) { ed.error = "The shared stock was saved, but this page could not be updated. Tap Save stock again."; refreshStockEditor(p); return; }
   S.editStock = null;
-  await patch(p.id, {sizes}, items.length ? "Stock updated" : "Saved");      // product details only: stock is never part of this write
+  toast(items.length || prices ? "Saved" : "Nothing to change");
   renderDetail();
 }'''),
     # 8. the history line is written by the server in the same transaction: the page must not log it again

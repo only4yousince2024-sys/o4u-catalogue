@@ -228,6 +228,28 @@ def t10():
     need(product_doc("itg-red-top")["inStock"] is True, "flag must stay derived from the rack")
 
 
+@check("11 price and stock in ONE save: both apply together; a stale price refuses the whole save (the stock part is not applied either); prices need an existing product")
+def t11():
+    reset()
+    create(newp())
+    k = "pr-" + uuid.uuid4().hex[:8]
+    body = {"key": k, "productId": "itg-red-top", "meta": {"kind": "edit", "by": "t"}, "sizes": [{"size": "M", "qty": 5, "expect": 3}],
+            "prices": {"expect_price_paise": 79900, "price_paise": 79900, "size_prices": {"M": 89900}}}
+    s, j = call("POST", "/api/catalogue/save", body)
+    need(s == 200 and j["prices"]["changed"] == 1 and j["moves"][0]["after"] == 5, f"{s} {j}")
+    s2, j2 = call("POST", "/api/catalogue/save", body)                                   # a replay
+    need(s2 == 200 and j2 == j, f"replay {s2} {j2}")
+    s, j = call("POST", "/api/catalogue/save", {"key": "pr-" + uuid.uuid4().hex[:8], "productId": "itg-red-top", "meta": {"kind": "edit", "by": "t"},
+                                                "sizes": [{"size": "M", "qty": 9, "expect": 5}], "prices": {"expect_price_paise": 1, "price_paise": 70000, "size_prices": {}}})
+    need(s == 409 and "price changed while editing" in j["error"], f"{s} {j}")
+    need(product_doc("itg-red-top")["stock"]["M"] == 5, "the stock half of a refused save was applied")
+    s, j = call("POST", "/api/catalogue/save", {"key": "pr-" + uuid.uuid4().hex[:8], "productId": "no-such", "meta": {}, "prices": {"expect_price_paise": None, "price_paise": 5000, "size_prices": {}}})
+    need(s == 400, f"{s} {j}")
+    import psycopg, pgdev
+    with psycopg.connect(pgdev.conninfo(), autocommit=True) as c:
+        need(c.execute("select count(*) from price_events where product_id='itg-red-top'").fetchone()[0] == 1, "one audit row for the one change")
+
+
 @check("9  the shelf equals the ledger and every history copy has one ledger row (end state)")
 def t9():
     lg = ledger("itg-red-top")
@@ -236,7 +258,7 @@ def t9():
 
 
 if __name__ == "__main__":
-    for fn in (t1, t2, t3, t4, t5, t6, t7, t10, t8, t9):
+    for fn in (t1, t2, t3, t4, t5, t6, t7, t10, t11, t8, t9):
         fn()
     bad = [r for r in RESULTS if not r[1]]
     print(f"\n{len(RESULTS) - len(bad)} passed, {len(bad)} failed")

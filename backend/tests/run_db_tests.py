@@ -796,11 +796,11 @@ EXPECTED_ANON_FUNCS = {"get_availability", "place_order_request", "report_paymen
 EXPECTED_AUTH_FUNCS = EXPECTED_ANON_FUNCS | {
     "confirm_and_reserve", "verify_payment", "release_hold", "cancel_order", "pack_order", "dispatch_order", "mark_failed", "mark_delivered",
     "request_refund", "mark_refund_sent", "receive_stock", "recount_stock", "return_to_stock", "complete_sale", "get_receipt", "store_ping",
-    "set_offline_switch", "owner_sales_summary", "current_role_rank", "overdue_holds", "stock_trust_status", "reconcile_outages", "apply_stock_moves", "sync_catalogue_product",
+    "set_offline_switch", "owner_sales_summary", "current_role_rank", "overdue_holds", "stock_trust_status", "reconcile_outages", "apply_stock_moves", "sync_catalogue_product", "set_catalogue_prices",
     "lookup_barcode", "set_count_pending", "pending_counts"}
 EXPECTED_SERVICE_ONLY = {"expire_holds", "onboard_staff", "onboard_staff_by_email", "deactivate_staff", "import_opening_balance"}
 EXPECTED_AUTH_SELECT = {"products", "variants", "stock_levels", "stock_events", "orders", "order_lines", "order_events", "order_transitions",
-                        "payment_reports", "refunds", "payments", "sales", "sale_lines", "staff", "store_status", "expiry_failures", "store_outages", "variant_barcodes"}
+                        "payment_reports", "refunds", "payments", "sales", "sale_lines", "staff", "store_status", "expiry_failures", "store_outages", "variant_barcodes", "price_events"}
 
 
 def pgrst(sub, sql, *args, role="authenticated", extra_claims=None):
@@ -1208,7 +1208,7 @@ def fingerprint(c):
 
 @test
 def migrations_apply_cleanly_in_order_on_a_fresh_database_and_match_the_main_one():
-    check([m.name[:4] for m in MIGRATIONS] == ["0001", "0002", "0003", "0004", "0005", "0006", "0007", "0008", "0009", "0010", "0011"], f"migration files: {[m.name for m in MIGRATIONS]}")
+    check([m.name[:4] for m in MIGRATIONS] == ["0001", "0002", "0003", "0004", "0005", "0006", "0007", "0008", "0009", "0010", "0011", "0012"], f"migration files: {[m.name for m in MIGRATIONS]}")
     uri = build_db(ENV.uri, "o4ufresh")
     fresh = psycopg.connect(uri, autocommit=True)
     main = fingerprint(conn())
@@ -1938,6 +1938,107 @@ def eight_phones_capturing_the_same_product_at_once_receive_the_first_quantities
     check(stock("tst-sync-red", "M") == (3, 0) and stock("tst-sync-red", "L") == (2, 0), f"first quantities received once, not once per phone: {stock('tst-sync-red', 'M')}")
     check(q1("select count(*) from stock_events where reason='initial stock at capture'") == 2, "two ledger rows in total (one per size)")
     check(sum(1 for r in out if isinstance(r, tuple) and r[0] == "ok") == 8, f"every caller gets a success (created or kept): {out[:3]}")
+
+
+# ═════════════════════════ migration 0012: catalogue prices ═════════════════════════
+def setprice(who, key_, pid, expect, price, sizes=None):
+    return rpc(who, "select set_catalogue_prices(%s, %s, %s, %s, %s::jsonb)", key_, pid, expect, price, json.dumps(sizes or {}))
+
+
+def price_of(pid, size=None):
+    if size is None:
+        return q1("select price_paise from products where id=%s", pid)
+    return q1("select price_paise from variants where product_id=%s and size=%s", pid, size)
+
+
+def n_events(pid="tst-a-pink"):
+    return q1("select count(*) from price_events where product_id=%s", pid)
+
+
+@test
+def a_manager_changes_the_price_with_an_audit_row_and_stock_published_and_ledger_stay_as_they_were():
+    reset()
+    ledger0, stock0 = q1("select count(*) from stock_events"), stock("tst-a-pink", "M")
+    st, r = setprice(DAD, key(), "tst-a-pink", PRICE_A, 109900, {"L": 119900})
+    check(st == "ok" and r["changed"] == 2, f"{st} {r}")
+    check(price_of("tst-a-pink") == 109900 and price_of("tst-a-pink", "L") == 119900 and price_of("tst-a-pink", "M") is None, "prices")
+    check(n_events() == 2 and q1("select count(*) from price_events where actor like %s", "Dad%") == 2, "one audit row per change, attributed")
+    check(stock("tst-a-pink", "M") == stock0 and q1("select count(*) from stock_events") == ledger0, "a price change must not touch stock or the ledger")
+    check(q1("select published from products where id='tst-a-pink'") is True, "published must stay as it was")
+    st, r = setprice(DAD, key(), "tst-a-pink", 109900, 109900, {"L": None})      # clearing an override
+    check(st == "ok" and price_of("tst-a-pink", "L") is None and n_events() == 3, f"{st} {r}")
+    st, r = setprice(DAD, key(), "tst-a-pink", 109900, 109900, {})                 # nothing to change: no audit row
+    check(st == "ok" and r["changed"] == 0 and n_events() == 3, f"no-op {st} {r}")
+
+
+@test
+def staff_cannot_change_prices_and_only_managers_read_the_price_history():
+    reset()
+    err(CLERK, "select set_catalogue_prices(%s, 'tst-a-pink', null, 5000, '{}'::jsonb)", key(), contains="manager")
+    err(STRANGER, "select set_catalogue_prices(%s, 'tst-a-pink', null, 5000, '{}'::jsonb)", key(), contains="not allowed")
+    st, _ = rpc("anon", "select set_catalogue_prices(%s, 'tst-a-pink', null, 5000, '{}'::jsonb)", key())
+    check(st == "err" and price_of("tst-a-pink") == PRICE_A, "refused callers must change nothing")
+    ok(DAD, "select set_catalogue_prices(%s, 'tst-a-pink', null, 90000, '{}'::jsonb)", key())
+    check(len(q("select * from price_events", who=CLERK)) == 0, "staff must see no price history")
+    check(len(q("select * from price_events", who=DAD)) == 1 and len(q("select * from price_events", who=OWNER)) == 1, "manager and owner read the history")
+    err(DAD, "update price_events set new_paise = 1", contains="permission denied")
+    err(OWNER, "delete from price_events", contains="permission denied")
+    # the owner of the table (superuser path): the append-only trigger still refuses
+    c = conn()
+    try:
+        c.execute("update price_events set new_paise = 1")
+        check(False, "the append-only trigger let an UPDATE through")
+    except psycopg.Error as e:
+        check("immutable" in (e.diag.message_primary or "").lower() or "append" in (e.diag.message_primary or "").lower() or "cannot" in (e.diag.message_primary or "").lower(), e.diag.message_primary)
+
+
+@test
+def a_stale_price_is_refused_with_a_clear_message_and_changes_nothing_not_even_the_size_prices():
+    reset()
+    ok(DAD, "select set_catalogue_prices(%s, 'tst-a-pink', %s, 100000, '{}'::jsonb)", key(), PRICE_A)
+    ev = n_events()
+    err(DAD, "select set_catalogue_prices(%s, 'tst-a-pink', %s, 120000, %s::jsonb)", key(), PRICE_A, json.dumps({"L": 130000}), contains="price changed while editing")
+    check(price_of("tst-a-pink") == 100000 and price_of("tst-a-pink", "L") is None and n_events() == ev, "a refused change left something behind")
+    ok(DAD, "select set_catalogue_prices(%s, 'tst-a-pink', 100000, 120000, %s::jsonb)", key(), json.dumps({"L": 130000}))
+    check(price_of("tst-a-pink") == 120000 and price_of("tst-a-pink", "L") == 130000, "the retry with the right number works")
+
+
+@test
+def price_changes_are_retry_safe_and_a_reused_key_with_other_contents_is_refused():
+    reset()
+    k = key()
+    a = ok(DAD, "select set_catalogue_prices(%s, 'tst-a-pink', %s, 105000, '{}'::jsonb)", k, PRICE_A)
+    b = ok(DAD, "select set_catalogue_prices(%s, 'tst-a-pink', %s, 105000, '{}'::jsonb)", k, PRICE_A)
+    check(a == b and n_events() == 1 and price_of("tst-a-pink") == 105000, f"a replay must answer from the stored result: {a} {b} {n_events()}")
+    err(DAD, "select set_catalogue_prices(%s, 'tst-a-pink', %s, 106000, '{}'::jsonb)", k, PRICE_A, contains="different contents")
+    check(price_of("tst-a-pink") == 105000, "refused request changed the price")
+
+
+@test
+def price_input_is_bounded_and_all_or_nothing():
+    reset()
+    bad = [(PRICE_A, 0, {}, "between 1"), (PRICE_A, 100000001, {}, "between 1"), (PRICE_A, 90000, {"L": 0}, "whole number"), (PRICE_A, 90000, {"L": 1.5}, "whole number"),
+           (PRICE_A, 90000, {"L": "x"}, "whole number"), (PRICE_A, 90000, {"ZZ": 5000}, "unknown size"), (PRICE_A, 90000, {"L": 5000, "l": 6000}, "once"),
+           (PRICE_A, 90000, {f"S{i}": 1 for i in range(15)}, "too many")]
+    for expect, price, sizes, word in bad:
+        err(DAD, "select set_catalogue_prices(%s, 'tst-a-pink', %s, %s, %s::jsonb)", key(), expect, price, json.dumps(sizes), contains=word)
+    err(DAD, "select set_catalogue_prices(%s, 'no-such-product', null, 5000, '{}'::jsonb)", key(), contains="unknown product")
+    # the base change is valid but the LAST size is not: the base change must roll back too
+    err(DAD, "select set_catalogue_prices(%s, 'tst-a-pink', %s, 90000, %s::jsonb)", key(), PRICE_A, json.dumps({"L": 5000, "ZZ": 1}), contains="unknown size")
+    check(price_of("tst-a-pink") == PRICE_A and price_of("tst-a-pink", "L") is None and n_events() == 0, "a refused change must leave nothing behind")
+    conn().execute("update products set mrp_paise = 150000 where id = 'tst-a-pink'")
+    err(DAD, "select set_catalogue_prices(%s, 'tst-a-pink', %s, 160000, '{}'::jsonb)", key(), PRICE_A, contains="MRP")
+    err(DAD, "select set_catalogue_prices(%s, 'tst-a-pink', %s, 90000, %s::jsonb)", key(), PRICE_A, json.dumps({"L": 160000}), contains="MRP")
+
+
+@test
+def eight_managers_changing_the_price_from_the_same_starting_point_one_wins():
+    reset()
+    out = parallel([lambda i=i: solo(DAD, "select set_catalogue_prices(%s, 'tst-a-pink', %s, %s, '{}'::jsonb)", f"pr-{i}-{uuid.uuid4().hex[:6]}", PRICE_A, 100000 + i) for i in range(8)])
+    oks = [r for r in out if isinstance(r, tuple) and r[0] == "ok"]
+    errs = [r for r in out if isinstance(r, tuple) and r[0] == "err"]
+    check(len(oks) == 1 and len(errs) == 7 and all("price changed while editing" in e[1] for e in errs), f"{len(oks)} won, {len(errs)} refused: {out[:2]}")
+    check(n_events() == 1 and 100000 <= price_of("tst-a-pink") < 100008, f"one change recorded: {n_events()}")
 
 
 

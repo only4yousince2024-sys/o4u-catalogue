@@ -78,7 +78,7 @@ def sync_relational(c, docs: dict):
         for z in stock:
             if z not in sizes:
                 sizes.append(z)
-        mrp = next((x.get("mrp") for x in (d.get("sizes") or []) if x.get("mrp")), None)
+        mrp = min((x.get("mrp") for x in (d.get("sizes") or []) if x.get("mrp")), default=None)      # the lowest size MRP, like Capture
         price = int(round(float(mrp) * 100)) if mrp else 100
         c.execute("insert into products (id, article, name, brand, category, colour, price_paise, published) values (%s,%s,%s,%s,%s,%s,%s,%s)",
                   (pid, d.get("article") or pid, d.get("type") or pid, d.get("brand") or "", d.get("category") or "tshirts", d.get("colour") or "", price, bool(d.get("published"))))
@@ -225,6 +225,11 @@ class H(BaseHTTPRequestHandler):
                 return self.catalogue_save()
             if p == "/api/_spike/reset":
                 return self.reset()
+            if p == "/api/_spike/shutdown":      # spike-only: lets the automated tests stop the server AND its database cleanly
+                self.body()
+                self.send(200, {"ok": True})
+                threading.Thread(target=lambda: (time.sleep(0.3), pgdev.stop(), os._exit(0)), daemon=True).start()
+                return
             if p == "/api/_spike/bulk":
                 return self.bulk("relational=1" in (urlparse(self.path).query or ""))
             return self.send(404, {"error": "not found"})
@@ -346,19 +351,22 @@ class H(BaseHTTPRequestHandler):
 
     # ---- Capture / stock editor: catalogue rows + first quantities + recounts in ONE transaction, retry-safe by key
     def catalogue_save(self):
-        """body: {key, meta, productId, product?, sizes:[{size, qty, expect, price_paise?, barcode?}]}
+        """body: {key, meta, productId, product?, sizes:[{size, qty, expect, price_paise?, barcode?}], prices?:{expect_price_paise, price_paise, size_prices}}
         `qty` = the number the person wants on the rack, `expect` = the number they saw (0 for a size they did not see).
         A size the product does not have yet -> created by sync_catalogue_product with qty as its first quantity (a new product is created UNPUBLISHED
         from `product`; for an existing product its own relational values are passed back unchanged, so nothing about it is edited).
         A size it already has -> an apply_stock_moves RECOUNT (counted = qty, expect_on_hand = expect): refused if the rack changed meanwhile.
+        `prices` (existing product only) -> set_catalogue_prices: the base price and per-size prices, refused if the price is not the one the person saw
+        (manager rank; the spike server acts as the manager). Stock and price changes are saved TOGETHER or not at all.
         Everything or nothing. The page's history copies (stockmoves) are written in the same transaction."""
         b = self.json_body()
         key, meta, pid = str(b.get("key") or ""), b.get("meta") or {}, str(b.get("productId") or "")
-        items, product = b.get("sizes") or [], b.get("product")
-        if len(key) < 8 or not pid or not isinstance(items, list) or not items or not all(isinstance(m, dict) and m.get("size") for m in items):
-            return self.send(400, {"code": "invalid_argument", "error": "key (8+ characters), productId and sizes are required"})
+        items, product, prices = b.get("sizes") or [], b.get("product"), b.get("prices")
+        if len(key) < 8 or not pid or not isinstance(items, list) or (not items and not prices) or not all(isinstance(m, dict) and m.get("size") for m in items) \
+                or (prices is not None and not isinstance(prices, dict)):
+            return self.send(400, {"code": "invalid_argument", "error": "key (8+ characters), productId and something to save are required"})
         import hashlib
-        digest = hashlib.sha256(json.dumps([pid, product, items], sort_keys=True).encode()).hexdigest()
+        digest = hashlib.sha256(json.dumps([pid, product, items, prices], sort_keys=True).encode()).hexdigest()
         try:
             with db() as c, c.transaction():
                 prev = c.execute("select result from idempotency where key = %s", (key + "-save",)).fetchone()      # a replay answers from the stored result, never re-reads current stock
@@ -370,7 +378,7 @@ class H(BaseHTTPRequestHandler):
                 sizes = [m for m in items if str(m["size"]).strip().upper() not in have]
                 recounts = [{"size": have[str(m["size"]).strip().upper()][0], "expect": int(m.get("expect") or 0), "counted": int(m.get("qty") or 0)}
                             for m in items if str(m["size"]).strip().upper() in have and int(m.get("qty") or 0) != int(m.get("expect") or 0)]
-                c.execute("select set_config('request.jwt.claims', %s, true)", (json.dumps({"sub": SPIKE_MANAGER if recounts else SPIKE_STAFF, "role": "authenticated"}),))
+                c.execute("select set_config('request.jwt.claims', %s, true)", (json.dumps({"sub": SPIKE_MANAGER if (recounts or prices) else SPIKE_STAFF, "role": "authenticated"}),))
                 out: dict = {"product_id": pid, "created": False, "sizes_created": [], "moves": []}
                 row = c.execute("select article, name, brand, category, colour, price_paise, mrp_paise from products where id=%s", (pid,)).fetchone()
                 if sizes:
@@ -383,6 +391,11 @@ class H(BaseHTTPRequestHandler):
                     prod["sizes"] = sizes
                     r1 = c.execute("select sync_catalogue_product(%s, %s)", (key + "-sync", Jsonb(prod))).fetchone()[0]
                     out["created"], out["sizes_created"] = bool(r1.get("created")), r1.get("sizes_created") or []
+                if prices:
+                    if not row:
+                        return self.send(400, {"code": "invalid_argument", "error": "prices can only be changed for a product that already exists"})
+                    out["prices"] = c.execute("select set_catalogue_prices(%s, %s, %s, %s, %s)", (key + "-price", pid, prices.get("expect_price_paise"), prices.get("price_paise"),
+                                                                                                  Jsonb(prices.get("size_prices") or {}))).fetchone()[0]
                 if recounts:
                     lines = [{"product_id": pid, "size": m["size"], "kind": "recount", "expect_on_hand": int(m["expect"]), "counted": int(m["counted"])} for m in recounts]
                     out["moves"] = c.execute("select apply_stock_moves(%s, %s, %s)", (key + "-mv", Jsonb(lines), f"{meta.get('kind') or 'edit'} by {str(meta.get('by') or '?')[:30]}"[:100])).fetchone()[0]["moves"]

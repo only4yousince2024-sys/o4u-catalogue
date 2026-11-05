@@ -22,7 +22,8 @@ sys.path.insert(0, str(HERE))
 import page_integration as PI      # noqa: E402
 ROOT = HERE.parents[1]
 SRC = ROOT / "stockroom" / "stockroom-v44-original.html"
-OUT = HERE / ".data" / "stockroom-v44-atomic.html"
+import os  # noqa: E402
+OUT = (Path(os.environ["SPIKE_DATA_DIR"]) if os.environ.get("SPIKE_DATA_DIR") else HERE / ".data") / "stockroom-v44-atomic.html"
 
 START = "async function moveStock(changes, meta, respectHolds){"
 END = "async function logMoves(list, meta, at){"

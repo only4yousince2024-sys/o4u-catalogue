@@ -118,10 +118,14 @@ class LocalStack:
 
     # -- PostgREST --------------------------------------------------------------------------------
     def start_postgrest(self):
-        sock_dir = str(self.cluster.root)
-        dbname = self.cluster.dbname
+        if hasattr(self.cluster, "dbname"):      # an OS PostgreSQL on a unix socket
+            db_uri = f"postgresql://authenticator@/{self.cluster.dbname}?host={self.cluster.root}&port={self.cluster.port}"
+        else:      # the pgserver fallback (Windows/macOS): TCP on 127.0.0.1, trust authentication
+            from urllib.parse import urlparse
+            u = urlparse(self.cluster.uri)
+            db_uri = f"postgresql://authenticator@{u.hostname}:{u.port}{u.path}"
         conf = {
-            "db-uri": f"postgresql://authenticator@/{dbname}?host={sock_dir}&port={self.cluster.port}",
+            "db-uri": db_uri,
             "db-schemas": "public",
             "db-anon-role": "anon",
             "db-pool": "20",
@@ -186,7 +190,11 @@ class LocalStack:
 
     def reload_schema(self):
         """Tell PostgREST to re-read the schema cache (needed after DDL such as a new migration)."""
-        self.proc.send_signal(signal.SIGUSR1)
+        if hasattr(signal, "SIGUSR1"):
+            self.proc.send_signal(signal.SIGUSR1)
+        else:      # Windows: no such signal; PostgREST also listens on the database channel `pgrst`
+            with psycopg.connect(self.db_uri, autocommit=True) as c:
+                c.execute("select pg_notify('pgrst', 'reload schema')")
         time.sleep(1.0)
 
     def postgrest_version(self) -> str:

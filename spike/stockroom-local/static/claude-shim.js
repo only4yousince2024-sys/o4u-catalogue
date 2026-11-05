@@ -108,12 +108,12 @@
 
   // Capture / stock editor save: product rows + first quantities + recounts in one request. ONE key per user action, reused on every retry.
   window.__spikeSaveCalls = 0;
-  stock.save = async ({key, meta, productId, product, sizes}) => {
+  stock.save = async ({key, meta, productId, product, sizes, prices}) => {
     let last;
     for (let attempt = 0; attempt < 4; attempt++) {
       window.__spikeSaveCalls++;
       let r;
-      try { r = await fetch("/api/catalogue/save", {method: "POST", headers: J, body: JSON.stringify({key, meta, productId, product, sizes})}); }
+      try { r = await fetch("/api/catalogue/save", {method: "POST", headers: J, body: JSON.stringify({key, meta, productId, product, sizes, prices})}); }
       catch (e) { last = err("unavailable", "network"); await new Promise((ok) => setTimeout(ok, 150 * (attempt + 1))); continue; }
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw err(j.code || "error", j.error);
