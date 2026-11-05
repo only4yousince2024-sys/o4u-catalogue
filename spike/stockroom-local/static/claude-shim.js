@@ -6,9 +6,10 @@
 (function () {
   const J = {"Content-Type": "application/json"};
   const err = (code, message) => Object.assign(new Error(message || code), {code});
+  const STRICT = /(^|[?&])v=atomic(&|$)/.test(location.search);      // the integrated page copy: a write that carries stock is refused, never silently dropped
   async function api(method, path, body) {
     let r;
-    try { r = await fetch(path, {method, headers: body === undefined ? {} : J, body: body === undefined ? undefined : JSON.stringify(body)}); }
+    try { r = await fetch(path, {method, headers: body === undefined ? {} : (STRICT ? {...J, "X-Stock-Strict": "1"} : J), body: body === undefined ? undefined : JSON.stringify(body)}); }
     catch (e) { throw err("unavailable", "network"); }
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw err(j.code || "error", j.error);
@@ -103,6 +104,22 @@
       }
       throw last;
     },
+  };
+
+  // Capture / stock editor save: product rows + first quantities + recounts in one request. ONE key per user action, reused on every retry.
+  window.__spikeSaveCalls = 0;
+  stock.save = async ({key, meta, productId, product, sizes}) => {
+    let last;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      window.__spikeSaveCalls++;
+      let r;
+      try { r = await fetch("/api/catalogue/save", {method: "POST", headers: J, body: JSON.stringify({key, meta, productId, product, sizes})}); }
+      catch (e) { last = err("unavailable", "network"); await new Promise((ok) => setTimeout(ok, 150 * (attempt + 1))); continue; }
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw err(j.code || "error", j.error);
+      return j;
+    }
+    throw last;
   };
 
   // a normal browser download (an <a download> click) - what a self-hosted page would do

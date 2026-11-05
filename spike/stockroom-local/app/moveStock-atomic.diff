@@ -1,6 +1,131 @@
 --- stockroom-v44-original.html
 +++ stockroom-v44-atomic.html
-@@ -2462,30 +2462,27 @@
+@@ -1579,4 +1579,5 @@
+   const c = S.cap;
+   if (!S.db) { c.error = "Saving isn't available in this view."; renderCapture(); return; }
++  c.error = "Saving a product for Claude to read later is not available in this build: its stock is not connected to the shared stock. Use \"Type the tag details myself\"."; renderCapture(); return;
+   c.busy = "Saving photos…"; c.error = ""; renderCapture();
+   try {
+@@ -1693,7 +1694,42 @@
+ }
+ 
++/* INTEGRATED COPY: Capture and the stock editor save through ONE server call (catalogue rows + stock + ledger in one transaction). */
++function hashStr(t){ let h = 5381; for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return (h >>> 0).toString(36); }
++function saveFriendly(e){
++  const m = (e && e.message) || "";
++  if (e && e.friendly) return e.friendly;
++  if (e && e.code === "stale") return "Nothing was saved: the stock changed while you were editing (" + m + "). Close this and open the product again to see the latest numbers.";
++  if (e && e.code === "unavailable") return "Nothing was saved: no connection. Check the network and tap Save again.";
++  return "Nothing was saved: " + (m || "unknown error") + ".";
++}
++async function catalogueSave(args){
++  const stockApi = window.claude && typeof window.claude.use === "function" ? await window.claude.use("stock") : null;
++  if (!stockApi || !stockApi.save) { const e = new Error("stock saving is not available in this view"); e.friendly = "Nothing was saved: stock saving is not available in this view."; throw e; }
++  try { return await stockApi.save(args); } catch (e) { e.friendly = saveFriendly(e); throw e; }
++}
++function capturePayload(f, c, existing){
++  const seen = (existing && existing.stock) || {};
++  const expectOf = (z) => Object.entries(seen).filter(([k]) => String(k).trim().toUpperCase() === String(z).trim().toUpperCase()).reduce((a, [, n]) => a + (Number(n) || 0), 0);
++  const items = {};
++  const priced = f.sizes.filter(s => s.size || s.mrp || s.barcode).map(s => ({size: String(s.size).trim(), mrp: s.mrp === "" ? null : Number(String(s.mrp).replace(/[^0-9.]/g, "")) || null, barcode: String(s.barcode).trim()}));
++  for (const s of priced) if (s.size) items[s.size.toUpperCase()] = {size: s.size, mrp: s.mrp, barcode: s.barcode, keep: true};
++  for (const [z, n] of Object.entries(c.stock)) { const u = String(z).trim().toUpperCase(); const it = items[u] || (items[u] = {size: z, mrp: null, barcode: ""}); it.size = z; it.qty = Number(n) || 0; delete it.keep; }
++  const prices = priced.map(s => s.mrp).filter(Boolean);
++  const base = prices.length ? Math.min(...prices) : null;
++  if (!existing && !base) { const e = new Error("price needed"); e.friendly = "Nothing was saved: enter the price (MRP) of at least one size. Every product needs a price before it can go into the shared stock."; throw e; }
++  const sizes = Object.values(items).map(it => {
++    const exp = expectOf(it.size);
++    const o = {size: it.size, qty: it.keep ? exp : it.qty, expect: exp};
++    if (it.barcode) o.barcode = it.barcode;
++    if (it.mrp && base && Math.round(it.mrp * 100) !== Math.round(base * 100)) o.price_paise = Math.round(it.mrp * 100);
++    return o;
++  });
++  const product = existing ? null : {article: f.article.trim(), name: (f.type || "").trim() || f.article.trim(), brand: f.brand.trim(), category: f.category, colour: f.colour.trim(), price_paise: Math.round(base * 100)};
++  return {product, sizes};
++}
+ async function saveProduct(){
+   const c = S.cap; const f = c.form;
+   if (!S.db) { c.error = "Saving isn't available in this view."; renderCapture(); return; }
++  if (c.colours.length) { c.error = "Other colours can't be saved in this build. Save this colour first, then capture the next colour as its own product."; renderCapture(); return; }
+   f.brandCode = slug(f.brandCode);
+   const id = productId(f);
+@@ -1711,4 +1747,10 @@
+     const sizes = f.sizes.filter(s => s.size || s.mrp || s.barcode).map(s => ({size: String(s.size).trim().toUpperCase(), mrp: s.mrp === "" ? null : Number(String(s.mrp).replace(/[^0-9.]/g, "")) || null, barcode: String(s.barcode).trim(), qty: s.qty || 1}));
+     const ref = S.db.collection("products").doc(id);
++    const cp = capturePayload(f, c, existing);      // throws a plain-language message when the price is missing
++    if (cp.sizes.length) {
++      c.salt = c.salt || Math.random().toString(36).slice(2, 10);      // same content = same key, so a second tap after a lost answer replays instead of repeating
++      await catalogueSave({key: "cs-" + c.salt + "-" + hashStr(JSON.stringify([id, cp.sizes, cp.product])), productId: id, product: cp.product, sizes: cp.sizes,
++        meta: {kind: "capture", by: "capture", label: [f.colour, f.type].filter(Boolean).join(" "), article: f.article, category: f.category}});
++    }
+     if (existing) {
+       const merged = [...(existing.sizes || [])];
+@@ -1721,5 +1763,4 @@
+         flags: [...new Set([...(existing.flags || []), ...f.flags])],
+         tags: cleanTags([...(existing.tags || []), ...(f.tags || [])]),
+-        stock: {...(existing.stock || {}), ...c.stock},
+         notes: [existing.notes, f.notes, c.note].filter(Boolean).join("\n"),
+         inStock: true, updatedAt: now,
+@@ -1731,5 +1772,5 @@
+         article: f.article.trim(), brand: f.brand.trim(), brandCode: f.brandCode, category: f.category, tags: cleanTags(f.tags), type: f.type.trim(),
+         features: cleanWords(f.features.trim()), colour: cleanWords(f.colour.trim()), colourSource: f.colourSource,
+-        sizes, flags: f.flags, notes: [f.notes.trim(), (c.note || "").trim()].filter(Boolean).join("\n"), stock: {...c.stock},
++        sizes, flags: f.flags, notes: [f.notes.trim(), (c.note || "").trim()].filter(Boolean).join("\n"),
+         refPhoto: refId, extraRefPhotos: photoIds, tagPhotos: tagIds, webImages: [],
+         inStock: true, published: false, offerPrice: null,
+@@ -1748,5 +1789,5 @@
+   } catch (e) {
+     c.busy = "";
+-    c.error = e && e.code && /upload|too_large|quota|rate|not_granted|capability|store|upstream_auth/.test(e.code) ? uploadMsg(e) : "Saving failed. Check your connection and tap Save again.";
++    c.error = e && e.friendly ? e.friendly : e && e.code && /upload|too_large|quota|rate|not_granted|capability|store|upstream_auth/.test(e.code) ? uploadMsg(e) : "Saving failed. Check your connection and tap Save again.";
+     renderCapture();
+   }
+@@ -1829,5 +1870,5 @@
+   const mrp = {};
+   for (const z of p.sizes || []) if (z.mrp != null) mrp[normSize(z.size)] = String(z.mrp);
+-  S.editStock = {id: p.id, stock: {...(p.stock || {})}, mrp};
++  S.editStock = {id: p.id, stock: {...(p.stock || {})}, seen: {...(p.stock || {})}, mrp, error: ""};
+ }
+ function stockEditor(p){
+@@ -1849,4 +1890,5 @@
+     </div>
+     <p class="hint">A new size gets the price of the nearest smaller size — change it if its tag says otherwise.</p>` : ""}
++    ${ed.error ? `<p class="hint" role="alert" style="color:#b42318;font-weight:600">${esc(ed.error)}</p>` : ""}
+     <div class="btnrow" style="margin-top:10px">
+       <button class="btn primary" type="button" id="eSave">Save stock</button>
+@@ -1871,10 +1913,19 @@
+     return e;
+   });
+-  const total = Object.values(stock).reduce((a, b) => a + b, 0);
+-  for (const k of Object.keys(p.stock || {})) if (!(k in stock)) stock[k] = 0;
++  if (p.status === "pending") { ed.error = "Stock for a product that is waiting for Claude can't be changed in this build."; refreshStockEditor(p); return; }
++  const seen = ed.seen || p.stock || {};
++  const items = [];
++  for (const z of new Set([...Object.keys(seen), ...Object.keys(ed.stock)])) {
++    const qty = Number(ed.stock[z]) || 0, exp = Number(seen[z]) || 0;
++    if (qty !== exp) items.push({size: z, qty, expect: exp});
++  }
++  if (items.length) {
++    ed.salt = ed.salt || Math.random().toString(36).slice(2, 10);      // same content = same key (a retry replays); a changed number is a new key
++    try { await catalogueSave({key: "se-" + ed.salt + "-" + hashStr(JSON.stringify([p.id, items])), productId: p.id, sizes: items,
++      meta: {kind: "edit", by: "stock editor", label: [p.colour, p.type].filter(Boolean).join(" "), article: p.article || "", category: p.category || ""}}); }
++    catch (e) { ed.error = saveFriendly(e); toast("Stock was NOT saved"); refreshStockEditor(p); return; }      // the editor stays open with the message
++  }
+   S.editStock = null;
+-  if (p.status === "pending") { await patch(p.id, {stock, inStock: total > 0}, "Stock updated"); renderDetail(); return; }
+-  await patch(p.id, {stock, sizes, inStock: total > 0}, total ? "Stock updated" : "Stock updated — marked out of stock");
+-  try { window.dispatchEvent(new CustomEvent("o4u:stockedit", {detail: {id: p.id, before: p.stock || {}, after: stock, kind: "edit"}})); } catch (_) {}
++  await patch(p.id, {sizes}, items.length ? "Stock updated" : "Saved");      // product details only: stock is never part of this write
+   renderDetail();
+ }
+@@ -2002,5 +2053,5 @@
+   const p = S.products.find(x => x.id === S.openId); if (!p) return;
+   const t = e.target;
+-  if (t.id === "tStock") patch(p.id, {inStock: t.checked}, t.checked ? "Marked in stock" : "Marked out of stock");
++  if (t.id === "tStock") { toast("In stock is worked out from the pieces on the rack. Change the pieces with Edit stock."); renderDetail(); return; }      // INTEGRATED COPY
+   else if (t.id === "tPub") patch(p.id, {published: t.checked}, t.checked ? "Published" : "Unpublished");
+   else if (t.id === "inWeb" && t.files && t.files.length) {
+@@ -2462,30 +2513,27 @@
  // meta: {kind, orderId?, caseId?, note?}; respectHolds: a sale may not take pieces held for orders.
  async function moveStock(changes, meta, respectHolds){
 +  // SPIKE COPY: one atomic server call (stock change + ledger row together, retry-safe) instead of read -> compute absolute -> write -> write history.
@@ -52,10 +177,32 @@
 +  return stockApi.move({key, meta: {kind: meta.kind, orderId: meta.orderId || "", caseId: meta.caseId || "", note: meta.note || "", by: O.who}, moves});
  }
  async function logMoves(list, meta, at){
-@@ -2798,5 +2795,5 @@
+@@ -2499,4 +2547,5 @@
+ window.addEventListener("o4u:stockedit", e => {
+   const d = e.detail || {}; if (!O.db || !d.id) return;
++  if (d.kind === "capture" || d.kind === "edit") return;      // INTEGRATED COPY: the server wrote this history line in the same transaction
+   const p = byId(d.id) || {};
+   const keys = new Set([...Object.keys(d.before || {}), ...Object.keys(d.after || {})].map(C.normSize));
+@@ -2513,4 +2562,5 @@
+ function setTab(t, keepScroll){
+   if (!TABS.includes(t)) t = "capture";
++  if (t === "orders" || t === "exchanges") t = "inventory";      // INTEGRATED COPY: not connected to the shared stock yet
+   O.tab = t; document.body.dataset.tab = t; store.set("o4u_tab", t);
+   document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-current", b.dataset.tab === t ? "page" : "false"));
+@@ -2521,4 +2571,5 @@
+ document.addEventListener("click", e => {
+   const b = e.target.closest(".tab[data-tab]"); if (!b) return;
++  if (b.dataset.tab === "orders" || b.dataset.tab === "exchanges") { toast("Orders and exchanges are switched off in this build: holds are not connected to the shared stock yet."); return; }
+   if (!$("#capture").hidden || !$("#detail").hidden) return;   // a capture or product sheet covers the tabs
+   closeSheet(); setTab(b.dataset.tab);
+@@ -2798,5 +2849,5 @@
          });
        }
 -      await moveStock(ch, {kind: f.why, note: (f.note || "").trim()}, f.why !== "restock");
 +      await moveStock(ch, {kind: f.why, note: (f.note || "").trim(), expect: f.why === "recount" ? (p.stock || {}) : undefined}, f.why !== "restock");
        if (f.why === "restock") {   // a new size gets a size line, priced like the nearest smaller size (as on the product page)
          const fresh = await freshProduct(p.id);
+@@ -3925,3 +3976,3 @@
+ 
+ 
+-</body></html>+<script>document.querySelectorAll('.tab[data-tab="orders"],.tab[data-tab="exchanges"]').forEach(function(b){b.setAttribute("aria-disabled","true");b.title="Switched off in this build";b.style.opacity=".4";});</script></body></html>

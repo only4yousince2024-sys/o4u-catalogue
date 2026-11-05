@@ -2,6 +2,10 @@
 
     python spike/stockroom-local/patch_app.py        -> .data/stockroom-v44-atomic.html  (served at /stockroom?v=atomic)  and  app/moveStock-atomic.diff
 
+Part 3 (integration, 5 Nov 2026, page_integration.py): the same copy also routes Capture's quantities and the product stock editor through ONE server
+call (`stock.save` -> /api/catalogue/save -> sync_catalogue_product + apply_stock_moves recounts), shows save failures instead of dropping them, and switches
+off what is not connected yet (products waiting for Claude, other colours, the Orders and Exchanges tabs).
+
 Why the page itself has to change (the shim alone cannot do it): moveStock() READS a product, computes an absolute stock map in the browser, WRITES it with
 `products.update({stock})` and then, in a SECOND request, writes history lines. A shim sees two unrelated calls; it cannot know which stock the page based its
 number on, cannot make the two writes one transaction, and cannot tell a retry from a new action. The copy therefore sends ONE call that carries the DELTA, a request
@@ -14,6 +18,8 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import page_integration as PI      # noqa: E402
 ROOT = HERE.parents[1]
 SRC = ROOT / "stockroom" / "stockroom-v44-original.html"
 OUT = HERE / ".data" / "stockroom-v44-atomic.html"
@@ -59,6 +65,11 @@ def build() -> tuple[str, str]:
         sys.exit("The original has changed: anchors not found exactly once. Nothing written.")
     out = src[:a] + NEW_MOVE + src[b:]
     out = out.replace(CALL_OLD, CALL_NEW)
+    for old_, new_ in PI.EDITS:
+        if out.count(old_) != 1:
+            sys.exit("Part 3 anchor not found exactly once (%d): %r. Nothing written." % (out.count(old_), old_[:70]))
+        out = out.replace(old_, new_)
+    out = out.replace("</body>", PI.GREY_OUT, 1)
     diff = "".join(difflib.unified_diff(src.splitlines(True), out.splitlines(True), "stockroom-v44-original.html", "stockroom-v44-atomic.html", n=2))
     return out, diff
 

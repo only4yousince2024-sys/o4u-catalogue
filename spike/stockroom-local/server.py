@@ -96,9 +96,9 @@ def bootstrap_backend():
     """Apply the shim + the repo's real migrations (local spike database only) and create two invented staff identities."""
     with db() as c:
         if c.execute("select 1 from pg_proc where proname = 'apply_stock_moves'").fetchone() is None:
-            c.execute((BACKEND / "tests" / "supabase_shim.sql").read_text())
+            c.execute((BACKEND / "tests" / "supabase_shim.sql").read_text(encoding="utf-8"))
             for m in sorted((BACKEND / "migrations").glob("*.sql")):
-                c.execute(m.read_text())
+                c.execute(m.read_text(encoding="utf-8"))
         for uid, nm, role in ((SPIKE_STAFF, "Spike Staff", "staff"), (SPIKE_MANAGER, "Spike Manager", "manager")):
             c.execute("insert into auth.users (id, email) values (%s, %s) on conflict do nothing", (uid, nm.lower().replace(" ", ".") + "@example.invalid"))
             c.execute("insert into staff (user_id, name, role) values (%s,%s,%s) on conflict do nothing", (uid, nm, role))
@@ -221,6 +221,8 @@ class H(BaseHTTPRequestHandler):
                 return self.asset_put()
             if p == "/api/stock/moves":
                 return self.stock_moves()
+            if p == "/api/catalogue/save":
+                return self.catalogue_save()
             if p == "/api/_spike/reset":
                 return self.reset()
             if p == "/api/_spike/bulk":
@@ -267,8 +269,17 @@ class H(BaseHTTPRequestHandler):
             return self.send(404, {"error": "not found"})
         col, did = m.group(1), unquote(m.group(2))
         data = self.json_body()
+        strict = self.headers.get("X-Stock-Strict") == "1"      # sent by the integrated page copy only; the Cloud spike checks keep the old (silent-strip) behaviour
         with db() as c:
-            if col == "products" and c.execute("select 1 from products where id=%s", (did,)).fetchone():
+            owned = col == "products" and c.execute("select 1 from products where id=%s", (did,)).fetchone() is not None
+            if strict and col == "products":
+                cur = overlay_stock(c, [{"id": did, "data": {}}])[0]["data"].get("stock", {}) if owned else {}
+                asked = data.get("stock")
+                if owned and "inStock" in data and bool(data["inStock"]) != (sum(cur.values()) > 0):
+                    return self.send(409, {"code": "stock_owned", "error": "In stock is worked out from the pieces on the rack; it cannot be set by hand."})
+                if isinstance(asked, dict) and {k: v for k, v in asked.items() if v} != {k: v for k, v in cur.items() if v}:
+                    return self.send(409, {"code": "stock_owned", "error": "Stock cannot be saved with the product details. It is changed only through Capture or the stock editor."})
+            if owned:
                 data = {k: v for k, v in data.items() if k not in ("stock", "inStock", "_stockSource")}      # one writer for stock: apply_stock_moves
             if verb == "PUT":
                 old = c.execute("select data from spike_docs where collection=%s and id=%s", (col, did)).fetchone() if col == "products" else None
@@ -328,6 +339,63 @@ class H(BaseHTTPRequestHandler):
                     c.execute("insert into spike_docs (collection,id,data) values ('stockmoves', %s, %s) on conflict do nothing", (f"m-{key}-{i}", Jsonb(doc)))
                     c.execute("update spike_docs set data = data || %s, updated_at = now() where collection='products' and id=%s", (Jsonb({"updatedAt": at}), m["productId"]))
             return self.send(200, res)
+        except psycopg.Error as e:
+            msg = (e.diag.message_primary or str(e))
+            code = "stale" if "changed while counting" in msg else "short" if ("free to take off" in msg or "held for customers" in msg) else "refused" if e.sqlstate in ("P0001", "42501") else "error"
+            return self.send(409 if code != "error" else 500, {"code": code, "error": msg})
+
+    # ---- Capture / stock editor: catalogue rows + first quantities + recounts in ONE transaction, retry-safe by key
+    def catalogue_save(self):
+        """body: {key, meta, productId, product?, sizes:[{size, qty, expect, price_paise?, barcode?}]}
+        `qty` = the number the person wants on the rack, `expect` = the number they saw (0 for a size they did not see).
+        A size the product does not have yet -> created by sync_catalogue_product with qty as its first quantity (a new product is created UNPUBLISHED
+        from `product`; for an existing product its own relational values are passed back unchanged, so nothing about it is edited).
+        A size it already has -> an apply_stock_moves RECOUNT (counted = qty, expect_on_hand = expect): refused if the rack changed meanwhile.
+        Everything or nothing. The page's history copies (stockmoves) are written in the same transaction."""
+        b = self.json_body()
+        key, meta, pid = str(b.get("key") or ""), b.get("meta") or {}, str(b.get("productId") or "")
+        items, product = b.get("sizes") or [], b.get("product")
+        if len(key) < 8 or not pid or not isinstance(items, list) or not items or not all(isinstance(m, dict) and m.get("size") for m in items):
+            return self.send(400, {"code": "invalid_argument", "error": "key (8+ characters), productId and sizes are required"})
+        import hashlib
+        digest = hashlib.sha256(json.dumps([pid, product, items], sort_keys=True).encode()).hexdigest()
+        try:
+            with db() as c, c.transaction():
+                prev = c.execute("select result from idempotency where key = %s", (key + "-save",)).fetchone()      # a replay answers from the stored result, never re-reads current stock
+                if prev is not None:
+                    if prev[0] is None or prev[0].get("_digest") != digest:
+                        return self.send(409, {"code": "refused", "error": "idempotency key already used with different contents"})
+                    return self.send(200, {k: v for k, v in prev[0].items() if k != "_digest"})
+                have = {str(r[0]).upper(): (r[0], r[1]) for r in c.execute("select v.size, sl.on_hand from variants v join stock_levels sl on sl.variant_id=v.id where v.product_id=%s", (pid,)).fetchall()}
+                sizes = [m for m in items if str(m["size"]).strip().upper() not in have]
+                recounts = [{"size": have[str(m["size"]).strip().upper()][0], "expect": int(m.get("expect") or 0), "counted": int(m.get("qty") or 0)}
+                            for m in items if str(m["size"]).strip().upper() in have and int(m.get("qty") or 0) != int(m.get("expect") or 0)]
+                c.execute("select set_config('request.jwt.claims', %s, true)", (json.dumps({"sub": SPIKE_MANAGER if recounts else SPIKE_STAFF, "role": "authenticated"}),))
+                out: dict = {"product_id": pid, "created": False, "sizes_created": [], "moves": []}
+                row = c.execute("select article, name, brand, category, colour, price_paise, mrp_paise from products where id=%s", (pid,)).fetchone()
+                if sizes:
+                    if row:
+                        prod = {"id": pid, "article": row[0], "name": row[1], "brand": row[2], "category": row[3], "colour": row[4], "price_paise": row[5], "mrp_paise": row[6]}
+                    elif isinstance(product, dict):
+                        prod = {**product, "id": pid}
+                    else:
+                        return self.send(400, {"code": "invalid_argument", "error": "a new product needs its details"})
+                    prod["sizes"] = sizes
+                    r1 = c.execute("select sync_catalogue_product(%s, %s)", (key + "-sync", Jsonb(prod))).fetchone()[0]
+                    out["created"], out["sizes_created"] = bool(r1.get("created")), r1.get("sizes_created") or []
+                if recounts:
+                    lines = [{"product_id": pid, "size": m["size"], "kind": "recount", "expect_on_hand": int(m["expect"]), "counted": int(m["counted"])} for m in recounts]
+                    out["moves"] = c.execute("select apply_stock_moves(%s, %s, %s)", (key + "-mv", Jsonb(lines), f"{meta.get('kind') or 'edit'} by {str(meta.get('by') or '?')[:30]}"[:100])).fetchone()[0]["moves"]
+                at = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
+                hist = [{"size": x["size"], "change": x["qty"], "before": 0, "after": x["qty"]} for x in out["sizes_created"] if int(x["qty"]) > 0]
+                hist += [{"size": x["size"], "change": x["change"], "before": x["before"], "after": x["after"]} for x in out["moves"] if x["change"]]
+                for i, h in enumerate(hist):
+                    doc = {"productId": pid, "label": meta.get("label", ""), "article": meta.get("article", ""), "category": meta.get("category", ""), "size": h["size"], "change": h["change"],
+                           "before": h["before"], "after": h["after"], "unitP": None, "kind": meta.get("kind", ""), "orderId": "", "caseId": "", "note": meta.get("note", ""),
+                           "by": meta.get("by", ""), "at": at, "ledgerKey": key}
+                    c.execute("insert into spike_docs (collection,id,data) values ('stockmoves', %s, %s) on conflict do nothing", (f"m-{key}-{i}", Jsonb(doc)))
+                c.execute("insert into idempotency (key, action, result) values (%s, 'catalogue_save', %s)", (key + "-save", Jsonb({**out, "_digest": digest})))
+            return self.send(200, out)
         except psycopg.Error as e:
             msg = (e.diag.message_primary or str(e))
             code = "stale" if "changed while counting" in msg else "short" if ("free to take off" in msg or "held for customers" in msg) else "refused" if e.sqlstate in ("P0001", "42501") else "error"
@@ -399,6 +467,7 @@ class H(BaseHTTPRequestHandler):
 
     # ---- spike-only helpers (tests use them to load INVENTED data)
     def reset(self):
+        self.body()      # read (and ignore) any body so a keep-alive connection is not left with unread bytes
         with db() as c:
             c.execute("truncate spike_docs, spike_leases, spike_assets")
             c.execute("""truncate sale_lines, sales, payments, refunds, payment_reports, order_events, order_lines, orders, stock_events, idempotency,
@@ -427,7 +496,7 @@ def main():
     pgdev.start()
     bootstrap_backend()
     with db() as c:
-        c.execute((HERE / "schema.sql").read_text())
+        c.execute((HERE / "schema.sql").read_text(encoding="utf-8"))
     BLOBS.mkdir(parents=True, exist_ok=True)
     threading.Thread(target=listener, daemon=True).start()
     ThreadingHTTPServer.request_queue_size = 128      # the default (5) resets connections when a few dozen arrive together
